@@ -146,24 +146,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
-name = "binance_rs"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "futures-util",
- "hmac",
- "mockito",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite",
- "url",
-]
-
-[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -185,6 +167,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "bnb_rs"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "futures-util",
+ "hmac",
+ "mockito",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite",
+ "url",
 ]
 
 [[package]]
@@ -352,10 +352,10 @@ dependencies = [
 name = "crypto_exc_all"
 version = "0.1.0"
 dependencies = [
- "binance_rs",
+ "bnb_rs",
  "dotenv",
  "mockito",
- "okx_rs",
+ "okx",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -1247,8 +1247,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "okx_rs"
-version = "0.2.0"
+name = "okx"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "base64 0.21.7",

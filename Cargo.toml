@@ -18,8 +18,8 @@ okx = ["dep:okx_rs"]
 binance = ["dep:binance_rs"]
 
 [dependencies]
-binance_rs = { version = "0.1.0", path = "binance_rs", optional = true }
-okx_rs = { version = "0.2.0", path = "okx_rs", optional = true }
+binance_rs = { package = "bnb_rs", version = "0.1.0", path = "binance_rs", optional = true }
+okx_rs = { package = "okx", version = "0.2.1", path = "okx_rs", optional = true }
 dotenv = "0.15.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
