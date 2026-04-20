@@ -1,0 +1,47 @@
+[package]
+name = "okx_rs"
+version = "0.2.0"
+edition = "2021"
+authors = ["fairwic <chaoliushishangfaner@gmail.com>"]
+description = "OKX交易所API SDK"
+license = "MIT"
+repository = "https://github.com/fairwic/okx_rs"
+readme = "README.md"
+keywords = ["okx", "cryptocurrency", "trading", "api", "sdk"]
+categories = ["api-bindings", "finance"]
+
+[dependencies]
+tokio = { version = "1.37.0", features = [
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "full",
+] }
+reqwest = { version = "0.11.27", features = ["json", "rustls"] }
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = "1.0.117"
+thiserror = "1.0.57"
+log = "0.4.21"
+chrono = "0.4.35"
+base64 = "0.21.7"
+hmac = "0.12.1"
+sha2 = "0.10.8"
+futures = "0.3.30"
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
+anyhow = "1.0.79"
+url = "2.5.0"
+config = "0.14.0"
+dotenv = "0.15.0"
+once_cell = "1.19.0"
+serde_path_to_error = "0.1"
+
+[dev-dependencies]
+tokio-test = "0.4.3"
+mockito = "1.2.0"
+env_logger = "0.11.1"
+
+# 自定义lib 目录
+[lib]
+path = "src/lib.rs"
+# 当需要使用workspace时，需要注释掉workspace
+# [workspace]
