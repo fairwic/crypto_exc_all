@@ -1,0 +1,22 @@
+[package]
+name = "bitget_rs"
+version = "0.1.0"
+edition = "2024"
+description = "Bitget V2 futures SDK"
+license = "MIT"
+readme = "README.md"
+documentation = "https://docs.rs/bitget_rs"
+
+[dependencies]
+base64 = "0.22.1"
+dotenv = "0.15.0"
+hmac = "0.12.1"
+reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls", "socks"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+sha2 = "0.10.8"
+thiserror = "2.0.12"
+
+[dev-dependencies]
+mockito = "1.7.0"
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }

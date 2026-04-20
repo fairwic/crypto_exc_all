@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub enum ExchangeId {
     Okx,
     Binance,
+    Bitget,
 }
 
 impl ExchangeId {
@@ -14,6 +15,7 @@ impl ExchangeId {
         match self {
             Self::Okx => "okx",
             Self::Binance => "binance",
+            Self::Bitget => "bitget",
         }
     }
 }
@@ -31,7 +33,19 @@ impl FromStr for ExchangeId {
         match value.trim().to_ascii_lowercase().as_str() {
             "okx" => Ok(Self::Okx),
             "binance" => Ok(Self::Binance),
+            "bitget" => Ok(Self::Bitget),
             other => Err(format!("unsupported exchange: {other}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_bitget_exchange_id() {
+        assert_eq!("bitget".parse::<ExchangeId>().unwrap(), ExchangeId::Bitget);
+        assert_eq!(ExchangeId::Bitget.as_str(), "bitget");
     }
 }

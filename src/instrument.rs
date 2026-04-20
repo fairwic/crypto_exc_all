@@ -46,6 +46,7 @@ impl Instrument {
         match exchange {
             ExchangeId::Okx => self.okx_symbol(),
             ExchangeId::Binance => self.binance_symbol(),
+            ExchangeId::Bitget => self.bitget_symbol(),
         }
     }
 
@@ -64,6 +65,10 @@ impl Instrument {
     }
 
     fn binance_symbol(&self) -> String {
+        format!("{}{}", self.base, self.quote)
+    }
+
+    fn bitget_symbol(&self) -> String {
         format!("{}{}", self.base, self.quote)
     }
 }

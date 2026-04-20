@@ -9,6 +9,7 @@ static INIT_ENV: Once = Once::new();
 pub struct SdkConfig {
     pub okx: Option<OkxExchangeConfig>,
     pub binance: Option<BinanceExchangeConfig>,
+    pub bitget: Option<BitgetExchangeConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +35,17 @@ pub struct BinanceExchangeConfig {
     pub proxy_url: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BitgetExchangeConfig {
+    pub api_key: String,
+    pub api_secret: String,
+    pub passphrase: String,
+    pub api_url: Option<String>,
+    pub api_timeout_ms: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub product_type: Option<String>,
+}
+
 impl SdkConfig {
     pub fn from_env() -> Self {
         init_env();
@@ -47,6 +59,7 @@ impl SdkConfig {
         Self {
             okx: read_okx_config(&lookup),
             binance: read_binance_config(&lookup),
+            bitget: read_bitget_config(&lookup),
         }
     }
 
@@ -57,6 +70,9 @@ impl SdkConfig {
         }
         if self.binance.is_some() {
             exchanges.push(ExchangeId::Binance);
+        }
+        if self.bitget.is_some() {
+            exchanges.push(ExchangeId::Bitget);
         }
         exchanges
     }
@@ -144,6 +160,42 @@ where
     })
 }
 
+fn read_bitget_config<F>(lookup: &F) -> Option<BitgetExchangeConfig>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    Some(BitgetExchangeConfig {
+        api_key: env_any_with(lookup, &["BITGET_API_KEY", "bitget_api_key"])?,
+        api_secret: env_any_with(lookup, &["BITGET_API_SECRET", "bitget_api_secret"])?,
+        passphrase: env_any_with(
+            lookup,
+            &[
+                "BITGET_PASSPHRASE",
+                "BITGET_API_PASSPHRASE",
+                "bitget_PASSPHRASE",
+                "bitget_passphrase",
+                "bitget_api_passphrase",
+            ],
+        )?,
+        api_url: env_any_with(lookup, &["BITGET_API_URL", "bitget_api_url"]),
+        api_timeout_ms: env_any_with(lookup, &["BITGET_API_TIMEOUT_MS", "bitget_api_timeout_ms"])
+            .and_then(|value| value.parse::<u64>().ok()),
+        proxy_url: env_any_with(
+            lookup,
+            &[
+                "BITGET_PROXY_URL",
+                "bitget_proxy_url",
+                "ALL_PROXY",
+                "all_proxy",
+                "HTTPS_PROXY",
+                "https_proxy",
+            ],
+        )
+        .and_then(normalize_proxy_url),
+        product_type: env_any_with(lookup, &["BITGET_PRODUCT_TYPE", "bitget_product_type"]),
+    })
+}
+
 fn env_any_with<F>(lookup: &F, names: &[&str]) -> Option<String>
 where
     F: Fn(&str) -> Option<String>,
@@ -212,16 +264,28 @@ mod tests {
             "BINANCE_API_KEY" => Some("binance-key".to_string()),
             "BINANCE_API_SECRET" => Some("binance-secret".to_string()),
             "BINANCE_PROXY_URL" => Some("socks5://127.0.0.1:7897".to_string()),
+            "BITGET_API_KEY" => Some("bitget-key".to_string()),
+            "BITGET_API_SECRET" => Some("bitget-secret".to_string()),
+            "bitget_PASSPHRASE" => Some("bitget-pass".to_string()),
+            "BITGET_PROXY_URL" => Some("socks5://127.0.0.1:7898".to_string()),
+            "BITGET_PRODUCT_TYPE" => Some("USDT-FUTURES".to_string()),
             _ => None,
         });
 
         assert_eq!(
             config.configured_exchanges(),
-            vec![ExchangeId::Okx, ExchangeId::Binance]
+            vec![ExchangeId::Okx, ExchangeId::Binance, ExchangeId::Bitget]
         );
         assert_eq!(
             config.binance.unwrap().proxy_url.as_deref(),
             Some("socks5h://127.0.0.1:7897")
+        );
+        let bitget = config.bitget.unwrap();
+        assert_eq!(bitget.passphrase, "bitget-pass");
+        assert_eq!(bitget.product_type.as_deref(), Some("USDT-FUTURES"));
+        assert_eq!(
+            bitget.proxy_url.as_deref(),
+            Some("socks5h://127.0.0.1:7898")
         );
     }
 

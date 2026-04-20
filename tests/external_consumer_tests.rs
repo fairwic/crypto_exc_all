@@ -1,10 +1,11 @@
 use crypto_exc_all::{
-    BinanceExchangeConfig, CryptoSdk, ExchangeId, Instrument, OkxExchangeConfig, SdkConfig,
+    BinanceExchangeConfig, BitgetExchangeConfig, CryptoSdk, ExchangeId, Instrument,
+    OkxExchangeConfig, SdkConfig,
 };
 use mockito::Server;
 
 #[tokio::test]
-async fn external_consumer_uses_root_crate_for_binance_and_okx_tickers() {
+async fn external_consumer_uses_root_crate_for_binance_okx_and_bitget_tickers() {
     let mut binance_server = Server::new_async().await;
     let binance_ticker = binance_server
         .mock("GET", "/fapi/v1/ticker/24hr?symbol=BTCUSDT")
@@ -55,6 +56,33 @@ async fn external_consumer_uses_root_crate_for_binance_and_okx_tickers() {
         .create_async()
         .await;
 
+    let mut bitget_server = Server::new_async().await;
+    let bitget_ticker = bitget_server
+        .mock(
+            "GET",
+            "/api/v2/mix/market/ticker?productType=USDT-FUTURES&symbol=BTCUSDT",
+        )
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{
+                "code":"00000",
+                "msg":"success",
+                "requestTime":1695794095685,
+                "data":[{
+                    "symbol":"BTCUSDT",
+                    "lastPr":"70002.10",
+                    "askPr":"70002.30",
+                    "bidPr":"70002.00",
+                    "baseVolume":"789.1",
+                    "quoteVolume":"55240000",
+                    "ts":"1730000000002"
+                }]
+            }"#,
+        )
+        .create_async()
+        .await;
+
     let sdk = CryptoSdk::from_config(SdkConfig {
         okx: Some(OkxExchangeConfig {
             api_key: "okx-key".to_string(),
@@ -75,6 +103,15 @@ async fn external_consumer_uses_root_crate_for_binance_and_okx_tickers() {
             recv_window_ms: Some(5_000),
             proxy_url: None,
         }),
+        bitget: Some(BitgetExchangeConfig {
+            api_key: "bitget-key".to_string(),
+            api_secret: "bitget-secret".to_string(),
+            passphrase: "bitget-pass".to_string(),
+            api_url: Some(bitget_server.url()),
+            api_timeout_ms: Some(1_000),
+            proxy_url: None,
+            product_type: Some("USDT-FUTURES".to_string()),
+        }),
     })
     .unwrap();
 
@@ -91,6 +128,12 @@ async fn external_consumer_uses_root_crate_for_binance_and_okx_tickers() {
         .ticker(&btc_perp)
         .await
         .unwrap();
+    let bitget = sdk
+        .market(ExchangeId::Bitget)
+        .unwrap()
+        .ticker(&btc_perp)
+        .await
+        .unwrap();
 
     assert_eq!(binance.exchange_symbol, "BTCUSDT");
     assert_eq!(binance.last_price, "70000.10");
@@ -98,7 +141,12 @@ async fn external_consumer_uses_root_crate_for_binance_and_okx_tickers() {
     assert_eq!(okx.exchange_symbol, "BTC-USDT-SWAP");
     assert_eq!(okx.last_price, "70001.20");
     assert_eq!(okx.ask_price.as_deref(), Some("70001.30"));
+    assert_eq!(bitget.exchange_symbol, "BTCUSDT");
+    assert_eq!(bitget.last_price, "70002.10");
+    assert_eq!(bitget.bid_price.as_deref(), Some("70002.00"));
+    assert_eq!(bitget.ask_price.as_deref(), Some("70002.30"));
 
     binance_ticker.assert_async().await;
     okx_ticker.assert_async().await;
+    bitget_ticker.assert_async().await;
 }

@@ -161,6 +161,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitget_rs"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "dotenv",
+ "hmac",
+ "mockito",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -350,8 +366,9 @@ dependencies = [
 
 [[package]]
 name = "crypto_exc_all"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
+ "bitget_rs",
  "bnb_rs",
  "dotenv",
  "mockito",

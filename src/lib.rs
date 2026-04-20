@@ -11,12 +11,15 @@ pub mod raw {
     #[cfg(feature = "binance")]
     pub use binance_rs as binance;
 
+    #[cfg(feature = "bitget")]
+    pub use bitget_rs as bitget;
+
     #[cfg(feature = "okx")]
     pub use okx_rs as okx;
 }
 
 pub use account::{AccountFacade, Balance};
-pub use config::{BinanceExchangeConfig, OkxExchangeConfig, SdkConfig};
+pub use config::{BinanceExchangeConfig, BitgetExchangeConfig, OkxExchangeConfig, SdkConfig};
 pub use error::{Error, Result};
 pub use exchange::ExchangeId;
 pub use instrument::{Instrument, MarketType};

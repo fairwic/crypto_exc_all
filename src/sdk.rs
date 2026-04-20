@@ -30,6 +30,12 @@ impl CryptoSdk {
             clients.insert(client.exchange_id(), client);
         }
 
+        #[cfg(feature = "bitget")]
+        if let Some(bitget_config) = config.bitget {
+            let client = ExchangeClient::bitget(bitget_config)?;
+            clients.insert(client.exchange_id(), client);
+        }
+
         Ok(Self { clients })
     }
 
@@ -57,7 +63,7 @@ impl CryptoSdk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{BinanceExchangeConfig, OkxExchangeConfig};
+    use crate::config::{BinanceExchangeConfig, BitgetExchangeConfig, OkxExchangeConfig};
 
     #[test]
     fn builds_sdk_from_explicit_config() {
@@ -81,14 +87,24 @@ mod tests {
                 recv_window_ms: Some(5_000),
                 proxy_url: None,
             }),
+            bitget: Some(BitgetExchangeConfig {
+                api_key: "bitget-key".to_string(),
+                api_secret: "bitget-secret".to_string(),
+                passphrase: "bitget-pass".to_string(),
+                api_url: Some("http://127.0.0.1:1".to_string()),
+                api_timeout_ms: Some(1_000),
+                proxy_url: None,
+                product_type: Some("USDT-FUTURES".to_string()),
+            }),
         })
         .unwrap();
 
         assert_eq!(
             sdk.configured_exchanges(),
-            vec![ExchangeId::Binance, ExchangeId::Okx]
+            vec![ExchangeId::Binance, ExchangeId::Bitget, ExchangeId::Okx]
         );
         assert!(sdk.market(ExchangeId::Okx).is_ok());
         assert!(sdk.account(ExchangeId::Binance).is_ok());
+        assert!(sdk.market(ExchangeId::Bitget).is_ok());
     }
 }

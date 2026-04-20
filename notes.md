@@ -62,6 +62,31 @@
   - USDⓈ-M Futures listenKey REST endpoints are `POST` / `PUT` / `DELETE /fapi/v1/listenKey` and require API-key authentication without HMAC query signing.
   - Binance introduced split WebSocket routes under `/public`, `/market`, and `/private`; legacy `/ws` and `/stream` are scheduled to be removed after 2026-04-23.
 
+### Bitget V2 Futures Docs
+
+- Ticker: https://www.bitget.com/api-doc/contract/market/Get-Ticker
+- Account list: https://www.bitget.com/api-doc/classic/contract/account/Get-Account-List
+- Signature: https://www.bitget.com/api-doc/common/signature
+- Contract config: https://www.bitget.com/api-doc/contract/market/Get-All-Symbols-Contracts
+- Candles: https://www.bitget.com/api-doc/contract/market/Get-Candle-Data
+- Long/short ratio: https://www.bitget.com/api-doc/classic/common/apidata/Long-Short
+- Account long/short ratio: https://www.bitget.com/api-doc/common/apidata/Account-Long-Short
+- Taker buy/sell volume: https://www.bitget.com/api-doc/common/apidata/Taker-Buy-Sell
+- Account bills: https://www.bitget.com/api-doc/contract/account/Get-Account-Bill
+- Positions: https://www.bitget.com/api-doc/contract/position/get-all-position
+- Place order: https://www.bitget.com/api-doc/contract/trade/Place-Order
+- Order history: https://www.bitget.com/api-doc/contract/trade/Get-Orders-History
+- Wallet transfer: https://www.bitget.com/api-doc/spot/account/Wallet-Transfer
+- Withdraw: https://www.bitget.com/api-doc/spot/wallet/Wallet-Withdrawal
+- Announcements: https://www.bitget.com/api-doc/common/notice/Get-All-Notices
+- Key points:
+  - Futures ticker endpoint is `GET /api/v2/mix/market/ticker` with required `productType` and `symbol`.
+  - Futures account list endpoint is signed `GET /api/v2/mix/account/accounts` with required `productType`.
+  - Bitget V2 signed REST requests use `ACCESS-KEY`, `ACCESS-SIGN`, `ACCESS-TIMESTAMP`, `ACCESS-PASSPHRASE`, `locale`, and JSON content headers.
+  - HMAC signature payload is `timestamp + METHOD + requestPath + (?queryString) + body`, encoded with Base64.
+  - USDT perpetual product type is `USDT-FUTURES`; root adapter defaults to it for `Instrument::perp(...)`.
+- Local `.env` currently uses `bitget_PASSPHRASE`; SDK config accepts that name in addition to `BITGET_PASSPHRASE` and all-lowercase variants.
+
 ## Architecture Findings
 
 - 根 crate `crypto_exc_all` 目前只是空壳二进制，`src/main.rs` 仅打印 `Hello, world!`。
@@ -199,3 +224,73 @@
 - Added `BinanceWebsocketEvent::parse` with typed structs for the current USDⓈ-M Futures private user-data events: listen-key expiry, margin call, order update, trade lite, account update, account configuration, strategy update, grid update, conditional trigger reject, and algo update. The parser also unwraps combined-stream `{stream, data}` payloads before typed dispatch.
 - Hub route URLs that already embed `?streams=` or `listenKey=` do not send an additional JSON `SUBSCRIBE`; this matches the combined-stream mode used by the live examples and avoids early disconnects on Binance's split routes.
 - Added `examples/websocket_split_hub.rs` and verified it against Binance mainnet through the configured proxy. The example connected via split-route combined URLs and received live `btcusdt@aggTrade` payloads.
+
+## Bitget Aggregation Implementation Notes
+
+- Added `bitget_rs` as a workspace member and optional root dependency behind the `bitget` feature.
+- `bitget_rs` includes `Config`, `Credentials`, `BitgetClient`, public request dispatch, signed request dispatch, signed JSON body dispatch, Bitget API envelope parsing, and V2 wrappers.
+- Root `crypto_exc_all` now includes `ExchangeId::Bitget`, `BitgetExchangeConfig`, environment lookup for uppercase and lowercase Bitget credentials, `Instrument` symbol mapping, error conversion, and `src/adapters/bitget.rs`.
+- Root adapter maps Bitget ticker fields `lastPr`, `bidPr`, `askPr`, `quoteVolume/baseVolume`, and `ts` into unified `Ticker`.
+- Root adapter maps Bitget account fields `marginCoin`, `accountEquity/usdtEquity`, `available`, and `locked` into unified `Balance`.
+- External consumer test now uses only `crypto_exc_all` to call Binance, OKX, and Bitget tickers through mock HTTP servers.
+
+## Bitget REST Coverage Added
+
+### Public and Market Data
+
+- `GET /api/v2/public/time`
+- `GET /api/v2/public/annoucements`
+- `GET /api/v2/mix/market/ticker`
+- `GET /api/v2/mix/market/tickers`
+- `GET /api/v2/mix/market/contracts`
+- `GET /api/v2/mix/market/orderbook`
+- `GET /api/v2/mix/market/merge-depth`
+- `GET /api/v2/mix/market/candles`
+- `GET /api/v2/mix/market/history-candles`
+- `GET /api/v2/mix/market/symbol-price`
+- `GET /api/v2/mix/market/current-fund-rate`
+- `GET /api/v2/mix/market/history-fund-rate`
+- `GET /api/v2/mix/market/open-interest`
+- `GET /api/v2/mix/market/oi-limit`
+- `GET /api/v2/mix/market/query-position-lever`
+- `GET /api/v2/mix/market/long-short`
+- `GET /api/v2/mix/market/account-long-short`
+- `GET /api/v2/mix/market/taker-buy-sell`
+- `GET /api/v2/mix/market/exchange-rate`
+
+### Account, Position, and Fees
+
+- `GET /api/v2/mix/account/accounts`
+- `GET /api/v2/mix/account/account`
+- `GET /api/v2/mix/account/bill`
+- `GET /api/v2/mix/position/all-position`
+- `GET /api/v2/common/trade-rate`
+- `POST /api/v2/mix/account/set-leverage`
+- `POST /api/v2/mix/account/set-margin-mode`
+- `POST /api/v2/mix/account/set-position-mode`
+- `POST /api/v2/mix/account/set-margin`
+- `POST /api/v2/mix/account/set-asset-mode`
+
+### Trade and Orders
+
+- `POST /api/v2/mix/order/place-order`
+- `POST /api/v2/mix/order/batch-place-order`
+- `POST /api/v2/mix/order/cancel-order`
+- `POST /api/v2/mix/order/cancel-batch-orders`
+- `POST /api/v2/mix/order/cancel-all-orders`
+- `POST /api/v2/mix/order/modify-order`
+- `POST /api/v2/mix/order/close-positions`
+- `GET /api/v2/mix/order/detail`
+- `GET /api/v2/mix/order/orders-pending`
+- `GET /api/v2/mix/order/orders-history`
+- `GET /api/v2/mix/order/fills`
+
+### Spot Wallet and Asset
+
+- `GET /api/v2/spot/public/coins`
+- `GET /api/v2/spot/wallet/deposit-address`
+- `GET /api/v2/spot/wallet/deposit-records`
+- `GET /api/v2/spot/wallet/withdrawal-records`
+- `GET /api/v2/spot/wallet/transfer-coin-info`
+- `POST /api/v2/spot/wallet/transfer`
+- `POST /api/v2/spot/wallet/withdrawal`

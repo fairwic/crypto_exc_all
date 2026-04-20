@@ -81,4 +81,26 @@ impl Error {
             },
         }
     }
+
+    #[cfg(feature = "bitget")]
+    pub(crate) fn from_bitget(error: bitget_rs::Error) -> Self {
+        match error {
+            bitget_rs::Error::BitgetApiError {
+                status,
+                code,
+                message,
+            } => Self::Api {
+                exchange: ExchangeId::Bitget,
+                status,
+                code,
+                message,
+            },
+            bitget_rs::Error::ConfigError(message) => Self::Config(message),
+            bitget_rs::Error::MissingCredentials => Self::MissingCredentials(ExchangeId::Bitget),
+            other => Self::Adapter {
+                exchange: ExchangeId::Bitget,
+                message: other.to_string(),
+            },
+        }
+    }
 }
