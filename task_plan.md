@@ -31,6 +31,68 @@
 - [x] Phase 23: Add Bitget WebSocket private login replay and ack gate before subscription replay
 - [x] Phase 24: Add Bitget WebSocket runtime subscribe/unsubscribe command path
 - [x] Phase 25: Count connected-session failures against Bitget WebSocket max reconnect attempts
+- [ ] Phase 26: Refactor Bitget WebSocket architecture to follow OKX proven manager/client layering
+- [ ] Phase 27: Add Bitget WebSocket URL fallback pool and exponential backoff
+- [ ] Phase 28: Add Bitget WebSocket root unified event stream facade only after bitget_rs is stable
+- [ ] Phase 29: Prepare bitget_rs as independently publishable crate and switch root dependency to released version
+
+## Iteration Update Protocol
+
+每次后续迭代必须更新本文件，至少包含：
+
+1. 本次完成内容：在 `Phases` 勾选完成项，必要时新增下一阶段。
+2. 剩余工作：更新 `Remaining Work Backlog` 的状态，不允许只在对话中说明。
+3. 架构偏差：如果实现偏离 OKX/Binance 已验证模式，必须在 `Architecture Guardrails` 记录原因和回滚/纠偏路径。
+4. 验证证据：在 `Status` 写明实际跑过的命令和结果；真实下单、WebSocket 实盘验证必须单独注明是否执行。
+5. 发布状态：涉及独立 crate 时，记录是否已发布 crates.io、根 crate 是否仍使用 path 依赖。
+
+## Architecture Guardrails
+
+- `bitget_rs` 是最终独立 SDK crate；`crypto_exc_all` 只应通过 facade/adapter 引入并统一输出，不应把 Bitget 原生协议逻辑散落到根 crate。
+- 根 crate 当前为了 workspace 开发使用 `bitget_rs = { version = "0.1.0", path = "bitget_rs" }`。发布后应切换为仅依赖已发布版本，保留 workspace path 只作为本仓库开发便利。
+- Bitget WebSocket 后续不再继续堆叠临时 manager 行为；需要参考 OKX 已验证的 `AutoReconnectWebsocketClient + OkxWebsocketManager` 分层：
+  - 底层 client 负责 URL fallback、连接、登录、心跳、消息超时、自动重连和 ws_sender。
+  - 上层 manager 负责 public/private/business 或 Bitget public/private 连接编排、订阅 registry、运行中 subscribe/unsubscribe、状态查询和消息转发。
+  - 订阅状态使用 key 化 registry，记录 active/pending，重连后统一重放。
+  - 私有连接必须先 login ack 成功，再订阅 private channel。
+  - 连接成功但会话失败也必须计入重连失败，避免无限循环。
+- 当前 Bitget WebSocket 实现是可运行的轻量实现，但已经暴露出多次稳定性补丁；后续优先做架构纠偏，而不是继续局部补洞。
+
+## Remaining Work Backlog
+
+### P0 - Bitget WebSocket 架构纠偏
+
+- [ ] 对齐 OKX `AutoReconnectWebsocketClient` 的底层 client：抽出 Bitget 独立 auto reconnect client，避免所有状态堆在 `BitgetWebsocketManager` 一个 loop 中。
+- [ ] 对齐 OKX `OkxWebsocketManager` 的 manager 分层：public/private 连接分离，统一 message forwarder，订阅 registry 独立于 socket loop。
+- [ ] 增加 URL fallback pool：默认 Bitget V2 public/private URL + 环境变量 `BITGET_WS_FALLBACKS`，失败时轮换候选 URL。
+- [ ] 增加指数退避：`reconnect_interval`、`backoff_factor`、`max_backoff`，避免失败时固定频率重连。
+- [ ] 增加 message timeout 语义：用配置表达“多久没有入站消息视为 stale”，不要硬编码为 `ping_interval * 3`。
+- [ ] 增加连接状态细分：连接中、登录中、已认证、已订阅、重连中、已停止，便于外部诊断。
+- [ ] 增加 WebSocket 实盘 smoke example：连接 public ticker/orderbook 并等待一条消息；private smoke 只登录并订阅 account/orders，不下单。
+
+### P1 - Bitget 原生 SDK 完整度
+
+- [ ] 补 Bitget private WebSocket 频道：ADL、trigger order、plan/strategy order、history position（以官方当前文档为准）。
+- [ ] 补 Bitget REST 计划单/条件单/止盈止损相关接口。
+- [ ] 补 Bitget REST 历史持仓、账户资产模式更细字段、手续费等级/费率映射 DTO。
+- [ ] 为 bitget_rs 增加 crate-level 文档和公开 examples，保证作为独立 SDK 使用时不依赖 `crypto_exc_all`。
+
+### P1 - 独立 crate 发布与根 crate 依赖
+
+- [ ] 发布或确认 `bitget_rs` crates.io 名称可用；如不可用，确定替代 crate 名称。
+- [ ] `bitget_rs` 发布后，根 `crypto_exc_all` 的 `Cargo.toml` 依赖切换为版本依赖，workspace 开发再决定是否保留 path override。
+- [ ] 根 crate 只保留统一接口、adapter 和 `raw::bitget` re-export；不在根 crate 新增 Bitget 协议细节。
+
+### P2 - 根 crate 统一事件流
+
+- [ ] 等 `bitget_rs` WebSocket 架构稳定后，再设计 `crypto_exc_all` 的统一 event stream facade。
+- [ ] 统一 event stream 先覆盖 ticker/orderbook/trades/orders/account/positions/fills，不强行统一交易所特有字段，保留 `raw`。
+- [ ] 设计统一错误、重连、订阅生命周期事件，避免策略层直接依赖各交易所 socket manager。
+
+### P2 - 后续交易所
+
+- [ ] Bybit：按 `bitget_rs` 独立 crate 经验新增独立 SDK crate，再接入根 facade。
+- [ ] Hyperliquid：复用已调研的官方 hypersdk 方向，先 market-data，再 private/trade。
 
 ## Key Questions
 
@@ -38,6 +100,8 @@
 2. README 或代码中标记的未完成功能有哪些，哪个最适合作为第一项交付？
 3. Binance USDⓈ-M Futures 官方当前推荐的 SDK 或 REST/WebSocket 接入方式是什么？
 4. 如何在不泄露 `.env` 密钥的前提下复用现有配置完成可验证实现？
+5. Bitget WebSocket 后续如何最大化复用 OKX 已验证的自动重连架构，而不是继续局部自造？
+6. `bitget_rs` 独立发布后，根 crate 如何从 path dependency 平滑切到版本 dependency？
 
 ## Decisions Made
 
@@ -65,6 +129,8 @@
 - 根 crate 第十一阶段扩展账户能力发现和 symbol 保证金模式设置：`AccountFacade::capabilities()` 暴露 `set_symbol_margin_mode` 与 `order_level_margin_mode`；`set_symbol_margin_mode` 对齐 Binance `POST /fapi/v1/marginType` 和 Bitget `/api/v2/mix/account/set-margin-mode`，OKX 明确返回 `Unsupported`，避免把 OKX 下单 `tdMode`/杠杆 `mgnMode` 伪装成持久 symbol 配置。
 - 根 crate 第十二阶段扩展策略层保证金模式入口：`ensure_order_margin_mode` 对 Binance/Bitget 复用 symbol 保证金模式真实切换，对 OKX 返回 order-level 应用结果，不发送不存在的配置请求；统一输出 `MarginModeApplyMethod::SymbolConfiguration/OrderLevel`。
 - 根 crate 第十三阶段扩展策略层下单前预配置入口：`prepare_order_settings` 聚合 position mode、margin mode、leverage 三类可选配置，按持仓模式、保证金模式、杠杆顺序执行，并复用已有三家 adapter 能力，避免策略层散落交易所分支。
+- Bitget WebSocket 纠偏决定：当前轻量 manager 已经多次暴露稳定性问题，后续不继续在单 loop 上叠补丁；改为参考 OKX 已验证的 `AutoReconnectWebsocketClient + Manager` 分层，实现 Bitget 自己包内的稳定 socket 架构。
+- Bitget 独立包边界决定：`bitget_rs` 自己承担 REST/WebSocket 原生能力、examples、文档和发布；`crypto_exc_all` 只引入 `bitget_rs` 并提供统一 facade/adapter，不复制 Bitget socket 业务逻辑。
 
 ## Errors Encountered
 
@@ -80,4 +146,4 @@
 
 **Currently complete for Bitget REST aggregation parity plus root market/account-setting/trade/position/order-query/fills/derivatives-metrics/sentiment-stats facade and Bitget WebSocket base client** - Binance market/account/trade REST wrappers, the live post-only order harness, Wallet/SAPI asset wrappers, announcement wrapper, and WebSocket listenKey/URL/session/reconnect/split-route/health helpers are implemented and verified locally. Private user-data typed parsers now cover the current USDⓈ-M Futures event set documented by Binance. A real Binance Futures order was created on DOGEUSDT and immediately canceled with zero executed quantity. Bitget now has an independent `bitget_rs` crate plus root facade adapter for market ticker, orderbook, candles, funding rate, funding rate history, mark price, open interest, long-short ratio, taker buy-sell volume, account balances, set leverage, set position mode, set symbol margin mode with capability discovery, ensure order margin mode, prepare order settings, positions, basic order placement, cancellation, order detail, open orders, order history, and fills. `bitget_rs` now covers the major OKX/Binance REST domains: market data, account/position, order/trade, wallet/asset, announcements, and common trade-rate, and includes Bitget V2 WebSocket public/private URL config, login signing, ping/pong, subscribe/unsubscribe, place/cancel trade request helpers, trade ack parsing, typed base event parsing, ticker/orders/account/positions/books/trade/candles/fill typed DTOs, SOCKS5/SOCKS5h connection support, reconnect metrics, runtime subscribe/unsubscribe command path, timed ping, private login replay with login ack gate before subscription replay, inbound stall timeout reconnect, connected-session failure attempt limiting, and subscription replay.
 
-Next remaining parity areas after Bitget REST/WebSocket base aggregation: optional root unified event stream facade, additional exchange-specific Bitget private channels such as ADL/trigger-order/history-position, Bybit, Hyperliquid, and exchange-specific public endpoints that do not have a direct USDⓈ-M Futures REST equivalent.
+Current correction focus: Bitget WebSocket must be refactored to follow OKX's validated auto-reconnect client and manager split before adding more private channels or a root unified event stream. The remaining work is tracked in `Remaining Work Backlog`; every future iteration must update this file before final delivery.

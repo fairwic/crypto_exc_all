@@ -393,3 +393,16 @@
 - `BitgetWebsocketManager::with_login_credentials` 用于 private WebSocket：每次建立连接都会用当前时间重新生成 login payload，并等待 login ack 成功后再订阅，避免断线恢复后私有频道只重放订阅、不重新认证，或认证尚未完成就抢发订阅。
 - `BitgetWebsocketManager::subscribe` / `unsubscribe` 支持连接运行中动态调整订阅：命令会发送到当前 socket，同时更新 manager 和重连循环里的订阅集合；取消订阅后的频道不会在下一次重连时被重放。
 - WebSocket reconnect 计数现在覆盖“连接已建立但会话失败”的路径，例如 private login ack 返回错误、入站超时或连接内发送失败；这些场景会消耗 `max_reconnect_attempts`，避免登录失败时无限重试。
+
+## Bitget WebSocket Architecture Correction
+
+- 用户反馈：Bitget socket 已经出现多次稳定性问题，不应继续在轻量 loop 上叠补丁；应参考 OKX 已验证通过的 WebSocket 架构。
+- 当前根因判断：Bitget WebSocket 初始实现为了快速补齐独立 `bitget_rs` crate，采用单文件轻量 manager；它能覆盖 payload、typed parser、基础重连和订阅重放，但状态边界不如 OKX 清晰，导致后续陆续补登录 gate、运行时订阅、入站超时、失败计数等补丁。
+- OKX 可复用模式：
+  - `AutoReconnectWebsocketClient` 独立负责 URL pool、连接生命周期、登录、心跳、消息超时、ws_sender、message_sender、订阅重放。
+  - `OkxWebsocketManager` 独立负责 public/private/business 多连接编排、订阅 registry、运行中 subscribe/unsubscribe、状态查询和消息转发。
+  - 订阅记录和 socket 发送器分离，运行中订阅、重连重放、停止逻辑更清晰。
+- Bitget 后续决定：
+  - 在 `bitget_rs` 内部重构出 Bitget 版 auto reconnect client 和 manager；不要把 Bitget socket 逻辑搬到 `crypto_exc_all`。
+  - 根 crate 后续只通过 `bitget_rs` 暴露 `raw::bitget` 和统一 facade；`crypto_exc_all` 不直接实现 Bitget WebSocket 协议。
+  - 在该架构纠偏完成前，暂停继续追加更多 Bitget private channel，避免在错误结构上扩大复杂度。
