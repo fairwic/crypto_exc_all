@@ -671,6 +671,126 @@ async fn websocket_manager_reconnects_and_replays_subscriptions() {
 }
 
 #[tokio::test]
+async fn websocket_manager_rotates_to_fallback_url_after_primary_failure() {
+    let primary_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let primary_url = format!("ws://{}", primary_listener.local_addr().unwrap());
+    drop(primary_listener);
+
+    let fallback_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let fallback_url = format!("ws://{}", fallback_listener.local_addr().unwrap());
+    let (subscription_tx, mut subscription_rx) = mpsc::channel::<serde_json::Value>(1);
+
+    tokio::spawn(async move {
+        let (stream, _) = fallback_listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        let subscribe = socket.next().await.unwrap().unwrap();
+        let Message::Text(subscribe) = subscribe else {
+            panic!("expected fallback subscription replay");
+        };
+        subscription_tx
+            .send(serde_json::from_str(&subscribe).unwrap())
+            .await
+            .unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},"data":[{"lastPr":"72000.1"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        while let Some(Ok(message)) = socket.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        primary_url,
+        ReconnectConfig::new(Duration::from_millis(10), 1)
+            .with_ping_interval(Duration::from_secs(30)),
+    )
+    .with_fallback_urls([fallback_url]);
+    manager.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"),
+    );
+
+    let mut events = manager.start().await.unwrap();
+    let subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(subscribe["op"], "subscribe");
+    match timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap()
+    {
+        BitgetWebsocketEvent::Ticker { data, .. } => {
+            assert_eq!(data[0].last_price.as_deref(), Some("72000.1"));
+        }
+        other => panic!("expected ticker event from fallback URL, got {other:?}"),
+    }
+    assert_eq!(manager.connection_state(), ConnectionState::Connected);
+    assert_eq!(manager.metrics().connection_attempts, 2);
+    assert!(manager.metrics().reconnects >= 1);
+
+    manager.stop().await;
+}
+
+#[tokio::test]
+async fn websocket_manager_uses_configured_message_timeout_for_stale_detection() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        let subscribe = socket.next().await.unwrap().unwrap();
+        let Message::Text(_) = subscribe else {
+            panic!("expected subscription replay");
+        };
+        tokio::time::sleep(Duration::from_millis(45)).await;
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},"data":[{"lastPr":"73000.1"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        while let Some(Ok(message)) = socket.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 0)
+            .with_ping_interval(Duration::from_millis(10))
+            .with_message_timeout(Duration::from_millis(80)),
+    );
+    manager.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"),
+    );
+
+    let mut events = manager.start().await.unwrap();
+    match timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap()
+    {
+        BitgetWebsocketEvent::Ticker { data, .. } => {
+            assert_eq!(data[0].last_price.as_deref(), Some("73000.1"));
+        }
+        other => panic!("expected ticker before configured message timeout, got {other:?}"),
+    }
+
+    manager.stop().await;
+}
+
+#[tokio::test]
 async fn websocket_manager_subscribes_while_running() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}", listener.local_addr().unwrap());
@@ -854,7 +974,8 @@ async fn websocket_manager_reconnects_when_inbound_messages_stall() {
     let mut manager = BitgetWebsocketManager::new(
         url,
         ReconnectConfig::new(Duration::from_millis(10), 2)
-            .with_ping_interval(Duration::from_millis(20)),
+            .with_ping_interval(Duration::from_millis(20))
+            .with_message_timeout(Duration::from_millis(60)),
     );
     manager.add_subscription(
         BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"),

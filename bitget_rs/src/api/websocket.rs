@@ -5,6 +5,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::de::{DeserializeOwned, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::env;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -791,11 +792,14 @@ pub struct BitgetWebsocketSession {
     rx: mpsc::Receiver<BitgetWebsocketEvent>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReconnectConfig {
     pub reconnect_interval: Duration,
     pub max_reconnect_attempts: u32,
     pub ping_interval: Duration,
+    pub message_timeout: Duration,
+    pub backoff_factor: f64,
+    pub max_backoff: Duration,
 }
 
 impl ReconnectConfig {
@@ -804,11 +808,29 @@ impl ReconnectConfig {
             reconnect_interval,
             max_reconnect_attempts,
             ping_interval: Duration::from_secs(30),
+            message_timeout: Duration::from_secs(90),
+            backoff_factor: 1.5,
+            max_backoff: Duration::from_secs(60),
         }
     }
 
     pub fn with_ping_interval(mut self, value: Duration) -> Self {
         self.ping_interval = value;
+        self
+    }
+
+    pub fn with_message_timeout(mut self, value: Duration) -> Self {
+        self.message_timeout = value;
+        self
+    }
+
+    pub fn with_backoff_factor(mut self, value: f64) -> Self {
+        self.backoff_factor = value;
+        self
+    }
+
+    pub fn with_max_backoff(mut self, value: Duration) -> Self {
+        self.max_backoff = value;
         self
     }
 }
@@ -839,7 +861,7 @@ pub struct WebsocketMetrics {
 }
 
 pub struct BitgetWebsocketManager {
-    url: String,
+    urls: Vec<String>,
     config: ReconnectConfig,
     subscriptions: Vec<BitgetWebsocketChannel>,
     login_credentials: Option<Credentials>,
@@ -861,7 +883,7 @@ impl BitgetWebsocketManager {
         let (state_tx, _) = watch::channel(ConnectionState::Disconnected);
         let (metrics_tx, _) = watch::channel(WebsocketMetrics::default());
         Self {
-            url: url.into(),
+            urls: build_websocket_url_pool(url.into()),
             config,
             subscriptions: Vec::new(),
             login_credentials: None,
@@ -877,6 +899,22 @@ impl BitgetWebsocketManager {
     pub fn with_proxy_url(mut self, proxy_url: impl Into<String>) -> Self {
         self.proxy_url = Some(proxy_url.into());
         self
+    }
+
+    pub fn with_fallback_urls<I, S>(mut self, urls: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        for url in urls {
+            let url = url.into();
+            push_websocket_url_candidate(&mut self.urls, &url);
+        }
+        self
+    }
+
+    pub fn urls(&self) -> &[String] {
+        &self.urls
     }
 
     pub fn with_login_credentials(mut self, credentials: Credentials) -> Self {
@@ -957,7 +995,7 @@ impl BitgetWebsocketManager {
         self.stop_tx = Some(stop_tx);
 
         let context = ReconnectLoopContext {
-            url: self.url.clone(),
+            urls: self.urls.clone(),
             config: self.config.clone(),
             subscriptions: self.subscriptions.clone(),
             login_credentials: self.login_credentials.clone(),
@@ -998,7 +1036,7 @@ impl BitgetWebsocketManager {
 }
 
 struct ReconnectLoopContext {
-    url: String,
+    urls: Vec<String>,
     config: ReconnectConfig,
     subscriptions: Vec<BitgetWebsocketChannel>,
     login_credentials: Option<Credentials>,
@@ -1012,6 +1050,11 @@ struct ReconnectLoopContext {
 
 async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
     let mut attempts = 0;
+    let mut current_url_idx = 0;
+    let mut backoff_delay = context
+        .config
+        .reconnect_interval
+        .min(context.config.max_backoff);
 
     while !*context.stop_rx.borrow() && attempts <= context.config.max_reconnect_attempts {
         context.state_tx.send_replace(if attempts == 0 {
@@ -1020,7 +1063,13 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
             ConnectionState::Reconnecting
         });
 
-        match connect_websocket(&context.url, context.proxy_url.as_deref()).await {
+        let url = context
+            .urls
+            .get(current_url_idx)
+            .cloned()
+            .unwrap_or_else(|| context.urls[0].clone());
+
+        match connect_websocket(&url, context.proxy_url.as_deref()).await {
             Ok((stream, _)) => {
                 context.state_tx.send_replace(ConnectionState::Connected);
                 update_metrics(&context.metrics_tx, |metrics| {
@@ -1041,6 +1090,7 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
                         stop_rx: &mut context.stop_rx,
                         metrics_tx: &context.metrics_tx,
                         ping_interval: context.config.ping_interval,
+                        message_timeout: context.config.message_timeout,
                     },
                 )
                 .await;
@@ -1048,6 +1098,7 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
                     break;
                 }
                 attempts += 1;
+                current_url_idx = next_websocket_url_index(&context.urls, current_url_idx);
             }
             Err(err) => {
                 let message = err.to_string();
@@ -1056,6 +1107,7 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
                     metrics.connection_attempts += 1;
                 });
                 attempts += 1;
+                current_url_idx = next_websocket_url_index(&context.urls, current_url_idx);
             }
         }
 
@@ -1064,9 +1116,14 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
         }
 
         tokio::select! {
-            _ = sleep(context.config.reconnect_interval) => {}
+            _ = sleep(backoff_delay) => {}
             _ = context.stop_rx.changed() => {}
         }
+        backoff_delay = next_backoff_delay(
+            backoff_delay,
+            context.config.backoff_factor,
+            context.config.max_backoff,
+        );
     }
 
     context.state_tx.send_replace(if *context.stop_rx.borrow() {
@@ -1084,6 +1141,7 @@ struct ConnectedSocketContext<'a> {
     stop_rx: &'a mut watch::Receiver<bool>,
     metrics_tx: &'a watch::Sender<WebsocketMetrics>,
     ping_interval: Duration,
+    message_timeout: Duration,
 }
 
 async fn run_connected_socket<S>(
@@ -1174,10 +1232,13 @@ where
 
     let mut ping_timer = interval(context.ping_interval);
     ping_timer.reset();
-    let stale_after = context
-        .ping_interval
-        .checked_mul(3)
-        .unwrap_or(Duration::MAX);
+    let stale_after = context.message_timeout;
+    let stale_check_interval = std::cmp::max(
+        Duration::from_millis(1),
+        std::cmp::min(context.ping_interval, context.message_timeout),
+    );
+    let mut stale_timer = interval(stale_check_interval);
+    stale_timer.reset();
     let mut last_inbound_at = Instant::now();
 
     loop {
@@ -1220,15 +1281,17 @@ where
                 }
             }
             _ = ping_timer.tick() => {
+                if write.send(Message::Text("ping".into())).await.is_err() {
+                    return true;
+                }
+            }
+            _ = stale_timer.tick() => {
                 if last_inbound_at.elapsed() >= stale_after {
                     update_metrics(context.metrics_tx, |metrics| {
                         metrics.last_error = Some(format!(
                             "Bitget WebSocket 入站消息超时: {stale_after:?}"
                         ));
                     });
-                    return true;
-                }
-                if write.send(Message::Text("ping".into())).await.is_err() {
                     return true;
                 }
             }
@@ -1483,6 +1546,66 @@ where
         "args": [arg],
     })
     .to_string()
+}
+
+fn build_websocket_url_pool(primary: String) -> Vec<String> {
+    let mut urls = Vec::new();
+    push_websocket_url_candidate(&mut urls, &primary);
+
+    if let Ok(extra_urls) = env::var("BITGET_WS_FALLBACKS") {
+        for item in extra_urls.split(',') {
+            push_websocket_url_candidate(&mut urls, item);
+        }
+    }
+
+    if urls.is_empty() {
+        urls.push(primary);
+    }
+
+    urls
+}
+
+fn push_websocket_url_candidate(urls: &mut Vec<String>, candidate: &str) {
+    let trimmed = candidate.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    let normalized = match url::Url::parse(trimmed) {
+        Ok(url) if matches!(url.scheme(), "ws" | "wss") && url.host_str().is_some() => {
+            url.to_string()
+        }
+        Ok(_) => return,
+        Err(_) => trimmed.to_string(),
+    };
+
+    if !urls.contains(&normalized) {
+        urls.push(normalized);
+    }
+}
+
+fn next_websocket_url_index(urls: &[String], current_url_idx: usize) -> usize {
+    if urls.len() <= 1 {
+        current_url_idx
+    } else {
+        (current_url_idx + 1) % urls.len()
+    }
+}
+
+fn next_backoff_delay(current: Duration, backoff_factor: f64, max_backoff: Duration) -> Duration {
+    if current >= max_backoff {
+        return max_backoff;
+    }
+    if !backoff_factor.is_finite() || backoff_factor <= 1.0 {
+        return current.min(max_backoff);
+    }
+
+    let scaled = current.as_secs_f64() * backoff_factor;
+    if !scaled.is_finite() {
+        return max_backoff;
+    }
+
+    Duration::from_secs_f64(scaled.min(max_backoff.as_secs_f64()))
 }
 
 async fn connect_websocket(

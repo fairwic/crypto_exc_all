@@ -33,7 +33,7 @@
 - [x] Phase 25: Count connected-session failures against Bitget WebSocket max reconnect attempts
 - [x] Phase 26: Lock native SDK parameter pass-through boundary with Bitget regression tests
 - [ ] Phase 27: Refactor Bitget WebSocket architecture to follow OKX proven manager/client layering
-- [ ] Phase 28: Add Bitget WebSocket URL fallback pool and exponential backoff
+- [x] Phase 28: Add Bitget WebSocket URL fallback pool, exponential backoff config, and message timeout
 - [ ] Phase 29: Add Bitget WebSocket root unified event stream facade only after bitget_rs is stable
 - [ ] Phase 30: Prepare bitget_rs as independently publishable crate and switch root dependency to released version
 
@@ -68,9 +68,9 @@
 
 - [ ] 对齐 OKX `AutoReconnectWebsocketClient` 的底层 client：抽出 Bitget 独立 auto reconnect client，避免所有状态堆在 `BitgetWebsocketManager` 一个 loop 中。
 - [ ] 对齐 OKX `OkxWebsocketManager` 的 manager 分层：public/private 连接分离，统一 message forwarder，订阅 registry 独立于 socket loop。
-- [ ] 增加 URL fallback pool：默认 Bitget V2 public/private URL + 环境变量 `BITGET_WS_FALLBACKS`，失败时轮换候选 URL。
-- [ ] 增加指数退避：`reconnect_interval`、`backoff_factor`、`max_backoff`，避免失败时固定频率重连。
-- [ ] 增加 message timeout 语义：用配置表达“多久没有入站消息视为 stale”，不要硬编码为 `ping_interval * 3`。
+- [x] 增加 URL fallback pool：默认主 URL + 环境变量 `BITGET_WS_FALLBACKS` + `with_fallback_urls`，失败时轮换候选 URL。
+- [x] 增加指数退避配置：`reconnect_interval`、`backoff_factor`、`max_backoff`，避免失败时固定频率重连。
+- [x] 增加 message timeout 语义：用 `message_timeout` 表达“多久没有入站消息视为 stale”，不再硬编码为 `ping_interval * 3`。
 - [ ] 增加连接状态细分：连接中、登录中、已认证、已订阅、重连中、已停止，便于外部诊断。
 - [ ] 增加 WebSocket 实盘 smoke example：连接 public ticker/orderbook 并等待一条消息；private smoke 只登录并订阅 account/orders，不下单。
 
@@ -147,6 +147,8 @@
 - Bitget live read-only account example initially failed locally before request dispatch because `.env` used `bitget_PASSPHRASE` while the SDK accepted only `BITGET_PASSPHRASE` / lowercase variants. Resolution: add this existing mixed-case key name to both `bitget_rs::Credentials` and root `BitgetExchangeConfig` env lookup, with tests.
 - After the env-name fix, Bitget live read-only V2 account request reached the exchange but Bitget returned code `40012` (`apikey/password is incorrect`). A separate `curl + openssl` reproduction returned the same `40012` for multiple V2 signed endpoints, while the same key/passphrase authenticated against UTA V3 and returned `40084` (`You are in Classic Account mode, and the Unified Account API is not supported at this time`). This points to a Bitget key/account-mode compatibility issue for V2 signed APIs, not a local signing/query/body implementation failure.
 - After replacing the Bitget API key/passphrase and adding the current egress IP to the whitelist, Bitget V2 signed account reads succeeded. A real `post_only` BTCUSDT futures order attempt reached the trade endpoint but was rejected with `40762` (`The order amount exceeds the balance`) because USDT-Futures available balance and spot USDT available balance are both `0`.
+- This iteration initially used an invalid `cargo test` invocation with two test filters. Resolution: rerun with the shared `websocket_manager_` filter.
+- The first fallback/message-timeout TDD run exposed two test-shape issues after the implementation compiled: local mock WebSocket servers closed immediately after sending one message, racing connection-state assertions, and the old stall test implicitly depended on the former `ping_interval * 3` timeout. Resolution: keep mock sockets open until manager stop and make the stall timeout explicit with `with_message_timeout`.
 
 ## Status
 
@@ -154,4 +156,4 @@
 
 Current correction focus: Bitget WebSocket must be refactored to follow OKX's validated auto-reconnect client and manager split before adding more private channels or a root unified event stream. Native SDK packages must remain independently usable and parameter-native; compatibility mapping belongs in `crypto_exc_all`. The remaining work is tracked in `Remaining Work Backlog`; every future iteration must update this file before final delivery.
 
-Latest iteration: locked the native SDK parameter boundary with `native_bitget_sdk_preserves_exchange_parameter_values`, confirming `bitget_rs` preserves raw `marginMode` values and does not apply root compatibility mapping. Verification run: `cargo fmt && cargo clippy -p bitget_rs --all-targets && cargo test -p bitget_rs native_bitget_sdk_preserves_exchange_parameter_values -- --nocapture && cargo test --workspace` completed successfully. No live order or live WebSocket smoke test was executed in this iteration.
+Latest iteration: added Bitget WebSocket URL fallback pool, `BITGET_WS_FALLBACKS` support, `with_fallback_urls`, configurable `message_timeout`, and reconnect backoff config in `bitget_rs`. TDD evidence: the new fallback and configured-message-timeout tests first failed because the APIs did not exist, then `cargo test -p bitget_rs websocket_manager_ -- --nocapture` passed 9 WebSocket manager tests. Full verification run: `cargo fmt && cargo clippy -p bitget_rs --all-targets && cargo test -p bitget_rs websocket_manager_ -- --nocapture && cargo test --workspace` completed successfully. Existing OKX warnings remain unrelated to this iteration. No live order or live WebSocket smoke test was executed in this iteration.

@@ -406,6 +406,11 @@
   - 在 `bitget_rs` 内部重构出 Bitget 版 auto reconnect client 和 manager；不要把 Bitget socket 逻辑搬到 `crypto_exc_all`。
   - 根 crate 后续只通过 `bitget_rs` 暴露 `raw::bitget` 和统一 facade；`crypto_exc_all` 不直接实现 Bitget WebSocket 协议。
   - 在该架构纠偏完成前，暂停继续追加更多 Bitget private channel，避免在错误结构上扩大复杂度。
+- 本轮先补 OKX 底层 client 已验证的稳定性基础，而不是继续追加频道：
+  - `BitgetWebsocketManager` 现在维护 URL 候选池，主 URL 失败后会轮换到 `BITGET_WS_FALLBACKS` 或 `with_fallback_urls` 提供的备用 URL。
+  - `ReconnectConfig` 新增 `message_timeout`、`backoff_factor`、`max_backoff`，stale 入站检测不再硬编码为 `ping_interval * 3`。
+  - 新增回归测试覆盖主 URL 失败后 fallback 连接并重放订阅，以及延迟入站消息在配置的 `message_timeout` 内不被误判 stale。
+  - 这仍不是完整的 OKX 式 manager/client 拆分；下一步要把当前 loop 内的连接生命周期、订阅 registry、消息转发和 public/private 编排继续拆清楚。
 
 ## Native SDK Parameter Boundary
 
