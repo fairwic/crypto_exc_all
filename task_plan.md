@@ -66,7 +66,7 @@
 
 ### P0 - Bitget WebSocket 架构纠偏
 
-- [ ] 对齐 OKX `AutoReconnectWebsocketClient` 的底层 client：抽出 Bitget 独立 auto reconnect client，避免所有状态堆在 `BitgetWebsocketManager` 一个 loop 中。
+- [x] 对齐 OKX `AutoReconnectWebsocketClient` 的底层 client：抽出 Bitget 独立 auto reconnect client，避免所有状态堆在 `BitgetWebsocketManager` 一个 loop 中。
 - [ ] 对齐 OKX `OkxWebsocketManager` 的 manager 分层：public/private 连接分离，统一 message forwarder，订阅 registry 独立于 socket loop。
 - [x] 增加 URL fallback pool：默认主 URL + 环境变量 `BITGET_WS_FALLBACKS` + `with_fallback_urls`，失败时轮换候选 URL。
 - [x] 增加指数退避配置：`reconnect_interval`、`backoff_factor`、`max_backoff`，避免失败时固定频率重连。
@@ -156,4 +156,4 @@
 
 Current correction focus: Bitget WebSocket must be refactored to follow OKX's validated auto-reconnect client and manager split before adding more private channels or a root unified event stream. Native SDK packages must remain independently usable and parameter-native; compatibility mapping belongs in `crypto_exc_all`. The remaining work is tracked in `Remaining Work Backlog`; every future iteration must update this file before final delivery.
 
-Latest iteration: added Bitget WebSocket URL fallback pool, `BITGET_WS_FALLBACKS` support, `with_fallback_urls`, configurable `message_timeout`, and reconnect backoff config in `bitget_rs`. TDD evidence: the new fallback and configured-message-timeout tests first failed because the APIs did not exist, then `cargo test -p bitget_rs websocket_manager_ -- --nocapture` passed 9 WebSocket manager tests. Full verification run: `cargo fmt && cargo clippy -p bitget_rs --all-targets && cargo test -p bitget_rs websocket_manager_ -- --nocapture && cargo test --workspace` completed successfully. Existing OKX warnings remain unrelated to this iteration. No live order or live WebSocket smoke test was executed in this iteration.
+Latest iteration: after the fallback/message-timeout slice, started Phase 27 manager/client split by extracting `BitgetAutoReconnectWebsocketClient` from the previous manager state machine. TDD evidence: `auto_reconnect_client_reconnects_and_replays_subscriptions` first failed because the client type did not exist, then `cargo test -p bitget_rs auto_reconnect_client_reconnects_and_replays_subscriptions -- --nocapture` and `cargo test -p bitget_rs websocket_manager_ -- --nocapture && cargo test -p bitget_rs auto_reconnect_client_ -- --nocapture` passed. Full verification run: `cargo fmt && cargo clippy -p bitget_rs --all-targets && cargo test -p bitget_rs && cargo test --workspace` completed successfully. Existing OKX warnings remain unrelated to this iteration. No live order or live WebSocket smoke test was executed in this iteration.

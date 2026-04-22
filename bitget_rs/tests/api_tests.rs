@@ -9,9 +9,9 @@ use bitget_rs::api::trade::{
     ModifyOrderRequest, NewOrderRequest, OrderQueryRequest,
 };
 use bitget_rs::api::websocket::{
-    BitgetWebsocket, BitgetWebsocketCancelOrderParams, BitgetWebsocketChannel,
-    BitgetWebsocketEvent, BitgetWebsocketManager, BitgetWebsocketPlaceOrderParams, ConnectionState,
-    ReconnectConfig,
+    BitgetAutoReconnectWebsocketClient, BitgetWebsocket, BitgetWebsocketCancelOrderParams,
+    BitgetWebsocketChannel, BitgetWebsocketEvent, BitgetWebsocketManager,
+    BitgetWebsocketPlaceOrderParams, ConnectionState, ReconnectConfig,
 };
 use bitget_rs::client::BitgetClient;
 use bitget_rs::config::{Config, Credentials};
@@ -668,6 +668,78 @@ async fn websocket_manager_reconnects_and_replays_subscriptions() {
 
     manager.stop().await;
     assert_eq!(manager.connection_state(), ConnectionState::Stopped);
+}
+
+#[tokio::test]
+async fn auto_reconnect_client_reconnects_and_replays_subscriptions() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (subscription_tx, mut subscription_rx) = mpsc::channel::<serde_json::Value>(2);
+
+    tokio::spawn(async move {
+        for connection in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            let subscribe = socket.next().await.unwrap().unwrap();
+            let Message::Text(subscribe) = subscribe else {
+                panic!("expected client subscription replay");
+            };
+            subscription_tx
+                .send(serde_json::from_str(&subscribe).unwrap())
+                .await
+                .unwrap();
+            socket
+                .send(Message::Text(
+                    format!(
+                        r#"{{"action":"snapshot","arg":{{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"}},"data":[{{"connection":{connection}}}]}}"#
+                    )
+                    .into(),
+                ))
+                .await
+                .unwrap();
+            if connection == 1 {
+                let _ = socket.next().await;
+            }
+        }
+    });
+
+    let mut client = BitgetAutoReconnectWebsocketClient::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 2)
+            .with_ping_interval(Duration::from_secs(30)),
+    );
+    client.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"),
+    );
+
+    let mut events = client.start().await.unwrap();
+    let first_subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let first_event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(first_subscribe["op"], "subscribe");
+    assert_eq!(second_subscribe["op"], "subscribe");
+    assert!(matches!(first_event, BitgetWebsocketEvent::Ticker { .. }));
+    assert!(matches!(second_event, BitgetWebsocketEvent::Ticker { .. }));
+    assert_eq!(client.connection_state(), ConnectionState::Connected);
+    assert_eq!(client.metrics().messages_received, 2);
+    assert!(client.metrics().reconnects >= 1);
+
+    client.stop().await;
+    assert_eq!(client.connection_state(), ConnectionState::Stopped);
 }
 
 #[tokio::test]

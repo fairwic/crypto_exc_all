@@ -411,6 +411,8 @@
   - `ReconnectConfig` 新增 `message_timeout`、`backoff_factor`、`max_backoff`，stale 入站检测不再硬编码为 `ping_interval * 3`。
   - 新增回归测试覆盖主 URL 失败后 fallback 连接并重放订阅，以及延迟入站消息在配置的 `message_timeout` 内不被误判 stale。
   - 这仍不是完整的 OKX 式 manager/client 拆分；下一步要把当前 loop 内的连接生命周期、订阅 registry、消息转发和 public/private 编排继续拆清楚。
+- Phase 27 第一段已推进：`BitgetAutoReconnectWebsocketClient` 从 `BitgetWebsocketManager` 中抽出，直接承担 URL pool、连接生命周期、登录、ping、message timeout、重连、订阅重放、运行中 subscribe/unsubscribe 和 metrics/state；`BitgetWebsocketManager` 暂时作为兼容 wrapper 委托给底层 client。
+- 当前仍未完成的 OKX manager 对齐点：manager 自身还没有 public/private 双 client 编排、统一 message forwarder、独立 subscription registry active/pending 状态，也还没有更细的 authenticated/subscribed 连接状态。
 
 ## Native SDK Parameter Boundary
 

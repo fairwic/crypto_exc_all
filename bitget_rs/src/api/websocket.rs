@@ -860,7 +860,7 @@ pub struct WebsocketMetrics {
     pub last_error: Option<String>,
 }
 
-pub struct BitgetWebsocketManager {
+pub struct BitgetAutoReconnectWebsocketClient {
     urls: Vec<String>,
     config: ReconnectConfig,
     subscriptions: Vec<BitgetWebsocketChannel>,
@@ -878,7 +878,7 @@ enum BitgetWebsocketCommand {
     Unsubscribe(BitgetWebsocketChannel),
 }
 
-impl BitgetWebsocketManager {
+impl BitgetAutoReconnectWebsocketClient {
     pub fn new(url: impl Into<String>, config: ReconnectConfig) -> Self {
         let (state_tx, _) = watch::channel(ConnectionState::Disconnected);
         let (metrics_tx, _) = watch::channel(WebsocketMetrics::default());
@@ -1032,6 +1032,77 @@ impl BitgetWebsocketManager {
         }
 
         Ok(())
+    }
+}
+
+pub struct BitgetWebsocketManager {
+    client: BitgetAutoReconnectWebsocketClient,
+}
+
+impl BitgetWebsocketManager {
+    pub fn new(url: impl Into<String>, config: ReconnectConfig) -> Self {
+        Self {
+            client: BitgetAutoReconnectWebsocketClient::new(url, config),
+        }
+    }
+
+    pub fn with_proxy_url(mut self, proxy_url: impl Into<String>) -> Self {
+        self.client = self.client.with_proxy_url(proxy_url);
+        self
+    }
+
+    pub fn with_fallback_urls<I, S>(mut self, urls: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.client = self.client.with_fallback_urls(urls);
+        self
+    }
+
+    pub fn urls(&self) -> &[String] {
+        self.client.urls()
+    }
+
+    pub fn with_login_credentials(mut self, credentials: Credentials) -> Self {
+        self.client = self.client.with_login_credentials(credentials);
+        self
+    }
+
+    pub fn add_subscription(&mut self, channel: BitgetWebsocketChannel) {
+        self.client.add_subscription(channel);
+    }
+
+    pub async fn subscribe(&mut self, channel: BitgetWebsocketChannel) -> Result<(), Error> {
+        self.client.subscribe(channel).await
+    }
+
+    pub async fn unsubscribe(&mut self, channel: BitgetWebsocketChannel) -> Result<(), Error> {
+        self.client.unsubscribe(channel).await
+    }
+
+    pub fn subscriptions(&self) -> &[BitgetWebsocketChannel] {
+        self.client.subscriptions()
+    }
+
+    pub fn connection_state(&self) -> ConnectionState {
+        self.client.connection_state()
+    }
+
+    pub fn metrics(&self) -> WebsocketMetrics {
+        self.client.metrics()
+    }
+
+    pub fn is_healthy(&self, max_message_age: Duration) -> bool {
+        self.client.is_healthy(max_message_age)
+    }
+
+    pub async fn start(&mut self) -> Result<mpsc::Receiver<BitgetWebsocketEvent>, Error> {
+        self.client.start().await
+    }
+
+    pub async fn stop(&mut self) {
+        self.client.stop().await;
     }
 }
 
