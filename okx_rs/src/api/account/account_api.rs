@@ -2,7 +2,8 @@ use crate::api::api_trait::OkxApiTrait;
 use crate::api::API_ACCOUNT_PATH;
 use crate::client::OkxClient;
 use crate::dto::account::account_dto::{
-    AccountConfig, AccountRisk, Balance, Position, SetLeverageRequest, TradingSwapNumResponseData,
+    AccountConfig, AccountRisk, Balance, Position, SetLeverageRequest, SetPositionModeRequest,
+    TradingSwapNumResponseData,
 };
 use crate::dto::trade::trade_dto::PositionRespDto;
 use crate::error::Error;
@@ -83,6 +84,19 @@ impl OkxAccount {
         params: SetLeverageRequest,
     ) -> Result<serde_json::Value, Error> {
         let path = format!("{}/set-leverage", API_ACCOUNT_PATH);
+
+        let body_str = serde_json::to_string(&params).map_err(Error::JsonError)?;
+        self.client
+            .send_request::<serde_json::Value>(Method::POST, &path, &body_str)
+            .await
+    }
+
+    /// 设置持仓模式
+    pub async fn set_position_mode(
+        &self,
+        params: SetPositionModeRequest,
+    ) -> Result<serde_json::Value, Error> {
+        let path = format!("{}/set-position-mode", API_ACCOUNT_PATH);
 
         let body_str = serde_json::to_string(&params).map_err(Error::JsonError)?;
         self.client
@@ -219,6 +233,7 @@ mod tests {
     use crate::config::init_env;
 
     #[tokio::test]
+    #[ignore = "requires live OKX simulated private credentials and IP whitelist"]
     async fn test_get_balance() {
         init_env();
         let client = OkxAccount::from_env().unwrap();
@@ -226,6 +241,7 @@ mod tests {
         println!("{:?}", balance);
     }
     #[tokio::test]
+    #[ignore = "requires live OKX simulated private credentials and IP whitelist"]
     async fn test_get_positions() {
         init_env();
         let client = OkxAccount::from_env().unwrap();

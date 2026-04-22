@@ -8,6 +8,7 @@ use crate::dto::public_data::public_data_dto::{
 };
 use crate::error::Error;
 use reqwest::Method;
+use serde_json::Value;
 
 /// OKX公共数据API
 /// 提供公共数据相关的API访问
@@ -193,6 +194,60 @@ impl OkxPublicData {
 
         self.client
             .send_request::<Vec<FundingRateHistoryOkxRespDto>>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 获取标记价格
+    pub async fn get_mark_price(
+        &self,
+        inst_type: &str,
+        inst_id: Option<&str>,
+        underlying: Option<&str>,
+        inst_family: Option<&str>,
+    ) -> Result<Value, Error> {
+        let mut path = format!("{}/mark-price?instType={}", API_PUBLIC_PATH, inst_type);
+
+        if let Some(id) = inst_id {
+            path.push_str(&format!("&instId={}", id));
+        }
+
+        if let Some(uly) = underlying {
+            path.push_str(&format!("&uly={}", uly));
+        }
+
+        if let Some(family) = inst_family {
+            path.push_str(&format!("&instFamily={}", family));
+        }
+
+        self.client
+            .send_request::<Value>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 获取未平仓合约数量
+    pub async fn get_open_interest(
+        &self,
+        inst_type: &str,
+        inst_id: Option<&str>,
+        underlying: Option<&str>,
+        inst_family: Option<&str>,
+    ) -> Result<Value, Error> {
+        let mut path = format!("{}/open-interest?instType={}", API_PUBLIC_PATH, inst_type);
+
+        if let Some(id) = inst_id {
+            path.push_str(&format!("&instId={}", id));
+        }
+
+        if let Some(uly) = underlying {
+            path.push_str(&format!("&uly={}", uly));
+        }
+
+        if let Some(family) = inst_family {
+            path.push_str(&format!("&instFamily={}", family));
+        }
+
+        self.client
+            .send_request::<Value>(Method::GET, &path, "")
             .await
     }
 }

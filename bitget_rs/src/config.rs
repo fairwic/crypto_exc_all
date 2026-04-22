@@ -5,6 +5,8 @@ use std::sync::Once;
 
 pub const DEFAULT_API_URL: &str = "https://api.bitget.com";
 pub const DEFAULT_API_TIMEOUT_MS: u64 = 5_000;
+pub const DEFAULT_WS_PUBLIC_URL: &str = "wss://ws.bitget.com/v2/ws/public";
+pub const DEFAULT_WS_PRIVATE_URL: &str = "wss://ws.bitget.com/v2/ws/private";
 
 static INIT_ENV: Once = Once::new();
 
@@ -13,6 +15,8 @@ pub struct Config {
     pub api_url: String,
     pub api_timeout_ms: u64,
     pub proxy_url: Option<String>,
+    pub ws_public_url: String,
+    pub ws_private_url: String,
 }
 
 impl Default for Config {
@@ -21,6 +25,8 @@ impl Default for Config {
             api_url: DEFAULT_API_URL.to_string(),
             api_timeout_ms: DEFAULT_API_TIMEOUT_MS,
             proxy_url: None,
+            ws_public_url: DEFAULT_WS_PUBLIC_URL.to_string(),
+            ws_private_url: DEFAULT_WS_PRIVATE_URL.to_string(),
         }
     }
 }
@@ -38,6 +44,16 @@ impl Config {
         let mut config = Self::default();
         if let Some(api_url) = env_any_with(&lookup, &["BITGET_API_URL", "bitget_api_url"]) {
             config.api_url = api_url;
+        }
+        if let Some(ws_public_url) =
+            env_any_with(&lookup, &["BITGET_WS_PUBLIC_URL", "bitget_ws_public_url"])
+        {
+            config.ws_public_url = ws_public_url;
+        }
+        if let Some(ws_private_url) =
+            env_any_with(&lookup, &["BITGET_WS_PRIVATE_URL", "bitget_ws_private_url"])
+        {
+            config.ws_private_url = ws_private_url;
         }
         if let Some(timeout) =
             env_any_with(&lookup, &["BITGET_API_TIMEOUT_MS", "bitget_api_timeout_ms"])

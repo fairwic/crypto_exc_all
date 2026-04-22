@@ -107,9 +107,11 @@ impl OkxMarket {
             path.push_str(&format!("&limit={}", l));
         }
 
-        self.client
-            .send_request::<Vec<CandleOkxRespDto>>(Method::GET, &path, "")
-            .await
+        let res: Vec<Vec<String>> = self
+            .client
+            .send_request::<Vec<Vec<String>>>(Method::GET, &path, "")
+            .await?;
+        Ok(res.into_iter().map(CandleOkxRespDto::from_vec).collect())
     }
 
     // 获取最近几年的历史k线数据(1s k线支持查询最近3个月的数据)
@@ -143,10 +145,7 @@ impl OkxMarket {
             .client
             .send_request::<Vec<Vec<String>>>(Method::GET, &path, "")
             .await?;
-        let candles = res
-            .into_iter()
-            .map(|v| CandleOkxRespDto::from_vec(v))
-            .collect();
+        let candles = res.into_iter().map(CandleOkxRespDto::from_vec).collect();
         Ok(candles)
     }
 

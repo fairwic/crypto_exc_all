@@ -6,7 +6,7 @@ pub mod utils;
 
 pub use api::{
     account::BitgetAccount, announcements::BitgetAnnouncements, asset::BitgetAsset,
-    market::BitgetMarket, trade::BitgetTrade,
+    market::BitgetMarket, trade::BitgetTrade, websocket::BitgetWebsocket,
 };
 pub use client::BitgetClient;
 pub use error::Error;

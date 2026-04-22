@@ -3,6 +3,7 @@ pub mod announcements;
 pub mod asset;
 pub mod market;
 pub mod trade;
+pub mod websocket;
 
 pub const API_COMMON_PATH: &str = "/api/v2/common";
 pub const API_MIX_ACCOUNT_PATH: &str = "/api/v2/mix/account";

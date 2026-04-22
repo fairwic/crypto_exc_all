@@ -391,6 +391,12 @@ pub struct SetLeverageRequest {
     pub pos_side: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SetPositionModeRequest {
+    pub pos_mode: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetLeverageData {

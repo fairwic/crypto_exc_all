@@ -14,6 +14,9 @@ pub enum Error {
     #[error("签名错误: {0}")]
     SignatureError(String),
 
+    #[error("WebSocket错误: {0}")]
+    WebSocketError(String),
+
     #[error("Bitget API错误 (HTTP: {status:?}, 代码: {code}): {message}")]
     BitgetApiError {
         status: Option<u16>,

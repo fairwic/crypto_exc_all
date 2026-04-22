@@ -5,6 +5,9 @@ edition = "2024"
 description = "Binance USDⓈ-M Futures SDK"
 license = "MIT"
 
+[lib]
+name = "binance_rs"
+
 [dependencies]
 dotenv = "0.15.0"
 futures-util = "0.3.31"

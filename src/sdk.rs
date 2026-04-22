@@ -3,7 +3,11 @@ use crate::adapters::ExchangeClient;
 use crate::config::SdkConfig;
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
+use crate::fill::FillFacade;
 use crate::market::MarketFacade;
+use crate::order::OrderFacade;
+use crate::position::PositionFacade;
+use crate::trade::TradeFacade;
 use std::collections::HashMap;
 
 pub struct CryptoSdk {
@@ -51,6 +55,22 @@ impl CryptoSdk {
 
     pub fn account(&self, exchange: ExchangeId) -> Result<AccountFacade<'_>> {
         Ok(AccountFacade::new(self.client(exchange)?))
+    }
+
+    pub fn positions(&self, exchange: ExchangeId) -> Result<PositionFacade<'_>> {
+        Ok(PositionFacade::new(self.client(exchange)?))
+    }
+
+    pub fn trade(&self, exchange: ExchangeId) -> Result<TradeFacade<'_>> {
+        Ok(TradeFacade::new(self.client(exchange)?))
+    }
+
+    pub fn orders(&self, exchange: ExchangeId) -> Result<OrderFacade<'_>> {
+        Ok(OrderFacade::new(self.client(exchange)?))
+    }
+
+    pub fn fills(&self, exchange: ExchangeId) -> Result<FillFacade<'_>> {
+        Ok(FillFacade::new(self.client(exchange)?))
     }
 
     fn client(&self, exchange: ExchangeId) -> Result<&ExchangeClient> {
@@ -106,5 +126,9 @@ mod tests {
         assert!(sdk.market(ExchangeId::Okx).is_ok());
         assert!(sdk.account(ExchangeId::Binance).is_ok());
         assert!(sdk.market(ExchangeId::Bitget).is_ok());
+        assert!(sdk.positions(ExchangeId::Bitget).is_ok());
+        assert!(sdk.trade(ExchangeId::Okx).is_ok());
+        assert!(sdk.orders(ExchangeId::Bitget).is_ok());
+        assert!(sdk.fills(ExchangeId::Binance).is_ok());
     }
 }

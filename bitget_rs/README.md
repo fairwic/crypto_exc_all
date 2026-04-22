@@ -56,6 +56,16 @@ Current coverage:
   - `GET /api/v2/spot/wallet/transfer-coin-info`
   - `POST /api/v2/spot/wallet/transfer`
   - `POST /api/v2/spot/wallet/withdrawal`
+- WebSocket:
+  - V2 public/private URL config
+  - login signing with `timestamp + GET + /user/verify`
+  - string `ping` / `pong`
+  - subscribe / unsubscribe payload builders
+  - `place-order` / `cancel-order` trade payload builders and trade ack parser
+  - base typed event parser with raw fallback
+  - typed DTOs for `ticker`, `orders`, `account`, `positions`, `books*`, `trade`, `candle*`, and `fill` pushes
+  - WebSocket session with SOCKS5/SOCKS5h proxy support
+  - reconnect manager with runtime subscribe/unsubscribe, timed ping, private login replay with ack gate, inbound stall timeout, metrics, and subscription replay
 - HMAC-SHA256 + Base64 request signing
 - SOCKS/HTTP proxy configuration
 - Mocked request, signature header, and response mapping tests
@@ -69,6 +79,8 @@ BITGET_PASSPHRASE=...
 BITGET_API_URL=https://api.bitget.com
 BITGET_API_TIMEOUT_MS=5000
 BITGET_PROXY_URL=socks5h://127.0.0.1:7897
+BITGET_WS_PUBLIC_URL=wss://ws.bitget.com/v2/ws/public
+BITGET_WS_PRIVATE_URL=wss://ws.bitget.com/v2/ws/private
 ```
 
 Lowercase key names are also accepted for compatibility with existing `.env` files:
@@ -92,7 +104,29 @@ async fn main() -> Result<(), bitget_rs::Error> {
         .get_ticker(TickerRequest::new("BTCUSDT", "USDT-FUTURES"))
         .await?;
 
-    println!("{} {}", tickers[0].symbol, tickers[0].last_price);
+println!("{} {}", tickers[0].symbol, tickers[0].last_price);
+    Ok(())
+}
+```
+
+## WebSocket Example
+
+```rust
+use bitget_rs::api::websocket::{BitgetWebsocket, BitgetWebsocketChannel};
+use bitget_rs::config::Config;
+
+#[tokio::main]
+async fn main() -> Result<(), bitget_rs::Error> {
+    let websocket = BitgetWebsocket::new_public(Config::from_env());
+    let mut session = websocket.connect_public().await?;
+    let ticker = BitgetWebsocketChannel::new("USDT-FUTURES", "ticker")
+        .with_inst_id("BTCUSDT");
+
+    session.subscribe(&[ticker]).await?;
+    while let Some(event) = session.recv_event().await {
+        println!("{event:?}");
+    }
+
     Ok(())
 }
 ```

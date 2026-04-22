@@ -73,9 +73,12 @@ BITGET_API_SECRET=...
 BITGET_PASSPHRASE=...
 BITGET_PRODUCT_TYPE=USDT-FUTURES
 BITGET_PROXY_URL=socks5h://127.0.0.1:7897
+BITGET_WS_PUBLIC_URL=wss://ws.bitget.com/v2/ws/public
+BITGET_WS_PRIVATE_URL=wss://ws.bitget.com/v2/ws/private
 ```
 
 `BITGET_PRODUCT_TYPE` 可省略，根 adapter 默认使用 `USDT-FUTURES`。也支持 `.env` 中的小写/既有混合大小写变量名：`bitget_api_key`、`bitget_api_secret`、`bitget_passphrase`、`bitget_PASSPHRASE`。
+`BITGET_WS_PUBLIC_URL` / `BITGET_WS_PRIVATE_URL` 可省略，`bitget_rs` 会默认使用 Bitget V2 public/private WebSocket 主域名。
 
 ## 统一调用
 
@@ -123,6 +126,151 @@ async fn main() -> crypto_exc_all::Result<()> {
 cargo run --example unified_market
 ```
 
+统一持仓、交易和订单查询入口：
+
+```rust
+use crypto_exc_all::{
+    CancelOrderRequest, CryptoSdk, EnsureOrderMarginModeRequest, ExchangeId, Instrument,
+    MarginMode, OrderSide, PlaceOrderRequest, PositionMode,
+    CandleQuery, FillListQuery, FundingRateQuery, MarketStatsQuery, OrderBookQuery,
+    OrderListQuery, PrepareOrderSettingsRequest, SetLeverageRequest, SetPositionModeRequest,
+    TimeInForce,
+};
+
+#[tokio::main]
+async fn main() -> crypto_exc_all::Result<()> {
+    let sdk = CryptoSdk::from_env()?;
+    let instrument = Instrument::perp("BTC", "USDT");
+
+    let positions = sdk
+        .positions(ExchangeId::Bitget)?
+        .list(Some(&instrument))
+        .await?;
+    println!("positions={positions:?}");
+
+    let book = sdk
+        .market(ExchangeId::Bitget)?
+        .orderbook(OrderBookQuery::new(instrument.clone()).with_limit(20))
+        .await?;
+    println!("best_bid={:?} best_ask={:?}", book.bids.first(), book.asks.first());
+
+    let candles = sdk
+        .market(ExchangeId::Bitget)?
+        .candles(CandleQuery::new(instrument.clone(), "1m").with_limit(100))
+        .await?;
+    println!("candles={candles:?}");
+
+    let funding = sdk
+        .market(ExchangeId::Bitget)?
+        .funding_rate(&instrument)
+        .await?;
+    println!("funding={funding:?}");
+
+    let funding_history = sdk
+        .market(ExchangeId::Bitget)?
+        .funding_rate_history(FundingRateQuery::new(instrument.clone()).with_limit(20))
+        .await?;
+    println!("funding_history={funding_history:?}");
+
+    let mark_price = sdk
+        .market(ExchangeId::Bitget)?
+        .mark_price(&instrument)
+        .await?;
+    println!("mark_price={mark_price:?}");
+
+    let open_interest = sdk
+        .market(ExchangeId::Bitget)?
+        .open_interest(&instrument)
+        .await?;
+    println!("open_interest={open_interest:?}");
+
+    let sentiment_query = MarketStatsQuery::new(instrument.clone(), "5m").with_limit(20);
+    let long_short = sdk
+        .market(ExchangeId::Bitget)?
+        .long_short_ratio(sentiment_query.clone())
+        .await?;
+    println!("long_short={long_short:?}");
+
+    let taker_volume = sdk
+        .market(ExchangeId::Bitget)?
+        .taker_buy_sell_volume(sentiment_query)
+        .await?;
+    println!("taker_volume={taker_volume:?}");
+
+    let open_orders = sdk
+        .orders(ExchangeId::Bitget)?
+        .open(OrderListQuery::for_instrument(instrument.clone()).with_limit(20))
+        .await?;
+    println!("open_orders={open_orders:?}");
+
+    let fills = sdk
+        .fills(ExchangeId::Bitget)?
+        .list(FillListQuery::for_instrument(instrument.clone()).with_limit(20))
+        .await?;
+    println!("fills={fills:?}");
+
+    let leverage = sdk
+        .account(ExchangeId::Bitget)?
+        .set_leverage(
+            SetLeverageRequest::new(instrument.clone(), "20")
+                .with_margin_mode(MarginMode::Cross)
+                .with_margin_coin("USDT"),
+        )
+        .await?;
+    println!("leverage={leverage:?}");
+
+    let order_margin_mode = sdk
+        .account(ExchangeId::Bitget)?
+        .ensure_order_margin_mode(
+            EnsureOrderMarginModeRequest::new(instrument.clone(), MarginMode::Cross)
+                .with_product_type("USDT-FUTURES")
+                .with_margin_coin("USDT"),
+        )
+        .await?;
+    println!("order_margin_mode={order_margin_mode:?}");
+
+    let order_settings = sdk
+        .account(ExchangeId::Bitget)?
+        .prepare_order_settings(
+            PrepareOrderSettingsRequest::new(instrument.clone())
+                .with_position_mode(PositionMode::Hedge)
+                .with_margin_mode(MarginMode::Cross)
+                .with_leverage("20")
+                .with_product_type("USDT-FUTURES")
+                .with_margin_coin("USDT")
+                .with_position_side("long"),
+        )
+        .await?;
+    println!("order_settings={order_settings:?}");
+
+    let position_mode = sdk
+        .account(ExchangeId::Bitget)?
+        .set_position_mode(
+            SetPositionModeRequest::new(PositionMode::Hedge)
+                .with_product_type("USDT-FUTURES"),
+        )
+        .await?;
+    println!("position_mode={position_mode:?}");
+
+    let order = sdk
+        .trade(ExchangeId::Bitget)?
+        .place_order(
+            PlaceOrderRequest::limit(instrument.clone(), OrderSide::Buy, "0.001", "60000")
+                .with_time_in_force(TimeInForce::PostOnly)
+                .with_client_order_id("my-client-order-id"),
+        )
+        .await?;
+
+    if let Some(order_id) = order.order_id {
+        sdk.trade(ExchangeId::Bitget)?
+            .cancel_order(CancelOrderRequest::by_order_id(instrument, order_id))
+            .await?;
+    }
+
+    Ok(())
+}
+```
+
 ## 当前统一能力
 
 - 自动读取 OKX / Binance / Bitget 凭证。
@@ -134,19 +282,48 @@ cargo run --example unified_market
   - Bitget USDT 永续：`BTCUSDT`
 - 统一 market ticker：
   - `sdk.market(exchange)?.ticker(&instrument).await`
+- 统一 market orderbook 和 candles：
+  - `sdk.market(exchange)?.orderbook(query).await`
+  - `sdk.market(exchange)?.candles(query).await`
+- 统一 derivatives market metrics：
+  - `sdk.market(exchange)?.funding_rate(&instrument).await`
+  - `sdk.market(exchange)?.funding_rate_history(query).await`
+  - `sdk.market(exchange)?.mark_price(&instrument).await`
+  - `sdk.market(exchange)?.open_interest(&instrument).await`
+- 统一 market sentiment stats：
+  - `sdk.market(exchange)?.long_short_ratio(query).await`
+  - `sdk.market(exchange)?.taker_buy_sell_volume(query).await`
 - 统一 account balances：
   - `sdk.account(exchange)?.balances().await`
+- 统一账户交易设置：
+  - `sdk.account(exchange)?.capabilities()`
+  - `sdk.account(exchange)?.set_leverage(request).await`
+  - `sdk.account(exchange)?.set_position_mode(request).await`
+  - `sdk.account(exchange)?.set_symbol_margin_mode(request).await`
+  - `sdk.account(exchange)?.ensure_order_margin_mode(request).await`
+  - `sdk.account(exchange)?.prepare_order_settings(request).await`
+- 统一 positions：
+  - `sdk.positions(exchange)?.list(Some(&instrument)).await`
+- 统一基础下单/撤单：
+  - `sdk.trade(exchange)?.place_order(request).await`
+  - `sdk.trade(exchange)?.cancel_order(request).await`
+- 统一订单查询：
+  - `sdk.orders(exchange)?.get(query).await`
+  - `sdk.orders(exchange)?.open(query).await`
+  - `sdk.orders(exchange)?.history(query).await`
+- 统一成交明细查询：
+  - `sdk.fills(exchange)?.list(query).await`
 - 统一错误入口 `crypto_exc_all::Error`。
 - `raw` 逃生口：
   - `crypto_exc_all::raw::okx`
   - `crypto_exc_all::raw::binance`
   - `crypto_exc_all::raw::bitget`
 
-`crypto_exc_all::raw::bitget` 暴露 `bitget_rs` 的原生 V2 REST wrapper，覆盖 Bitget Futures market/account/trade、Spot wallet/asset、public notices 和 common trade-rate。统一 facade 当前仍保持 `ticker` / `balances` 这两个稳定跨交易所 DTO；更细的交易所特有能力从 `raw` 入口调用，避免把不可对齐字段硬塞进统一 DTO。
+`crypto_exc_all::raw::bitget` 暴露 `bitget_rs` 的原生 V2 REST/WebSocket wrapper，覆盖 Bitget Futures market/account/trade、Spot wallet/asset、public notices、common trade-rate，以及 V2 public/private WebSocket URL、login、ping/pong、subscribe/unsubscribe、place-order/cancel-order trade helper、trade ack parser、ticker/orders/account/positions/books/trade/candle/fill typed event parser、运行中动态订阅/取消订阅、私有连接登录重放和 ack gate、入站消息超时重连和基础重连订阅重放。统一 facade 当前稳定暴露跨交易所 `ticker` / `orderbook` / `candles` / `funding rate` / `funding rate history` / `mark price` / `open interest` / `long-short ratio` / `taker buy-sell volume` / `balances` / `set leverage` / `set position mode` / `set symbol margin mode` / `ensure order margin mode` / `prepare order settings` / `positions` / `place_order` / `cancel_order` / `order detail` / `open orders` / `order history` / `fills`；不同交易所的账户配置语义通过 `capabilities()` 暴露，OKX 这类没有 symbol 级独立 margin-mode switch 的交易所会返回 `Unsupported`，策略层可优先使用 `prepare_order_settings` 一次性处理持仓模式、保证金模式和杠杆预配置。
 
 ## 测试
 
-根 crate 包含一个外部调用场景集成测试：测试代码只引入 `crypto_exc_all`，通过 mock HTTP 同时调用 OKX、Binance 和 Bitget 的统一 ticker 接口。
+根 crate 包含外部调用场景集成测试：测试代码只引入 `crypto_exc_all`，通过 mock HTTP 同时调用 OKX、Binance 和 Bitget 的统一 ticker、orderbook、candles、funding rate、funding rate history、mark price、open interest、long-short ratio、taker buy-sell volume、balances、set leverage、set position mode、set symbol margin mode、ensure order margin mode、prepare order settings、positions、place_order、cancel_order、order detail、open orders、order history 和 fills 接口。
 
 ```bash
 cargo test -p crypto_exc_all -- --nocapture

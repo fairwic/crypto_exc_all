@@ -233,6 +233,8 @@
 - Root adapter maps Bitget ticker fields `lastPr`, `bidPr`, `askPr`, `quoteVolume/baseVolume`, and `ts` into unified `Ticker`.
 - Root adapter maps Bitget account fields `marginCoin`, `accountEquity/usdtEquity`, `available`, and `locked` into unified `Balance`.
 - External consumer test now uses only `crypto_exc_all` to call Binance, OKX, and Bitget tickers through mock HTTP servers.
+- Live Bitget diagnosis: the configured key/passphrase are loaded from `.env` without outer whitespace and authenticate far enough on UTA V3 to receive `40084` account-mode feedback, but every tested V2 signed endpoint returns `40012`. Treat this as a Bitget API key/account-mode mismatch until a Classic V2-compatible key is supplied or the account is moved to the API family being called.
+- After replacing the Bitget API key/passphrase and adding the current egress IP to the whitelist, V2 signed account, position, and trade-rate reads returned `00000`. A real `post_only` BTCUSDT futures order attempt reached trade risk checks and failed with `40762` because both USDT-Futures and spot USDT available balances were `0`; no orderId was created, so no cancel was needed.
 
 ## Bitget REST Coverage Added
 
@@ -257,6 +259,89 @@
 - `GET /api/v2/mix/market/account-long-short`
 - `GET /api/v2/mix/market/taker-buy-sell`
 - `GET /api/v2/mix/market/exchange-rate`
+
+## Root Unified Facade Notes
+
+- 根 crate `crypto_exc_all` 继续保持外部只依赖一个 crate 的使用方式：`CryptoSdk::from_env()` 根据 `.env` 自动装配 OKX/Binance/Bitget。
+- 当前稳定统一 DTO：
+  - `Ticker`：市场最新价、买卖一、24h 量、时间戳。
+  - `OrderBook`：交易所、统一 `Instrument`、交易所 symbol、买卖盘档位、时间戳、raw。
+  - `Candle`：交易所、统一 `Instrument`、交易所 symbol、开/收盘时间、OHLC、成交量、计价成交量、是否确认、raw。
+  - `FundingRate`：交易所、统一 `Instrument`、交易所 symbol、资金费率、本期/下一期资金费时间、下一期预测费率、标记价、raw。
+  - `MarkPrice`：交易所、统一 `Instrument`、交易所 symbol、标记价、指数价、资金费率、下一期资金费时间、时间戳、raw。
+  - `OpenInterest`：交易所、统一 `Instrument`、交易所 symbol、未平仓量、未平仓价值、时间戳、raw。
+  - `LongShortRatio`：交易所、统一 `Instrument`、交易所 symbol、周期、多空比、多/空侧比例、时间戳、raw。
+  - `TakerBuySellVolume`：交易所、统一 `Instrument`、交易所 symbol、周期、主动买入量、主动卖出量、买卖比、时间戳、raw。
+  - `Balance`：资产、总额、可用、冻结。
+  - `LeverageSetting`：交易所、统一 `Instrument`、交易所 symbol、杠杆、保证金模式、保证金币种、持仓方向、raw。
+  - `PositionModeSetting`：交易所、统一持仓模式、交易所原始模式值、产品类型、raw。
+  - `Position`：交易所、统一 `Instrument`、交易所 symbol、方向、数量、开仓价、标记价、未实现盈亏、杠杆、保证金模式、预估强平价、raw。
+  - `OrderAck`：交易所、统一 `Instrument`、交易所 symbol、订单 ID、客户订单 ID、状态、raw。
+  - `Order`：交易所、统一 `Instrument`、交易所 symbol、订单 ID、客户订单 ID、方向、订单类型、价格、数量、已成交数量、成交均价、状态、创建/更新时间、raw。
+  - `Fill`：交易所、统一 `Instrument`、交易所 symbol、成交 ID、订单 ID、方向、成交价、成交数量、手续费、手续费币种、maker/taker 角色、时间戳、raw。
+  - `AccountCapabilities`：账户 facade 支持能力标记，包括 `set_leverage`、`set_position_mode`、`set_symbol_margin_mode`、`order_level_margin_mode`。
+  - `MarginMode`：统一保证金模式枚举，覆盖 `Cross`、`Isolated`，并保留 `Raw` 逃生值兼容交易所特有字符串。
+  - `SymbolMarginModeSetting`：交易所、统一 `Instrument`、交易所 symbol、统一 margin mode、原始 margin mode、product type、margin coin、raw。
+  - `EnsureOrderMarginModeResult`：交易所、统一 `Instrument`、交易所 symbol、统一 margin mode、实际应用方式、原始 margin mode、product type、margin coin、raw。
+  - `PrepareOrderSettingsResult`：交易所、统一 `Instrument`、交易所 symbol，以及可选的 position mode、margin mode、leverage 三个预配置结果。
+- 当前稳定统一入口：
+  - `sdk.market(exchange)?.ticker(&instrument).await`
+  - `sdk.market(exchange)?.orderbook(query).await`
+  - `sdk.market(exchange)?.candles(query).await`
+  - `sdk.market(exchange)?.funding_rate(&instrument).await`
+  - `sdk.market(exchange)?.funding_rate_history(query).await`
+  - `sdk.market(exchange)?.mark_price(&instrument).await`
+  - `sdk.market(exchange)?.open_interest(&instrument).await`
+  - `sdk.market(exchange)?.long_short_ratio(query).await`
+  - `sdk.market(exchange)?.taker_buy_sell_volume(query).await`
+  - `sdk.account(exchange)?.balances().await`
+  - `sdk.account(exchange)?.capabilities()`
+  - `sdk.account(exchange)?.set_leverage(request).await`
+  - `sdk.account(exchange)?.set_position_mode(request).await`
+  - `sdk.account(exchange)?.set_symbol_margin_mode(request).await`
+  - `sdk.account(exchange)?.ensure_order_margin_mode(request).await`
+  - `sdk.account(exchange)?.prepare_order_settings(request).await`
+  - `sdk.positions(exchange)?.list(Some(&instrument)).await`
+  - `sdk.trade(exchange)?.place_order(request).await`
+  - `sdk.trade(exchange)?.cancel_order(request).await`
+  - `sdk.orders(exchange)?.get(query).await`
+  - `sdk.orders(exchange)?.open(query).await`
+  - `sdk.orders(exchange)?.history(query).await`
+  - `sdk.fills(exchange)?.list(query).await`
+- 统一 `PlaceOrderRequest` 只放三家交易所都能稳定映射的基础字段：side、order_type、size、price、margin_mode、margin_coin、position_side、trade_side、client_order_id、reduce_only、time_in_force。
+- 统一 `OrderQuery` / `OrderListQuery` 覆盖三家可稳定对齐的订单详情、当前挂单和历史订单查询；不同交易所不支持的列表过滤字段不会强行写入请求。
+- 统一 `FillListQuery` 覆盖成交明细查询；其中 `after`/`before` 在不同交易所含义不完全一致，adapter 只映射对应交易所支持的游标字段。
+- 统一 `OrderBookQuery` / `CandleQuery` 覆盖市场深度和 K 线；K 线 interval 原样传给交易所，调用方需要使用该交易所支持的粒度字符串。
+- 统一 `FundingRateQuery` 覆盖历史资金费率查询；Binance 映射 `startTime/endTime/limit`，OKX 映射 `before/after/limit`，Bitget 当前 wrapper 只稳定映射 symbol/productType，无法对齐的分页字段不强行传入。
+- 统一 `MarketStatsQuery` 覆盖市场统计周期与分页；Binance 映射 `period/startTime/endTime/limit`，OKX 映射 `period/begin/end/limit`，Bitget 当前 long-short/taker wrapper 只稳定映射 `period` 和 symbol。
+- 统一 `SetLeverageRequest` 覆盖三家都可稳定设置的 symbol leverage；Binance 只映射 `symbol/leverage`，OKX 合约类 instrument 映射 `instId/lever/mgnMode/posSide` 且不发送 `ccy`，Bitget 映射 `symbol/productType/marginCoin/leverage`。
+- 统一 `SetPositionModeRequest` 覆盖三家都可稳定设置的账户/产品级持仓模式；统一 `PositionMode::OneWay/Hedge` 分别映射 Binance `dualSidePosition=false/true`、OKX `net_mode/long_short_mode`、Bitget `one_way_mode/hedge_mode`。
+- 统一 `SetSymbolMarginModeRequest` 只表达 symbol/product 级独立保证金模式切换：Binance 映射 `POST /fapi/v1/marginType`，Bitget 映射 `/api/v2/mix/account/set-margin-mode`，OKX 因没有完全等价的独立接口而返回 `Error::Unsupported { capability: "set_symbol_margin_mode" }`。OKX 保证金模式仍通过下单 `tdMode` 或设置杠杆时的 `mgnMode` 表达。
+- 统一 `EnsureOrderMarginModeRequest` 给策略层使用：Binance/Bitget 通过 symbol 配置接口实际切换并返回 `MarginModeApplyMethod::SymbolConfiguration`；OKX 不发账户配置请求，返回 `MarginModeApplyMethod::OrderLevel`，调用方后续下单继续通过 `PlaceOrderRequest::with_margin_mode(...)` 写入 `tdMode`。
+- 统一 `PrepareOrderSettingsRequest` 给策略层做下单前预配置：按 position mode、margin mode、leverage 的顺序执行；所有字段都是可选的，调用方可以只准备其中一部分。Binance/Bitget 的 margin mode 会真实切换 symbol 配置，OKX 的 margin mode 只返回 order-level 结果，leverage 设置仍带 `mgnMode`。
+- 交易所高级能力继续走 `crypto_exc_all::raw::*`：批量下单、改单、全部撤单、计划单、资产划转、提现、WebSocket 特有事件等。
+- 映射约定：
+  - Binance post-only 使用 `LIMIT + timeInForce=GTX`。
+  - OKX post-only 使用 `ordType=post_only`。
+  - Bitget post-only 使用 `force=post_only`。
+  - OKX 保证金模式统一输入 `cross`/`crossed` 都转 `cross`；Bitget 统一输入 `cross`/`crossed` 都转 `crossed`。
+  - Binance 订单详情/历史分别映射 `GET /fapi/v1/order`、`GET /fapi/v1/allOrders`，当前挂单映射 `GET /fapi/v1/openOrders`。
+  - OKX 订单详情/历史/当前挂单分别映射 `/api/v5/trade/order`、`/api/v5/trade/orders-history`、`/api/v5/trade/orders-pending`。
+  - Bitget 订单详情/历史/当前挂单分别映射 `/api/v2/mix/order/detail`、`/api/v2/mix/order/orders-history`、`/api/v2/mix/order/orders-pending`。
+  - 成交明细分别映射 Binance `GET /fapi/v1/userTrades`、OKX `/api/v5/trade/fills`、Bitget `/api/v2/mix/order/fills`。
+  - 市场深度分别映射 Binance `GET /fapi/v1/depth`、OKX `/api/v5/market/books`、Bitget `/api/v2/mix/market/orderbook`。
+  - K 线分别映射 Binance `GET /fapi/v1/klines`、OKX `/api/v5/market/candles`、Bitget `/api/v2/mix/market/candles`。
+  - 当前资金费率分别映射 Binance `GET /fapi/v1/premiumIndex`、OKX `/api/v5/public/funding-rate`、Bitget `/api/v2/mix/market/current-fund-rate`。
+  - 历史资金费率分别映射 Binance `GET /fapi/v1/fundingRate`、OKX `/api/v5/public/funding-rate-history`、Bitget `/api/v2/mix/market/history-fund-rate`。
+  - 标记价分别映射 Binance `GET /fapi/v1/premiumIndex`、OKX `/api/v5/public/mark-price`、Bitget `/api/v2/mix/market/symbol-price`。
+  - 未平仓量分别映射 Binance `GET /fapi/v1/openInterest`、OKX `/api/v5/public/open-interest`、Bitget `/api/v2/mix/market/open-interest`。
+  - 多空比分别映射 Binance `GET /futures/data/globalLongShortAccountRatio`、OKX `/api/v5/rubik/stat/contracts/long-short-account-ratio-contract-top-trader`、Bitget `/api/v2/mix/market/account-long-short`。
+  - 主动买卖量分别映射 Binance `GET /futures/data/takerlongshortRatio`、OKX `/api/v5/rubik/stat/taker-volume-contract`、Bitget `/api/v2/mix/market/taker-buy-sell`。
+  - 设置杠杆分别映射 Binance `POST /fapi/v1/leverage`、OKX `/api/v5/account/set-leverage`、Bitget `/api/v2/mix/account/set-leverage`。
+  - 设置持仓模式分别映射 Binance `POST /fapi/v1/positionSide/dual`、OKX `/api/v5/account/set-position-mode`、Bitget `/api/v2/mix/account/set-position-mode`。
+  - 设置 symbol 保证金模式分别映射 Binance `POST /fapi/v1/marginType`、Bitget `/api/v2/mix/account/set-margin-mode`；OKX 返回 unsupported，调用方改用下单 `margin_mode`/`tdMode` 或 `set_leverage` 的 `mgnMode`。
+  - 确保订单保证金模式分别复用 Binance/Bitget 的 symbol 保证金模式接口；OKX 返回 order-level 应用结果，不调用不存在的账户配置接口。
+  - 准备下单配置复用上述三个账户配置能力，不新增交易所原生 API：先设持仓模式，再确保保证金模式，最后设置杠杆。
 
 ### Account, Position, and Fees
 
@@ -294,3 +379,16 @@
 - `GET /api/v2/spot/wallet/transfer-coin-info`
 - `POST /api/v2/spot/wallet/transfer`
 - `POST /api/v2/spot/wallet/withdrawal`
+
+## Bitget WebSocket Support
+
+- `bitget_rs::api::websocket::BitgetWebsocket` 使用 Bitget V2 public/private WebSocket 主域名，默认分别为 `wss://ws.bitget.com/v2/ws/public` 和 `wss://ws.bitget.com/v2/ws/private`，可通过 `BITGET_WS_PUBLIC_URL` / `BITGET_WS_PRIVATE_URL` 覆盖。
+- WebSocket login 按官方规则签名：`timestamp + GET + /user/verify`，HMAC-SHA256 后 base64，payload 为 `{"op":"login","args":[...]}`。
+- 订阅与取消订阅统一使用 `BitgetWebsocketChannel { instType, channel, instId, coin }`，输出 `{"op":"subscribe","args":[...]}` / `{"op":"unsubscribe","args":[...]}`。
+- WebSocket trade operation helper 支持构造 `place-order` / `cancel-order` 的 `{"op":"trade","args":[...]}` payload：`BitgetWebsocketPlaceOrderParams` 覆盖 futures 下单核心字段，`BitgetWebsocketCancelOrderParams` 覆盖 `orderId` / `clientOid` 二选一取消语义。
+- `BitgetWebsocketSession` 支持 public/private URL 连接、SOCKS5/SOCKS5h 代理、字符串 `ping`、字符串 `pong` 解析、登录消息发送、订阅/取消订阅和 typed event 接收。
+- `BitgetWebsocketEvent` 当前区分 `Pong`、login ack、subscribe ack、unsubscribe ack、trade ack、error、ticker、orders、account、positions、orderbook、trades、candles、fill、generic data push 和 raw fallback；typed data push 保留 `action`、`arg`、typed `data` 和 `raw`。
+- 当前 typed DTO 覆盖 Bitget 官方常用推送字段：`BitgetTickerUpdate`、`BitgetOrderUpdate`、`BitgetAccountUpdate`、`BitgetPositionUpdate`、`BitgetOrderBookUpdate`、`BitgetTradeUpdate`、`BitgetCandleUpdate`、`BitgetFillUpdate`。未知频道仍返回 generic `Data`，避免因新增频道破坏兼容性。
+- `BitgetWebsocketManager` 提供基础稳定性能力：连接状态、健康指标、自动重连、重连后订阅重放和定时 ping。默认 ping 间隔 30 秒，对齐 Bitget 官方保持连接建议；如果连续 3 个 ping 周期没有收到任何 text/binary/ping/pong 入站消息，会记录 `last_error` 并主动重连，覆盖 TCP 半开或服务端不再响应 `pong` 的场景。
+- `BitgetWebsocketManager::with_login_credentials` 用于 private WebSocket：每次建立连接都会用当前时间重新生成 login payload，并等待 login ack 成功后再订阅，避免断线恢复后私有频道只重放订阅、不重新认证，或认证尚未完成就抢发订阅。
+- `BitgetWebsocketManager::subscribe` / `unsubscribe` 支持连接运行中动态调整订阅：命令会发送到当前 socket，同时更新 manager 和重连循环里的订阅集合；取消订阅后的频道不会在下一次重连时被重放。

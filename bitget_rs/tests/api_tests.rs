@@ -8,9 +8,22 @@ use bitget_rs::api::trade::{
     BitgetTrade, CancelAllOrdersRequest, CancelOrderRequest, ClosePositionsRequest,
     ModifyOrderRequest, NewOrderRequest, OrderQueryRequest,
 };
+use bitget_rs::api::websocket::{
+    BitgetWebsocket, BitgetWebsocketCancelOrderParams, BitgetWebsocketChannel,
+    BitgetWebsocketEvent, BitgetWebsocketManager, BitgetWebsocketPlaceOrderParams, ConnectionState,
+    ReconnectConfig,
+};
 use bitget_rs::client::BitgetClient;
 use bitget_rs::config::{Config, Credentials};
+use bitget_rs::utils::generate_signature;
+use futures_util::{SinkExt, StreamExt};
 use mockito::{Matcher, Server};
+use serde_json::json;
+use tokio::net::TcpListener;
+use tokio::sync::mpsc;
+use tokio::time::{Duration, timeout};
+use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::Message;
 
 fn public_client(server_url: String) -> BitgetClient {
     BitgetClient::with_config(None, Config::default().with_api_url_for_test(server_url)).unwrap()
@@ -76,6 +89,987 @@ async fn market_get_ticker_maps_bitget_v2_endpoint() {
     assert_eq!(tickers[0].last_price, "70000.1");
     assert_eq!(tickers[0].bid_price, "69999.9");
     mock.assert_async().await;
+}
+
+#[test]
+fn websocket_builds_v2_urls_login_and_subscription_payloads() {
+    let websocket = BitgetWebsocket::new(
+        Credentials::new("test-key", "test-secret", "test-pass"),
+        Config::default(),
+    )
+    .unwrap();
+    let ticker = BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT");
+    let account = BitgetWebsocketChannel::new("USDT-FUTURES", "account").with_coin("default");
+
+    assert_eq!(websocket.public_url(), "wss://ws.bitget.com/v2/ws/public");
+    assert_eq!(websocket.private_url(), "wss://ws.bitget.com/v2/ws/private");
+
+    let login = websocket.login_request_at(1_684_814_440_729).unwrap();
+    assert_eq!(login["op"], "login");
+    assert_eq!(login["args"][0]["apiKey"], "test-key");
+    assert_eq!(login["args"][0]["passphrase"], "test-pass");
+    assert_eq!(login["args"][0]["timestamp"], "1684814440729");
+    assert_eq!(
+        login["args"][0]["sign"],
+        "rfrIzESBgZTPxHAmChBrefCd1WNDxD4qIr2vsTlCHFc="
+    );
+
+    let subscribe = BitgetWebsocket::subscribe_request(&[ticker.clone(), account.clone()]);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&subscribe).unwrap(),
+        json!({
+            "op": "subscribe",
+            "args": [
+                {"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},
+                {"instType":"USDT-FUTURES","channel":"account","coin":"default"}
+            ]
+        })
+    );
+
+    let unsubscribe = BitgetWebsocket::unsubscribe_request(&[ticker]);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&unsubscribe).unwrap(),
+        json!({
+            "op": "unsubscribe",
+            "args": [
+                {"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"}
+            ]
+        })
+    );
+}
+
+#[test]
+fn websocket_builds_trade_requests_and_parses_trade_ack() {
+    let place_params =
+        BitgetWebsocketPlaceOrderParams::limit("buy", "2", "501", "USDT", "crossed", "gtc")
+            .with_client_order_id("client-123")
+            .with_trade_side("open")
+            .with_reduce_only("NO")
+            .with_stp_mode("cancel_taker");
+
+    let place = BitgetWebsocket::place_order_request(
+        "NEWclient-123",
+        "USDT-FUTURES",
+        "BTCUSDT",
+        place_params,
+    );
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&place).unwrap(),
+        json!({
+            "op":"trade",
+            "args":[{
+                "channel":"place-order",
+                "id":"NEWclient-123",
+                "instId":"BTCUSDT",
+                "instType":"USDT-FUTURES",
+                "params":{
+                    "orderType":"limit",
+                    "side":"buy",
+                    "size":"2",
+                    "force":"gtc",
+                    "price":"501",
+                    "marginCoin":"USDT",
+                    "marginMode":"crossed",
+                    "clientOid":"client-123",
+                    "tradeSide":"open",
+                    "reduceOnly":"NO",
+                    "stpMode":"cancel_taker"
+                }
+            }]
+        })
+    );
+
+    let cancel_params = BitgetWebsocketCancelOrderParams::new()
+        .with_order_id("1234567890")
+        .with_client_order_id("client-123");
+    let cancel = BitgetWebsocket::cancel_order_request(
+        "CANCELclient-123",
+        "USDT-FUTURES",
+        "BTCUSDT",
+        cancel_params,
+    );
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&cancel).unwrap(),
+        json!({
+            "op":"trade",
+            "args":[{
+                "channel":"cancel-order",
+                "id":"CANCELclient-123",
+                "instId":"BTCUSDT",
+                "instType":"USDT-FUTURES",
+                "params":{
+                    "orderId":"1234567890",
+                    "clientOid":"client-123"
+                }
+            }]
+        })
+    );
+
+    let ack = BitgetWebsocketEvent::parse(
+        r#"{
+            "event":"trade",
+            "arg":[{
+                "id":"NEWclient-123",
+                "instType":"USDT-FUTURES",
+                "channel":"place-order",
+                "instId":"BTCUSDT",
+                "params":{
+                    "orderId":"1234567890",
+                    "clientOid":"client-123"
+                }
+            }],
+            "code":0,
+            "msg":"Success"
+        }"#,
+    )
+    .unwrap();
+
+    match ack {
+        BitgetWebsocketEvent::Trade {
+            code, msg, args, ..
+        } => {
+            assert_eq!(code.as_deref(), Some("0"));
+            assert_eq!(msg.as_deref(), Some("Success"));
+            assert_eq!(args[0].id.as_deref(), Some("NEWclient-123"));
+            assert_eq!(args[0].channel, "place-order");
+            assert_eq!(args[0].inst_id.as_deref(), Some("BTCUSDT"));
+            let params = args[0].params.as_ref().unwrap();
+            assert_eq!(params.order_id.as_deref(), Some("1234567890"));
+            assert_eq!(params.client_order_id.as_deref(), Some("client-123"));
+        }
+        other => panic!("expected trade ack, got {other:?}"),
+    }
+}
+
+#[test]
+fn websocket_event_parser_maps_ticker_orders_account_and_positions() {
+    let ticker = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},
+            "data":[{
+                "instId":"BTCUSDT",
+                "lastPr":"87673.6",
+                "bidPr":"87673.5",
+                "askPr":"87673.7",
+                "baseVolume":"17398.1612",
+                "quoteVolume":"1521198076.61216",
+                "markPrice":"87673.7",
+                "indexPrice":"87714.0732915359034044",
+                "fundingRate":"0.000055",
+                "ts":"1766674540816"
+            }],
+            "ts":1766674540817
+        }"#,
+    )
+    .unwrap();
+    match ticker {
+        BitgetWebsocketEvent::Ticker {
+            action, arg, data, ..
+        } => {
+            assert_eq!(action.as_deref(), Some("snapshot"));
+            assert_eq!(arg.channel, "ticker");
+            assert_eq!(data[0].inst_id, Some("BTCUSDT".to_string()));
+            assert_eq!(data[0].last_price.as_deref(), Some("87673.6"));
+            assert_eq!(data[0].bid_price.as_deref(), Some("87673.5"));
+            assert_eq!(data[0].ask_price.as_deref(), Some("87673.7"));
+            assert_eq!(data[0].base_volume.as_deref(), Some("17398.1612"));
+            assert_eq!(data[0].timestamp.as_deref(), Some("1766674540816"));
+        }
+        other => panic!("expected ticker event, got {other:?}"),
+    }
+
+    let orders = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"orders","instId":"default"},
+            "data":[{
+                "orderId":"13333333333333333333",
+                "clientOid":"12354678990111",
+                "instId":"ETHUSDT",
+                "side":"buy",
+                "tradeSide":"open",
+                "orderType":"limit",
+                "price":"3000",
+                "size":"0.4",
+                "accBaseVolume":"0",
+                "priceAvg":"0",
+                "status":"live",
+                "uTime":"1760461517274"
+            }],
+            "ts":1760461517285
+        }"#,
+    )
+    .unwrap();
+    match orders {
+        BitgetWebsocketEvent::Orders { data, .. } => {
+            assert_eq!(data[0].order_id.as_deref(), Some("13333333333333333333"));
+            assert_eq!(data[0].client_order_id.as_deref(), Some("12354678990111"));
+            assert_eq!(data[0].side.as_deref(), Some("buy"));
+            assert_eq!(data[0].status.as_deref(), Some("live"));
+            assert_eq!(data[0].filled_size.as_deref(), Some("0"));
+        }
+        other => panic!("expected orders event, got {other:?}"),
+    }
+
+    let account = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"account","coin":"default"},
+            "data":[{
+                "marginCoin":"USDT",
+                "frozen":"0.00000000",
+                "available":"11.98545761",
+                "equity":"11.98545761",
+                "usdtEquity":"11.985457617660",
+                "unrealizedPL":"0.000000000000",
+                "assetsMode":"union"
+            }],
+            "ts":1695717225146
+        }"#,
+    )
+    .unwrap();
+    match account {
+        BitgetWebsocketEvent::Account { data, .. } => {
+            assert_eq!(data[0].margin_coin.as_deref(), Some("USDT"));
+            assert_eq!(data[0].available.as_deref(), Some("11.98545761"));
+            assert_eq!(data[0].frozen.as_deref(), Some("0.00000000"));
+            assert_eq!(data[0].equity.as_deref(), Some("11.98545761"));
+            assert_eq!(data[0].assets_mode.as_deref(), Some("union"));
+        }
+        other => panic!("expected account event, got {other:?}"),
+    }
+
+    let positions = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"positions","instId":"default"},
+            "data":[{
+                "posId":"1",
+                "instId":"ETHUSDT",
+                "marginCoin":"USDT",
+                "marginMode":"crossed",
+                "holdSide":"short",
+                "total":"0.1",
+                "available":"0.1",
+                "openPriceAvg":"1900",
+                "leverage":20,
+                "unrealizedPL":"0",
+                "liquidationPrice":"5788.108475905242",
+                "markPrice":"2500",
+                "uTime":"1695711602568"
+            }],
+            "ts":1695717430441
+        }"#,
+    )
+    .unwrap();
+    match positions {
+        BitgetWebsocketEvent::Positions { data, .. } => {
+            assert_eq!(data[0].position_id.as_deref(), Some("1"));
+            assert_eq!(data[0].inst_id.as_deref(), Some("ETHUSDT"));
+            assert_eq!(data[0].hold_side.as_deref(), Some("short"));
+            assert_eq!(data[0].total.as_deref(), Some("0.1"));
+            assert_eq!(data[0].leverage.as_deref(), Some("20"));
+            assert_eq!(data[0].mark_price.as_deref(), Some("2500"));
+        }
+        other => panic!("expected positions event, got {other:?}"),
+    }
+}
+
+#[test]
+fn websocket_event_parser_maps_orderbook_trades_and_candles() {
+    let orderbook = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"books5","instId":"BTCUSDT"},
+            "data":[{
+                "asks":[["27000.5","8.760"],["27001.0","0.400"]],
+                "bids":[["27000.0","2.710"],["26999.5","1.460"]],
+                "checksum":0,
+                "seq":123,
+                "ts":"1695716059516"
+            }],
+            "ts":1695716059516
+        }"#,
+    )
+    .unwrap();
+    match orderbook {
+        BitgetWebsocketEvent::OrderBook {
+            action, arg, data, ..
+        } => {
+            assert_eq!(action.as_deref(), Some("snapshot"));
+            assert_eq!(arg.channel, "books5");
+            assert_eq!(data[0].asks[0].price, "27000.5");
+            assert_eq!(data[0].asks[0].size, "8.760");
+            assert_eq!(data[0].bids[0].price, "27000.0");
+            assert_eq!(data[0].checksum, Some(0));
+            assert_eq!(data[0].sequence, Some(123));
+            assert_eq!(data[0].timestamp.as_deref(), Some("1695716059516"));
+        }
+        other => panic!("expected orderbook event, got {other:?}"),
+    }
+
+    let trades = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"trade","instId":"BTCUSDT"},
+            "data":[
+                {"ts":"1695716760565","price":"27000.5","size":"0.001","side":"buy","tradeId":"1111111111"},
+                {"ts":"1695716759514","price":"27000.0","size":"0.001","side":"sell","tradeId":"1111111112"}
+            ],
+            "ts":1695716761589
+        }"#,
+    )
+    .unwrap();
+    match trades {
+        BitgetWebsocketEvent::Trades { data, .. } => {
+            assert_eq!(data[0].timestamp.as_deref(), Some("1695716760565"));
+            assert_eq!(data[0].price.as_deref(), Some("27000.5"));
+            assert_eq!(data[0].size.as_deref(), Some("0.001"));
+            assert_eq!(data[0].side.as_deref(), Some("buy"));
+            assert_eq!(data[0].trade_id.as_deref(), Some("1111111111"));
+            assert_eq!(data[1].side.as_deref(), Some("sell"));
+        }
+        other => panic!("expected trades event, got {other:?}"),
+    }
+
+    let candles = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"candle1m","instId":"BTCUSDT"},
+            "data":[["1695685500000","27000","27000.5","27000","27000.5","0.057","1539.0155","1539.0155"]],
+            "ts":1695715462250
+        }"#,
+    )
+    .unwrap();
+    match candles {
+        BitgetWebsocketEvent::Candles {
+            action, arg, data, ..
+        } => {
+            assert_eq!(action.as_deref(), Some("snapshot"));
+            assert_eq!(arg.channel, "candle1m");
+            assert_eq!(data[0].start_time, "1695685500000");
+            assert_eq!(data[0].open, "27000");
+            assert_eq!(data[0].high, "27000.5");
+            assert_eq!(data[0].low, "27000");
+            assert_eq!(data[0].close, "27000.5");
+            assert_eq!(data[0].base_volume, "0.057");
+            assert_eq!(data[0].quote_volume, "1539.0155");
+            assert_eq!(data[0].usdt_volume, "1539.0155");
+        }
+        other => panic!("expected candles event, got {other:?}"),
+    }
+}
+
+#[test]
+fn websocket_event_parser_maps_private_fill_channel() {
+    let fill = BitgetWebsocketEvent::parse(
+        r#"{
+            "action":"snapshot",
+            "arg":{"instType":"USDT-FUTURES","channel":"fill","instId":"default"},
+            "data":[{
+                "orderId":"111",
+                "clientOid":"client-111",
+                "tradeId":"222",
+                "symbol":"BTCUSDT",
+                "side":"buy",
+                "orderType":"market",
+                "posMode":"one_way_mode",
+                "price":"51000.5",
+                "baseVolume":"0.01",
+                "quoteVolume":"510.005",
+                "profit":"0",
+                "tradeSide":"open",
+                "tradeScope":"taker",
+                "feeDetail":[{
+                    "feeCoin":"USDT",
+                    "deduction":"no",
+                    "totalDeductionFee":"0",
+                    "totalFee":"-0.183717"
+                }],
+                "cTime":"1703577336606",
+                "uTime":"1703577336606"
+            }],
+            "ts":1703577336700
+        }"#,
+    )
+    .unwrap();
+
+    match fill {
+        BitgetWebsocketEvent::Fill {
+            action, arg, data, ..
+        } => {
+            assert_eq!(action.as_deref(), Some("snapshot"));
+            assert_eq!(arg.channel, "fill");
+            assert_eq!(data[0].order_id.as_deref(), Some("111"));
+            assert_eq!(data[0].client_order_id.as_deref(), Some("client-111"));
+            assert_eq!(data[0].trade_id.as_deref(), Some("222"));
+            assert_eq!(data[0].symbol.as_deref(), Some("BTCUSDT"));
+            assert_eq!(data[0].side.as_deref(), Some("buy"));
+            assert_eq!(data[0].order_type.as_deref(), Some("market"));
+            assert_eq!(data[0].position_mode.as_deref(), Some("one_way_mode"));
+            assert_eq!(data[0].price.as_deref(), Some("51000.5"));
+            assert_eq!(data[0].base_volume.as_deref(), Some("0.01"));
+            assert_eq!(data[0].quote_volume.as_deref(), Some("510.005"));
+            assert_eq!(data[0].profit.as_deref(), Some("0"));
+            assert_eq!(data[0].trade_side.as_deref(), Some("open"));
+            assert_eq!(data[0].trade_scope.as_deref(), Some("taker"));
+            assert_eq!(data[0].create_time.as_deref(), Some("1703577336606"));
+            assert_eq!(data[0].update_time.as_deref(), Some("1703577336606"));
+            assert_eq!(data[0].fee_detail[0].fee_coin.as_deref(), Some("USDT"));
+            assert_eq!(data[0].fee_detail[0].deduction.as_deref(), Some("no"));
+            assert_eq!(
+                data[0].fee_detail[0].total_deduction_fee.as_deref(),
+                Some("0")
+            );
+            assert_eq!(
+                data[0].fee_detail[0].total_fee.as_deref(),
+                Some("-0.183717")
+            );
+        }
+        other => panic!("expected fill event, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn websocket_session_handles_ping_pong_and_subscriptions() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+
+        let ping = socket.next().await.unwrap().unwrap();
+        assert_eq!(ping, Message::Text("ping".into()));
+        socket.send(Message::Text("pong".into())).await.unwrap();
+
+        let subscribe = socket.next().await.unwrap().unwrap();
+        let Message::Text(subscribe) = subscribe else {
+            panic!("expected text subscribe message");
+        };
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&subscribe).unwrap(),
+            json!({
+                "op":"subscribe",
+                "args":[{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"}]
+            })
+        );
+        socket
+            .send(Message::Text(
+                r#"{"event":"subscribe","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"}}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},"data":[{"lastPr":"70000.1"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+    });
+
+    let websocket = BitgetWebsocket::new_public_with_urls(&url, "ws://127.0.0.1/private");
+    let mut session = websocket.connect_public().await.unwrap();
+    let ticker = BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT");
+
+    session.ping().await.unwrap();
+    session.subscribe(&[ticker]).await.unwrap();
+
+    assert_eq!(
+        session.recv_event().await.unwrap(),
+        BitgetWebsocketEvent::Pong
+    );
+    match session.recv_event().await.unwrap() {
+        BitgetWebsocketEvent::Subscribed { arg, .. } => {
+            assert_eq!(arg.channel, "ticker");
+            assert_eq!(arg.inst_id.as_deref(), Some("BTCUSDT"));
+        }
+        other => panic!("expected subscribe event, got {other:?}"),
+    }
+    match session.recv_event().await.unwrap() {
+        BitgetWebsocketEvent::Ticker { action, data, .. } => {
+            assert_eq!(action.as_deref(), Some("snapshot"));
+            assert_eq!(data[0].last_price.as_deref(), Some("70000.1"));
+        }
+        other => panic!("expected ticker event, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn websocket_manager_reconnects_and_replays_subscriptions() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (subscription_tx, mut subscription_rx) = mpsc::channel::<serde_json::Value>(2);
+
+    tokio::spawn(async move {
+        for connection in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            let subscribe = socket.next().await.unwrap().unwrap();
+            let Message::Text(subscribe) = subscribe else {
+                panic!("expected subscription replay");
+            };
+            subscription_tx
+                .send(serde_json::from_str(&subscribe).unwrap())
+                .await
+                .unwrap();
+            socket
+                .send(Message::Text(
+                    format!(
+                        r#"{{"action":"snapshot","arg":{{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"}},"data":[{{"connection":{connection}}}]}}"#
+                    )
+                    .into(),
+                ))
+                .await
+                .unwrap();
+            if connection == 1 {
+                let _ = socket.next().await;
+            }
+        }
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 2)
+            .with_ping_interval(Duration::from_secs(30)),
+    );
+    manager.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"),
+    );
+
+    let mut events = manager.start().await.unwrap();
+    let first_subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let first_event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(first_subscribe["op"], "subscribe");
+    assert_eq!(second_subscribe["op"], "subscribe");
+    assert!(matches!(first_event, BitgetWebsocketEvent::Ticker { .. }));
+    assert!(matches!(second_event, BitgetWebsocketEvent::Ticker { .. }));
+    assert_eq!(manager.connection_state(), ConnectionState::Connected);
+    assert_eq!(manager.metrics().messages_received, 2);
+    assert!(manager.metrics().reconnects >= 1);
+
+    manager.stop().await;
+    assert_eq!(manager.connection_state(), ConnectionState::Stopped);
+}
+
+#[tokio::test]
+async fn websocket_manager_subscribes_while_running() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (subscription_tx, mut subscription_rx) = mpsc::channel::<serde_json::Value>(1);
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        let subscribe = socket.next().await.unwrap().unwrap();
+        let Message::Text(subscribe) = subscribe else {
+            panic!("expected runtime subscription");
+        };
+        subscription_tx
+            .send(serde_json::from_str(&subscribe).unwrap())
+            .await
+            .unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},"data":[{"lastPr":"71000.1"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 0)
+            .with_ping_interval(Duration::from_secs(30)),
+    );
+    let mut events = manager.start().await.unwrap();
+    manager
+        .subscribe(BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"))
+        .await
+        .unwrap();
+
+    let subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        subscribe,
+        json!({
+            "op":"subscribe",
+            "args":[{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"}]
+        })
+    );
+    match timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap()
+    {
+        BitgetWebsocketEvent::Ticker { data, .. } => {
+            assert_eq!(data[0].last_price.as_deref(), Some("71000.1"));
+        }
+        other => panic!("expected ticker event, got {other:?}"),
+    }
+
+    manager.stop().await;
+}
+
+#[tokio::test]
+async fn websocket_manager_unsubscribes_while_running_and_skips_replay() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (message_tx, mut message_rx) = mpsc::channel::<serde_json::Value>(3);
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+
+        for _ in 0..2 {
+            let message = socket.next().await.unwrap().unwrap();
+            let Message::Text(message) = message else {
+                panic!("expected text subscription command");
+            };
+            message_tx
+                .send(serde_json::from_str(&message).unwrap())
+                .await
+                .unwrap();
+        }
+        socket.close(None).await.unwrap();
+
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        assert!(
+            timeout(Duration::from_millis(40), socket.next())
+                .await
+                .is_err(),
+            "manager replayed a channel that was unsubscribed"
+        );
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"ETHUSDT"},"data":[{"lastPr":"4200.1"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 1)
+            .with_ping_interval(Duration::from_secs(30)),
+    );
+    let btc_ticker = BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT");
+    let mut events = manager.start().await.unwrap();
+    manager.subscribe(btc_ticker.clone()).await.unwrap();
+    manager.unsubscribe(btc_ticker).await.unwrap();
+
+    let subscribe = timeout(Duration::from_secs(2), message_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let unsubscribe = timeout(Duration::from_secs(2), message_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(subscribe["op"], "subscribe");
+    assert_eq!(unsubscribe["op"], "unsubscribe");
+    assert!(manager.subscriptions().is_empty());
+    match timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap()
+    {
+        BitgetWebsocketEvent::Ticker { arg, data, .. } => {
+            assert_eq!(arg.inst_id.as_deref(), Some("ETHUSDT"));
+            assert_eq!(data[0].last_price.as_deref(), Some("4200.1"));
+        }
+        other => panic!("expected ticker event after reconnect, got {other:?}"),
+    }
+
+    manager.stop().await;
+}
+
+#[tokio::test]
+async fn websocket_manager_reconnects_when_inbound_messages_stall() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (subscription_tx, mut subscription_rx) = mpsc::channel::<serde_json::Value>(2);
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        let subscribe = socket.next().await.unwrap().unwrap();
+        let Message::Text(subscribe) = subscribe else {
+            panic!("expected first subscription");
+        };
+        subscription_tx
+            .send(serde_json::from_str(&subscribe).unwrap())
+            .await
+            .unwrap();
+
+        while let Some(Ok(message)) = socket.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        let subscribe = socket.next().await.unwrap().unwrap();
+        let Message::Text(subscribe) = subscribe else {
+            panic!("expected replayed subscription");
+        };
+        subscription_tx
+            .send(serde_json::from_str(&subscribe).unwrap())
+            .await
+            .unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"ticker","instId":"BTCUSDT"},"data":[{"connection":1}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 2)
+            .with_ping_interval(Duration::from_millis(20)),
+    );
+    manager.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "ticker").with_inst_id("BTCUSDT"),
+    );
+
+    let mut events = manager.start().await.unwrap();
+    let first_subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_subscribe = timeout(Duration::from_secs(2), subscription_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(first_subscribe["op"], "subscribe");
+    assert_eq!(second_subscribe["op"], "subscribe");
+    assert!(matches!(event, BitgetWebsocketEvent::Ticker { .. }));
+    assert!(manager.metrics().reconnects >= 1);
+
+    manager.stop().await;
+}
+
+#[tokio::test]
+async fn websocket_manager_replays_login_before_private_subscriptions() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (message_tx, mut message_rx) = mpsc::channel::<serde_json::Value>(4);
+
+    tokio::spawn(async move {
+        for connection in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+
+            let login = socket.next().await.unwrap().unwrap();
+            let Message::Text(login) = login else {
+                panic!("expected login message");
+            };
+            let login: serde_json::Value = serde_json::from_str(&login).unwrap();
+            message_tx.send(login.clone()).await.unwrap();
+            socket
+                .send(Message::Text(
+                    r#"{"event":"login","code":"0","msg":"success"}"#.into(),
+                ))
+                .await
+                .unwrap();
+
+            let subscribe = socket.next().await.unwrap().unwrap();
+            let Message::Text(subscribe) = subscribe else {
+                panic!("expected private subscription replay");
+            };
+            message_tx
+                .send(serde_json::from_str(&subscribe).unwrap())
+                .await
+                .unwrap();
+            socket
+                .send(Message::Text(
+                    format!(
+                        r#"{{"action":"snapshot","arg":{{"instType":"USDT-FUTURES","channel":"orders","instId":"default"}},"data":[{{"connection":{connection}}}]}}"#
+                    )
+                    .into(),
+                ))
+                .await
+                .unwrap();
+            if connection == 1 {
+                let _ = socket.next().await;
+            }
+        }
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 2)
+            .with_ping_interval(Duration::from_secs(30)),
+    )
+    .with_login_credentials(Credentials::new("test-key", "test-secret", "test-pass"));
+    manager.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "orders").with_inst_id("default"),
+    );
+
+    let mut events = manager.start().await.unwrap();
+    let first_login = timeout(Duration::from_secs(2), message_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let first_subscribe = timeout(Duration::from_secs(2), message_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let first_event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_login = timeout(Duration::from_secs(2), message_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_subscribe = timeout(Duration::from_secs(2), message_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_event = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_login_payload(&first_login);
+    assert_login_payload(&second_login);
+    assert_eq!(first_subscribe["op"], "subscribe");
+    assert_eq!(second_subscribe["op"], "subscribe");
+    assert!(matches!(first_event, BitgetWebsocketEvent::Login { .. }));
+    assert!(matches!(second_event, BitgetWebsocketEvent::Orders { .. }));
+    assert!(manager.metrics().reconnects >= 1);
+
+    manager.stop().await;
+}
+
+#[tokio::test]
+async fn websocket_manager_waits_for_login_ack_before_private_subscriptions() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+
+        let login = socket.next().await.unwrap().unwrap();
+        let Message::Text(login) = login else {
+            panic!("expected login message");
+        };
+        let login: serde_json::Value = serde_json::from_str(&login).unwrap();
+        assert_login_payload(&login);
+
+        assert!(
+            timeout(Duration::from_millis(40), socket.next())
+                .await
+                .is_err(),
+            "manager sent subscription before login ack"
+        );
+
+        socket
+            .send(Message::Text(
+                r#"{"event":"login","code":"0","msg":"success"}"#.into(),
+            ))
+            .await
+            .unwrap();
+
+        let subscribe = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let Message::Text(subscribe) = subscribe else {
+            panic!("expected private subscription after login ack");
+        };
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&subscribe).unwrap(),
+            json!({
+                "op":"subscribe",
+                "args":[{"instType":"USDT-FUTURES","channel":"orders","instId":"default"}]
+            })
+        );
+        socket
+            .send(Message::Text(
+                r#"{"action":"snapshot","arg":{"instType":"USDT-FUTURES","channel":"orders","instId":"default"},"data":[{"orderId":"1"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 0)
+            .with_ping_interval(Duration::from_secs(30)),
+    )
+    .with_login_credentials(Credentials::new("test-key", "test-secret", "test-pass"));
+    manager.add_subscription(
+        BitgetWebsocketChannel::new("USDT-FUTURES", "orders").with_inst_id("default"),
+    );
+
+    let mut events = manager.start().await.unwrap();
+    assert!(matches!(
+        timeout(Duration::from_secs(2), events.recv())
+            .await
+            .unwrap()
+            .unwrap(),
+        BitgetWebsocketEvent::Login { .. }
+    ));
+    assert!(matches!(
+        timeout(Duration::from_secs(2), events.recv())
+            .await
+            .unwrap()
+            .unwrap(),
+        BitgetWebsocketEvent::Orders { .. }
+    ));
+
+    manager.stop().await;
+}
+
+fn assert_login_payload(value: &serde_json::Value) {
+    assert_eq!(value["op"], "login");
+    let args = value["args"].as_array().unwrap();
+    let payload = &args[0];
+    assert_eq!(payload["apiKey"], "test-key");
+    assert_eq!(payload["passphrase"], "test-pass");
+
+    let timestamp = payload["timestamp"].as_str().unwrap();
+    let expected_sign =
+        generate_signature("test-secret", &format!("{timestamp}GET/user/verify")).unwrap();
+    assert_eq!(payload["sign"], expected_sign);
 }
 
 #[tokio::test]

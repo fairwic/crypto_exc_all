@@ -166,6 +166,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "dotenv",
+ "futures-util",
  "hmac",
  "mockito",
  "reqwest 0.12.28",
@@ -174,6 +175,8 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-tungstenite",
+ "url",
 ]
 
 [[package]]

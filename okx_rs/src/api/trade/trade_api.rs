@@ -371,6 +371,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "places a live OKX order and requires private credentials"]
     async fn test_place_order() {
         // 仅作为示例，实际测试需要提供有效的值
         let trade = OkxTrade::from_env().expect("无法从环境变量创建交易API");

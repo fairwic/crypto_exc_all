@@ -563,6 +563,7 @@ mod tests {
     use std::env;
     use tokio::time::sleep;
     #[tokio::test]
+    #[ignore = "requires live OKX websocket network access"]
     async fn test_subscribe() {
         let args = Args::new().with_inst_id("BTC-USDT".to_string());
         let mut client = OkxWebsocketClient::new_public();
@@ -576,6 +577,7 @@ mod tests {
         sleep(Duration::from_secs(100)).await;
     }
     #[tokio::test]
+    #[ignore = "requires live OKX private websocket credentials and network access"]
     async fn test_unsubscribe() {
         dotenv::dotenv().ok();
         let api_key = env::var("OKX_API_KEY").expect("OKX_API_KEY 未设置");
