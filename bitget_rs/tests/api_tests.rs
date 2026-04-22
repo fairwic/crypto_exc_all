@@ -1378,6 +1378,63 @@ async fn account_positions_and_leverage_use_signed_v2_paths() {
 }
 
 #[tokio::test]
+async fn native_bitget_sdk_preserves_exchange_parameter_values() {
+    let mut server = Server::new_async().await;
+    let margin_mode = server
+        .mock("POST", "/api/v2/mix/account/set-margin-mode")
+        .match_header("ACCESS-KEY", "test-key")
+        .match_body(Matcher::JsonString(
+            r#"{"symbol":"BTCUSDT","productType":"USDT-FUTURES","marginCoin":"USDT","marginMode":"cross"}"#
+                .to_string(),
+        ))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":"00000","msg":"success","data":{"marginMode":"cross"}}"#)
+        .create_async()
+        .await;
+    let place = server
+        .mock("POST", "/api/v2/mix/order/place-order")
+        .match_header("ACCESS-KEY", "test-key")
+        .match_body(Matcher::JsonString(
+            r#"{"symbol":"BTCUSDT","productType":"USDT-FUTURES","marginMode":"cross","marginCoin":"USDT","size":"0.001","side":"buy","orderType":"limit","price":"10000","force":"post_only"}"#
+                .to_string(),
+        ))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":"00000","msg":"success","data":{"orderId":"1"}}"#)
+        .create_async()
+        .await;
+
+    let account = BitgetAccount::new(signed_client(server.url()));
+    let trade = BitgetTrade::new(signed_client(server.url()));
+
+    let margin = account
+        .set_margin_mode("BTCUSDT", "USDT-FUTURES", "USDT", "cross")
+        .await
+        .unwrap();
+    let order = trade
+        .place_order(
+            NewOrderRequest::limit(
+                "BTCUSDT",
+                "USDT-FUTURES",
+                "cross",
+                "USDT",
+                "0.001",
+                "buy",
+                "10000",
+            )
+            .with_force("post_only"),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(margin["marginMode"], "cross");
+    assert_eq!(order["orderId"], "1");
+    margin_mode.assert_async().await;
+    place.assert_async().await;
+}
+
+#[tokio::test]
 async fn account_bills_margin_and_asset_mode_use_signed_v2_paths() {
     let mut server = Server::new_async().await;
     let bills = server

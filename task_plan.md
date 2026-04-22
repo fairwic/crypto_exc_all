@@ -31,10 +31,11 @@
 - [x] Phase 23: Add Bitget WebSocket private login replay and ack gate before subscription replay
 - [x] Phase 24: Add Bitget WebSocket runtime subscribe/unsubscribe command path
 - [x] Phase 25: Count connected-session failures against Bitget WebSocket max reconnect attempts
-- [ ] Phase 26: Refactor Bitget WebSocket architecture to follow OKX proven manager/client layering
-- [ ] Phase 27: Add Bitget WebSocket URL fallback pool and exponential backoff
-- [ ] Phase 28: Add Bitget WebSocket root unified event stream facade only after bitget_rs is stable
-- [ ] Phase 29: Prepare bitget_rs as independently publishable crate and switch root dependency to released version
+- [x] Phase 26: Lock native SDK parameter pass-through boundary with Bitget regression tests
+- [ ] Phase 27: Refactor Bitget WebSocket architecture to follow OKX proven manager/client layering
+- [ ] Phase 28: Add Bitget WebSocket URL fallback pool and exponential backoff
+- [ ] Phase 29: Add Bitget WebSocket root unified event stream facade only after bitget_rs is stable
+- [ ] Phase 30: Prepare bitget_rs as independently publishable crate and switch root dependency to released version
 
 ## Iteration Update Protocol
 
@@ -49,6 +50,9 @@
 ## Architecture Guardrails
 
 - `bitget_rs` 是最终独立 SDK crate；`crypto_exc_all` 只应通过 facade/adapter 引入并统一输出，不应把 Bitget 原生协议逻辑散落到根 crate。
+- `bitget_rs`、`bnb_rs`/Binance、未来 `bybit_rs` 都必须是单独可用的原生 SDK 包。它们只暴露交易所原生字段和值，不负责统一 `cross/crossed/CROSSED`、`post_only/GTX`、`one_way_mode/Hedge` 这类跨交易所兼容参数。
+- 兼容参数、统一枚举、用户友好别名和跨交易所映射只能放在 `crypto_exc_all` 这一层：例如 `MarginMode::Cross` 到 Binance `CROSSED`、OKX `cross`、Bitget `crossed` 的转换必须在 root adapter 完成。
+- 原生 SDK 如果提供 helper builder，也只能是交易所原生命名的便捷构造，不能把其它交易所或 root facade 的兼容语义带进去。
 - 根 crate 当前为了 workspace 开发使用 `bitget_rs = { version = "0.1.0", path = "bitget_rs" }`。发布后应切换为仅依赖已发布版本，保留 workspace path 只作为本仓库开发便利。
 - Bitget WebSocket 后续不再继续堆叠临时 manager 行为；需要参考 OKX 已验证的 `AutoReconnectWebsocketClient + OkxWebsocketManager` 分层：
   - 底层 client 负责 URL fallback、连接、登录、心跳、消息超时、自动重连和 ws_sender。
@@ -82,6 +86,7 @@
 - [ ] 发布或确认 `bitget_rs` crates.io 名称可用；如不可用，确定替代 crate 名称。
 - [ ] `bitget_rs` 发布后，根 `crypto_exc_all` 的 `Cargo.toml` 依赖切换为版本依赖，workspace 开发再决定是否保留 path override。
 - [ ] 根 crate 只保留统一接口、adapter 和 `raw::bitget` re-export；不在根 crate 新增 Bitget 协议细节。
+- [ ] 为未来 `bybit_rs` 建立同样边界：Bybit 原生包只接收 Bybit 参数，`crypto_exc_all` adapter 才做统一枚举和兼容别名转换。
 
 ### P2 - 根 crate 统一事件流
 
@@ -131,6 +136,7 @@
 - 根 crate 第十三阶段扩展策略层下单前预配置入口：`prepare_order_settings` 聚合 position mode、margin mode、leverage 三类可选配置，按持仓模式、保证金模式、杠杆顺序执行，并复用已有三家 adapter 能力，避免策略层散落交易所分支。
 - Bitget WebSocket 纠偏决定：当前轻量 manager 已经多次暴露稳定性问题，后续不继续在单 loop 上叠补丁；改为参考 OKX 已验证的 `AutoReconnectWebsocketClient + Manager` 分层，实现 Bitget 自己包内的稳定 socket 架构。
 - Bitget 独立包边界决定：`bitget_rs` 自己承担 REST/WebSocket 原生能力、examples、文档和发布；`crypto_exc_all` 只引入 `bitget_rs` 并提供统一 facade/adapter，不复制 Bitget socket 业务逻辑。
+- 参数兼容边界决定：`bitget_rs`/`bnb_rs`/未来 `bybit_rs` 不能承担跨交易所兼容输入；root adapter 才负责把统一请求转换为各交易所原生字段和值。本轮新增 `native_bitget_sdk_preserves_exchange_parameter_values` 回归测试，锁定 `bitget_rs` 对原生 `marginMode` 等值做透传。
 
 ## Errors Encountered
 
@@ -146,4 +152,6 @@
 
 **Currently complete for Bitget REST aggregation parity plus root market/account-setting/trade/position/order-query/fills/derivatives-metrics/sentiment-stats facade and Bitget WebSocket base client** - Binance market/account/trade REST wrappers, the live post-only order harness, Wallet/SAPI asset wrappers, announcement wrapper, and WebSocket listenKey/URL/session/reconnect/split-route/health helpers are implemented and verified locally. Private user-data typed parsers now cover the current USDⓈ-M Futures event set documented by Binance. A real Binance Futures order was created on DOGEUSDT and immediately canceled with zero executed quantity. Bitget now has an independent `bitget_rs` crate plus root facade adapter for market ticker, orderbook, candles, funding rate, funding rate history, mark price, open interest, long-short ratio, taker buy-sell volume, account balances, set leverage, set position mode, set symbol margin mode with capability discovery, ensure order margin mode, prepare order settings, positions, basic order placement, cancellation, order detail, open orders, order history, and fills. `bitget_rs` now covers the major OKX/Binance REST domains: market data, account/position, order/trade, wallet/asset, announcements, and common trade-rate, and includes Bitget V2 WebSocket public/private URL config, login signing, ping/pong, subscribe/unsubscribe, place/cancel trade request helpers, trade ack parsing, typed base event parsing, ticker/orders/account/positions/books/trade/candles/fill typed DTOs, SOCKS5/SOCKS5h connection support, reconnect metrics, runtime subscribe/unsubscribe command path, timed ping, private login replay with login ack gate before subscription replay, inbound stall timeout reconnect, connected-session failure attempt limiting, and subscription replay.
 
-Current correction focus: Bitget WebSocket must be refactored to follow OKX's validated auto-reconnect client and manager split before adding more private channels or a root unified event stream. The remaining work is tracked in `Remaining Work Backlog`; every future iteration must update this file before final delivery.
+Current correction focus: Bitget WebSocket must be refactored to follow OKX's validated auto-reconnect client and manager split before adding more private channels or a root unified event stream. Native SDK packages must remain independently usable and parameter-native; compatibility mapping belongs in `crypto_exc_all`. The remaining work is tracked in `Remaining Work Backlog`; every future iteration must update this file before final delivery.
+
+Latest iteration: locked the native SDK parameter boundary with `native_bitget_sdk_preserves_exchange_parameter_values`, confirming `bitget_rs` preserves raw `marginMode` values and does not apply root compatibility mapping. Verification run: `cargo fmt && cargo clippy -p bitget_rs --all-targets && cargo test -p bitget_rs native_bitget_sdk_preserves_exchange_parameter_values -- --nocapture && cargo test --workspace` completed successfully. No live order or live WebSocket smoke test was executed in this iteration.

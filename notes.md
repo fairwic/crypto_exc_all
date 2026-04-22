@@ -406,3 +406,15 @@
   - 在 `bitget_rs` 内部重构出 Bitget 版 auto reconnect client 和 manager；不要把 Bitget socket 逻辑搬到 `crypto_exc_all`。
   - 根 crate 后续只通过 `bitget_rs` 暴露 `raw::bitget` 和统一 facade；`crypto_exc_all` 不直接实现 Bitget WebSocket 协议。
   - 在该架构纠偏完成前，暂停继续追加更多 Bitget private channel，避免在错误结构上扩大复杂度。
+
+## Native SDK Parameter Boundary
+
+- 用户明确要求：Bitget、Bybit、Binance 都应是单独可用的包；兼容参数应放在 `crypto_exc_all` 自己这一层，不应深入原生 SDK。
+- 边界定义：
+  - `bitget_rs`/`bnb_rs`/未来 `bybit_rs` 只表达交易所原生 REST/WebSocket 字段和值。
+  - `crypto_exc_all` 的统一 DTO、枚举和 adapter 负责跨交易所兼容：例如 `MarginMode::Cross` 分别映射 Binance `CROSSED`、OKX `cross`、Bitget `crossed`。
+  - 原生 SDK 测试应断言“传入什么原生值，就发送什么原生值”，避免后续把 root facade 的兼容逻辑下沉。
+- 当前检查结果：
+  - `bitget_rs::api::trade::NewOrderRequest` 和 `BitgetAccount::set_margin_mode` 已经接收原生字符串并透传。
+  - `src/margin.rs`、`src/adapters/binance.rs`、`src/adapters/okx.rs`、`src/adapters/bitget.rs` 负责统一枚举到交易所原生值的映射，位置正确。
+  - 本轮新增 `native_bitget_sdk_preserves_exchange_parameter_values`，锁定 `bitget_rs` 不把 `cross` 自动改成 `crossed`。
