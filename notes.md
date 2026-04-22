@@ -392,3 +392,4 @@
 - `BitgetWebsocketManager` 提供基础稳定性能力：连接状态、健康指标、自动重连、重连后订阅重放和定时 ping。默认 ping 间隔 30 秒，对齐 Bitget 官方保持连接建议；如果连续 3 个 ping 周期没有收到任何 text/binary/ping/pong 入站消息，会记录 `last_error` 并主动重连，覆盖 TCP 半开或服务端不再响应 `pong` 的场景。
 - `BitgetWebsocketManager::with_login_credentials` 用于 private WebSocket：每次建立连接都会用当前时间重新生成 login payload，并等待 login ack 成功后再订阅，避免断线恢复后私有频道只重放订阅、不重新认证，或认证尚未完成就抢发订阅。
 - `BitgetWebsocketManager::subscribe` / `unsubscribe` 支持连接运行中动态调整订阅：命令会发送到当前 socket，同时更新 manager 和重连循环里的订阅集合；取消订阅后的频道不会在下一次重连时被重放。
+- WebSocket reconnect 计数现在覆盖“连接已建立但会话失败”的路径，例如 private login ack 返回错误、入站超时或连接内发送失败；这些场景会消耗 `max_reconnect_attempts`，避免登录失败时无限重试。

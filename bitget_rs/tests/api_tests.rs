@@ -1059,6 +1059,69 @@ async fn websocket_manager_waits_for_login_ack_before_private_subscriptions() {
     manager.stop().await;
 }
 
+#[tokio::test]
+async fn websocket_manager_limits_reconnects_after_login_failures() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let (login_tx, mut login_rx) = mpsc::channel::<()>(3);
+
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            let mut socket = accept_async(stream).await.unwrap();
+            let login = socket.next().await.unwrap().unwrap();
+            let Message::Text(_) = login else {
+                panic!("expected login message");
+            };
+            login_tx.send(()).await.unwrap();
+            socket
+                .send(Message::Text(
+                    r#"{"event":"login","code":"30001","msg":"bad credentials"}"#.into(),
+                ))
+                .await
+                .unwrap();
+            let _ = socket.close(None).await;
+        }
+    });
+
+    let mut manager = BitgetWebsocketManager::new(
+        url,
+        ReconnectConfig::new(Duration::from_millis(10), 1)
+            .with_ping_interval(Duration::from_millis(50)),
+    )
+    .with_login_credentials(Credentials::new("test-key", "test-secret", "test-pass"));
+    let mut events = manager.start().await.unwrap();
+
+    timeout(Duration::from_secs(2), login_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    timeout(Duration::from_secs(2), login_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        timeout(Duration::from_millis(80), login_rx.recv())
+            .await
+            .is_err(),
+        "manager exceeded max_reconnect_attempts after repeated login failures"
+    );
+
+    let first_login = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let second_login = timeout(Duration::from_secs(2), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(first_login, BitgetWebsocketEvent::Login { .. }));
+    assert!(matches!(second_login, BitgetWebsocketEvent::Login { .. }));
+    assert_eq!(manager.connection_state(), ConnectionState::Disconnected);
+    assert_eq!(manager.metrics().connection_attempts, 2);
+
+    manager.stop().await;
+}
+
 fn assert_login_payload(value: &serde_json::Value) {
     assert_eq!(value["op"], "login");
     let args = value["args"].as_array().unwrap();

@@ -65,7 +65,7 @@ Current coverage:
   - base typed event parser with raw fallback
   - typed DTOs for `ticker`, `orders`, `account`, `positions`, `books*`, `trade`, `candle*`, and `fill` pushes
   - WebSocket session with SOCKS5/SOCKS5h proxy support
-  - reconnect manager with runtime subscribe/unsubscribe, timed ping, private login replay with ack gate, inbound stall timeout, metrics, and subscription replay
+  - reconnect manager with runtime subscribe/unsubscribe, timed ping, private login replay with ack gate, inbound stall timeout, connected-session failure limits, metrics, and subscription replay
 - HMAC-SHA256 + Base64 request signing
 - SOCKS/HTTP proxy configuration
 - Mocked request, signature header, and response mapping tests

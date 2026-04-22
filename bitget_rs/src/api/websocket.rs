@@ -1031,7 +1031,6 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
                     metrics.connection_attempts += 1;
                     metrics.last_error = None;
                 });
-                attempts = 0;
                 let should_reconnect = run_connected_socket(
                     stream,
                     ConnectedSocketContext {
@@ -1048,6 +1047,7 @@ async fn run_reconnect_loop(mut context: ReconnectLoopContext) {
                 if !should_reconnect {
                     break;
                 }
+                attempts += 1;
             }
             Err(err) => {
                 let message = err.to_string();
