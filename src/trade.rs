@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::exchange::ExchangeId;
 use crate::instrument::Instrument;
 use crate::margin::MarginMode;
+use crate::order::OrderQuery;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -59,6 +60,131 @@ pub struct PlaceOrderRequest {
     pub client_order_id: Option<String>,
     pub reduce_only: Option<bool>,
     pub time_in_force: Option<TimeInForce>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtectiveOrderWorkingType {
+    MarkPrice,
+    ContractPrice,
+}
+
+impl ProtectiveOrderWorkingType {
+    pub(crate) fn binance_value(self) -> &'static str {
+        match self {
+            Self::MarkPrice => "MARK_PRICE",
+            Self::ContractPrice => "CONTRACT_PRICE",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProtectiveOrderRequest {
+    pub instrument: Instrument,
+    pub side: OrderSide,
+    pub stop_price: String,
+    pub position_side: Option<String>,
+    pub reduce_only: Option<bool>,
+    pub close_position: Option<bool>,
+    pub working_type: Option<ProtectiveOrderWorkingType>,
+    pub price_protect: Option<bool>,
+    pub client_order_id: Option<String>,
+}
+
+impl ProtectiveOrderRequest {
+    pub fn stop_market(
+        instrument: Instrument,
+        side: OrderSide,
+        stop_price: impl Into<String>,
+    ) -> Self {
+        Self {
+            instrument,
+            side,
+            stop_price: stop_price.into(),
+            position_side: None,
+            reduce_only: None,
+            close_position: None,
+            working_type: None,
+            price_protect: None,
+            client_order_id: None,
+        }
+    }
+
+    pub fn with_position_side(mut self, value: impl Into<String>) -> Self {
+        self.position_side = Some(value.into());
+        self
+    }
+
+    pub fn with_reduce_only(mut self, value: bool) -> Self {
+        self.reduce_only = Some(value);
+        self
+    }
+
+    pub fn with_close_position(mut self, value: bool) -> Self {
+        self.close_position = Some(value);
+        self
+    }
+
+    pub fn with_working_type(mut self, value: ProtectiveOrderWorkingType) -> Self {
+        self.working_type = Some(value);
+        self
+    }
+
+    pub fn with_price_protect(mut self, value: bool) -> Self {
+        self.price_protect = Some(value);
+        self
+    }
+
+    pub fn with_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.client_order_id = Some(value.into());
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProtectiveOrderQuery {
+    pub instrument: Instrument,
+    pub order_id: Option<String>,
+    pub client_order_id: Option<String>,
+}
+
+impl ProtectiveOrderQuery {
+    pub fn new(instrument: Instrument) -> Self {
+        Self {
+            instrument,
+            order_id: None,
+            client_order_id: None,
+        }
+    }
+
+    pub fn by_order_id(instrument: Instrument, order_id: impl Into<String>) -> Self {
+        Self::new(instrument).with_order_id(order_id)
+    }
+
+    pub fn by_client_order_id(instrument: Instrument, client_order_id: impl Into<String>) -> Self {
+        Self::new(instrument).with_client_order_id(client_order_id)
+    }
+
+    pub fn with_order_id(mut self, value: impl Into<String>) -> Self {
+        self.order_id = Some(value.into());
+        self
+    }
+
+    pub fn with_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.client_order_id = Some(value.into());
+        self
+    }
+
+    pub fn into_order_query(self) -> OrderQuery {
+        let mut query = OrderQuery::new(self.instrument);
+        if let Some(order_id) = self.order_id {
+            query = query.with_order_id(order_id);
+        }
+        if let Some(client_order_id) = self.client_order_id {
+            query = query.with_client_order_id(client_order_id);
+        }
+        query
+    }
 }
 
 impl PlaceOrderRequest {
@@ -204,7 +330,64 @@ impl<'a> TradeFacade<'a> {
         self.client.place_order(request).await
     }
 
+    pub async fn place_protective_order(
+        &self,
+        request: ProtectiveOrderRequest,
+    ) -> Result<OrderAck> {
+        self.client.place_protective_order(request).await
+    }
+
     pub async fn cancel_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
         self.client.cancel_order(request).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::order::OrderQuery;
+
+    #[test]
+    fn protective_order_request_captures_stop_market_contract() {
+        let request = ProtectiveOrderRequest::stop_market(
+            Instrument::perp("ETH", "USDT"),
+            OrderSide::Sell,
+            "2200",
+        )
+        .with_position_side("LONG")
+        .with_reduce_only(true)
+        .with_close_position(false)
+        .with_working_type(ProtectiveOrderWorkingType::MarkPrice)
+        .with_price_protect(true)
+        .with_client_order_id("sl-rqethopen3");
+
+        assert_eq!(request.instrument, Instrument::perp("ETH", "USDT"));
+        assert_eq!(request.side, OrderSide::Sell);
+        assert_eq!(request.stop_price, "2200");
+        assert_eq!(request.position_side.as_deref(), Some("LONG"));
+        assert_eq!(request.reduce_only, Some(true));
+        assert_eq!(request.close_position, Some(false));
+        assert_eq!(
+            request.working_type,
+            Some(ProtectiveOrderWorkingType::MarkPrice)
+        );
+        assert_eq!(request.price_protect, Some(true));
+        assert_eq!(request.client_order_id.as_deref(), Some("sl-rqethopen3"));
+    }
+
+    #[test]
+    fn protective_order_query_reuses_standard_order_identity_contract() {
+        let query = ProtectiveOrderQuery::by_client_order_id(
+            Instrument::perp("ETH", "USDT"),
+            "sl-rqethopen3",
+        );
+        let order_query: OrderQuery = query.into_order_query();
+
+        assert_eq!(order_query.instrument, Instrument::perp("ETH", "USDT"));
+        assert_eq!(order_query.order_id, None);
+        assert_eq!(
+            order_query.client_order_id.as_deref(),
+            Some("sl-rqethopen3")
+        );
     }
 }

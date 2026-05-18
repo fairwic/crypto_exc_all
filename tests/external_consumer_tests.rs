@@ -990,6 +990,86 @@ async fn external_consumer_can_prepare_order_settings_without_exchange_branching
 }
 
 #[tokio::test]
+async fn external_consumer_prepare_order_settings_treats_binance_noop_mode_and_margin_as_success() {
+    let mut binance_server = Server::new_async().await;
+    let binance_position_mode = binance_server
+        .mock("POST", "/fapi/v1/positionSide/dual")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("dualSidePosition".into(), "true".into()),
+            Matcher::UrlEncoded("recvWindow".into(), "5000".into()),
+            Matcher::Regex("(^|&)timestamp=".into()),
+            Matcher::Regex("(^|&)signature=".into()),
+        ]))
+        .with_status(400)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":-4059,"msg":"No need to change position side."}"#)
+        .create_async()
+        .await;
+    let binance_margin_mode = binance_server
+        .mock("POST", "/fapi/v1/marginType")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("symbol".into(), "ETHUSDT".into()),
+            Matcher::UrlEncoded("marginType".into(), "CROSSED".into()),
+            Matcher::UrlEncoded("recvWindow".into(), "5000".into()),
+            Matcher::Regex("(^|&)timestamp=".into()),
+            Matcher::Regex("(^|&)signature=".into()),
+        ]))
+        .with_status(400)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":-4046,"msg":"No need to change margin type."}"#)
+        .create_async()
+        .await;
+    let binance_leverage = binance_server
+        .mock("POST", "/fapi/v1/leverage")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("symbol".into(), "ETHUSDT".into()),
+            Matcher::UrlEncoded("leverage".into(), "3".into()),
+            Matcher::UrlEncoded("recvWindow".into(), "5000".into()),
+            Matcher::Regex("(^|&)timestamp=".into()),
+            Matcher::Regex("(^|&)signature=".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"symbol":"ETHUSDT","leverage":3,"maxNotionalValue":"1000000"}"#)
+        .create_async()
+        .await;
+
+    let okx_server = Server::new_async().await;
+    let bitget_server = Server::new_async().await;
+    let sdk = configured_sdk(binance_server.url(), okx_server.url(), bitget_server.url());
+    let request = PrepareOrderSettingsRequest::new(Instrument::perp("ETH", "USDT"))
+        .with_position_mode(PositionMode::Hedge)
+        .with_margin_mode(MarginMode::Cross)
+        .with_leverage("3")
+        .with_product_type("USDT-FUTURES")
+        .with_margin_coin("USDT")
+        .with_position_side("long");
+
+    let result = sdk
+        .account(ExchangeId::Binance)
+        .unwrap()
+        .prepare_order_settings(request)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        result.position_mode.as_ref().unwrap().mode,
+        PositionMode::Hedge
+    );
+    assert_eq!(
+        result.position_mode.as_ref().unwrap().raw["idempotent"],
+        true
+    );
+    assert_eq!(result.margin_mode.as_ref().unwrap().mode, MarginMode::Cross);
+    assert_eq!(result.margin_mode.as_ref().unwrap().raw["idempotent"], true);
+    assert_eq!(result.leverage.as_ref().unwrap().leverage, "3");
+
+    binance_position_mode.assert_async().await;
+    binance_margin_mode.assert_async().await;
+    binance_leverage.assert_async().await;
+}
+
+#[tokio::test]
 async fn external_consumer_uses_root_crate_for_unified_place_and_cancel_order() {
     let mut binance_server = Server::new_async().await;
     let binance_place = binance_server

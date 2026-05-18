@@ -2,6 +2,7 @@ use crate::adapters::ExchangeClient;
 use crate::error::Result;
 use crate::exchange::ExchangeId;
 use crate::instrument::Instrument;
+use crate::trade::ProtectiveOrderQuery;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -133,6 +134,10 @@ impl<'a> OrderFacade<'a> {
 
     pub async fn get(&self, query: OrderQuery) -> Result<Order> {
         self.client.order(query).await
+    }
+
+    pub async fn get_protective_order(&self, query: ProtectiveOrderQuery) -> Result<Order> {
+        self.client.protective_order(query).await
     }
 
     pub async fn open(&self, query: OrderListQuery) -> Result<Vec<Order>> {

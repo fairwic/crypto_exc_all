@@ -15,12 +15,16 @@ use crate::market::{
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::Position;
-use crate::trade::{CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, TimeInForce};
+use crate::trade::{
+    CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, ProtectiveOrderQuery,
+    ProtectiveOrderRequest, TimeInForce,
+};
 use binance_rs::api::market::{
     FundingRateHistoryRequest as BinanceFundingRateHistoryRequest,
     FuturesDataRequest as BinanceFuturesDataRequest, KlineRequest as BinanceKlineRequest,
 };
 use binance_rs::api::trade::{
+    AlgoOrderIdRequest as BinanceAlgoOrderIdRequest, AlgoOrderRequest as BinanceAlgoOrderRequest,
     ChangeLeverageRequest as BinanceChangeLeverageRequest,
     ChangeMarginTypeRequest as BinanceChangeMarginTypeRequest,
     ChangePositionModeRequest as BinanceChangePositionModeRequest,
@@ -29,7 +33,7 @@ use binance_rs::api::trade::{
 };
 use binance_rs::config::{Config as BinanceConfig, Credentials as BinanceCredentials};
 use binance_rs::{BinanceAccount, BinanceClient, BinanceMarket, BinanceTrade};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 pub(crate) struct BinanceAdapter {
     account: BinanceAccount,
@@ -333,11 +337,25 @@ impl BinanceAdapter {
     ) -> Result<PositionModeSetting> {
         let exchange = ExchangeId::Binance;
         let dual_side_position = matches!(request.mode, PositionMode::Hedge);
-        let raw = self
+        let raw = match self
             .trade
             .change_position_mode(BinanceChangePositionModeRequest::new(dual_side_position))
             .await
-            .map_err(Error::from_binance)?;
+        {
+            Ok(raw) => raw,
+            Err(error) => {
+                let mapped = Error::from_binance(error);
+                if binance_api_code_is(&mapped, "-4059") {
+                    json!({
+                        "code": -4059,
+                        "msg": "No need to change position side.",
+                        "idempotent": true,
+                    })
+                } else {
+                    return Err(mapped);
+                }
+            }
+        };
 
         Ok(PositionModeSetting {
             exchange,
@@ -356,14 +374,28 @@ impl BinanceAdapter {
         let instrument = request.instrument.clone();
         let symbol = instrument.symbol_for(exchange);
         let raw_mode = request.mode.as_binance_margin_type();
-        let raw = self
+        let raw = match self
             .trade
             .change_margin_type(BinanceChangeMarginTypeRequest::new(
                 &symbol,
                 raw_mode.clone(),
             ))
             .await
-            .map_err(Error::from_binance)?;
+        {
+            Ok(raw) => raw,
+            Err(error) => {
+                let mapped = Error::from_binance(error);
+                if binance_api_code_is(&mapped, "-4046") {
+                    json!({
+                        "code": -4046,
+                        "msg": "No need to change margin type.",
+                        "idempotent": true,
+                    })
+                } else {
+                    return Err(mapped);
+                }
+            }
+        };
 
         Ok(SymbolMarginModeSetting {
             exchange,
@@ -471,6 +503,28 @@ impl BinanceAdapter {
         order_ack_from_value(exchange, instrument, symbol, raw, "Binance order response")
     }
 
+    pub(crate) async fn place_protective_order(
+        &self,
+        request: ProtectiveOrderRequest,
+    ) -> Result<OrderAck> {
+        let exchange = ExchangeId::Binance;
+        let instrument = request.instrument.clone();
+        let symbol = instrument.symbol_for(exchange);
+        let raw = self
+            .trade
+            .place_algo_order(binance_protective_order_request(&request))
+            .await
+            .map_err(Error::from_binance)?;
+
+        algo_order_ack_from_value(
+            exchange,
+            instrument,
+            symbol,
+            raw,
+            "Binance protective order response",
+        )
+    }
+
     pub(crate) async fn cancel_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
         let exchange = ExchangeId::Binance;
         let instrument = request.instrument.clone();
@@ -492,9 +546,36 @@ impl BinanceAdapter {
             .trade
             .cancel_order(binance_request)
             .await
-            .map_err(Error::from_binance)?;
+            .map_err(Error::from_binance);
 
-        order_ack_from_value(exchange, instrument, symbol, raw, "Binance cancel response")
+        match raw {
+            Ok(raw) => {
+                order_ack_from_value(exchange, instrument, symbol, raw, "Binance cancel response")
+            }
+            Err(error)
+                if binance_api_code_is(&error, "-2011") || binance_api_code_is(&error, "-2013") =>
+            {
+                let algo_request = binance_algo_order_id_request(
+                    exchange,
+                    request.order_id.as_deref(),
+                    request.client_order_id.as_deref(),
+                )?;
+                let raw = self
+                    .trade
+                    .cancel_algo_order(algo_request)
+                    .await
+                    .map_err(Error::from_binance)?;
+
+                algo_order_ack_from_value(
+                    exchange,
+                    instrument,
+                    symbol,
+                    raw,
+                    "Binance cancel algo order response",
+                )
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub(crate) async fn order(&self, query: OrderQuery) -> Result<Order> {
@@ -515,6 +596,30 @@ impl BinanceAdapter {
             Some(symbol),
             raw,
             "Binance order response",
+        )
+    }
+
+    pub(crate) async fn protective_order(&self, query: ProtectiveOrderQuery) -> Result<Order> {
+        let exchange = ExchangeId::Binance;
+        let instrument = query.instrument;
+        let symbol = instrument.symbol_for(exchange);
+        let request = binance_algo_order_id_request(
+            exchange,
+            query.order_id.as_deref(),
+            query.client_order_id.as_deref(),
+        )?;
+        let raw = self
+            .trade
+            .get_algo_order(request)
+            .await
+            .map_err(Error::from_binance)?;
+
+        binance_algo_order_from_value(
+            exchange,
+            Some(instrument),
+            Some(symbol),
+            raw,
+            "Binance algo order response",
         )
     }
 
@@ -694,12 +799,137 @@ fn required_price(exchange: ExchangeId, request: &PlaceOrderRequest) -> Result<&
     })
 }
 
+fn binance_protective_order_request(request: &ProtectiveOrderRequest) -> BinanceAlgoOrderRequest {
+    let symbol = request.instrument.symbol_for(ExchangeId::Binance);
+    let mut binance_request =
+        BinanceAlgoOrderRequest::stop_market(symbol, request.side.upper(), &request.stop_price);
+
+    if let Some(position_side) = request.position_side.as_deref() {
+        binance_request = binance_request.with_position_side(position_side.to_ascii_uppercase());
+    }
+    if let Some(reduce_only) = request.reduce_only {
+        binance_request = binance_request.with_reduce_only(reduce_only);
+    }
+    if let Some(close_position) = request.close_position {
+        binance_request = binance_request.with_close_position(close_position);
+    }
+    if let Some(working_type) = request.working_type {
+        binance_request = binance_request.with_working_type(working_type.binance_value());
+    }
+    if let Some(price_protect) = request.price_protect {
+        binance_request = binance_request.with_price_protect(price_protect);
+    }
+    if let Some(client_order_id) = request.client_order_id.as_deref() {
+        binance_request = binance_request.with_client_algo_id(client_order_id);
+    }
+
+    binance_request
+}
+
+fn binance_algo_order_id_request(
+    exchange: ExchangeId,
+    order_id: Option<&str>,
+    client_order_id: Option<&str>,
+) -> Result<BinanceAlgoOrderIdRequest> {
+    let request = BinanceAlgoOrderIdRequest::new();
+    if let Some(order_id) = order_id {
+        let parsed = order_id.parse::<u64>().map_err(|_| Error::Adapter {
+            exchange,
+            message: format!("Binance algo order_id must be numeric: {order_id}"),
+        })?;
+        Ok(request.with_algo_id(parsed))
+    } else if let Some(client_order_id) = client_order_id {
+        Ok(request.with_client_algo_id(client_order_id))
+    } else {
+        Err(missing_cancel_id(exchange))
+    }
+}
+
+fn binance_api_code_is(error: &Error, expected_code: &str) -> bool {
+    matches!(
+        error,
+        Error::Api {
+            exchange: ExchangeId::Binance,
+            code,
+            ..
+        } if code == expected_code
+    )
+}
+
 fn binance_time_in_force(value: Option<TimeInForce>) -> &'static str {
     match value.unwrap_or(TimeInForce::Gtc) {
         TimeInForce::Gtc => "GTC",
         TimeInForce::Ioc => "IOC",
         TimeInForce::Fok => "FOK",
         TimeInForce::PostOnly => "GTX",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::trade::{OrderSide, ProtectiveOrderRequest, ProtectiveOrderWorkingType};
+
+    #[test]
+    fn maps_protective_stop_market_request_to_binance_algo_order_params() {
+        let request = ProtectiveOrderRequest::stop_market(
+            Instrument::perp("ETH", "USDT"),
+            OrderSide::Sell,
+            "2200",
+        )
+        .with_position_side("LONG")
+        .with_close_position(true)
+        .with_working_type(ProtectiveOrderWorkingType::MarkPrice)
+        .with_price_protect(true)
+        .with_client_order_id("sl-rqethopen3");
+
+        let mapped = binance_protective_order_request(&request);
+        let params = mapped.to_params();
+
+        assert_eq!(mapped.order_type, "STOP_MARKET");
+        assert!(params.contains(&("algoType", "CONDITIONAL".to_string())));
+        assert!(params.contains(&("symbol", "ETHUSDT".to_string())));
+        assert!(params.contains(&("side", "SELL".to_string())));
+        assert!(params.contains(&("type", "STOP_MARKET".to_string())));
+        assert!(params.contains(&("triggerPrice", "2200".to_string())));
+        assert!(params.contains(&("positionSide", "LONG".to_string())));
+        assert!(!params.iter().any(|(key, _)| *key == "reduceOnly"));
+        assert!(params.contains(&("closePosition", "true".to_string())));
+        assert!(params.contains(&("workingType", "MARK_PRICE".to_string())));
+        assert!(params.contains(&("priceProtect", "true".to_string())));
+        assert!(params.contains(&("clientAlgoId", "sl-rqethopen3".to_string())));
+    }
+
+    #[test]
+    fn maps_binance_algo_order_query_response_to_protective_order() {
+        let order = binance_algo_order_from_value(
+            ExchangeId::Binance,
+            Some(Instrument::perp("ETH", "USDT")),
+            Some("ETHUSDT".to_string()),
+            serde_json::json!({
+                "algoId": 2000000953242572_i64,
+                "clientAlgoId": "rq-sl-183",
+                "algoStatus": "NEW",
+                "orderType": "STOP_MARKET",
+                "symbol": "ETHUSDT",
+                "side": "SELL",
+                "positionSide": "LONG",
+                "triggerPrice": "2145.22",
+                "closePosition": true,
+                "priceProtect": true,
+                "createTime": 1779023785699_u64,
+                "updateTime": 1779023785699_u64
+            }),
+            "Binance algo order response",
+        )
+        .expect("valid algo order");
+
+        assert_eq!(order.order_id.as_deref(), Some("2000000953242572"));
+        assert_eq!(order.client_order_id.as_deref(), Some("rq-sl-183"));
+        assert_eq!(order.status.as_deref(), Some("NEW"));
+        assert_eq!(order.order_type.as_deref(), Some("STOP_MARKET"));
+        assert_eq!(order.price.as_deref(), Some("2145.22"));
+        assert_eq!(order.side.as_deref(), Some("SELL"));
     }
 }
 
@@ -722,6 +952,31 @@ fn order_ack_from_value(
         order_id: string_field(object, "orderId"),
         client_order_id: string_field(object, "clientOrderId"),
         status: string_field(object, "status"),
+        raw,
+    })
+}
+
+fn algo_order_ack_from_value(
+    exchange: ExchangeId,
+    instrument: Instrument,
+    exchange_symbol: String,
+    raw: Value,
+    label: &str,
+) -> Result<OrderAck> {
+    let object = raw.as_object().ok_or_else(|| Error::Adapter {
+        exchange,
+        message: format!("{label} is not an object"),
+    })?;
+
+    Ok(OrderAck {
+        exchange,
+        instrument,
+        exchange_symbol,
+        order_id: string_field(object, "algoId"),
+        client_order_id: string_field(object, "clientAlgoId"),
+        status: string_field(object, "algoStatus")
+            .or_else(|| string_field(object, "code"))
+            .or_else(|| string_field(object, "status")),
         raw,
     })
 }
@@ -998,6 +1253,42 @@ fn binance_order_from_value(
         status: string_field(object, "status"),
         created_at: u64_field(object, "time"),
         updated_at: u64_field(object, "updateTime"),
+        raw,
+    })
+}
+
+fn binance_algo_order_from_value(
+    exchange: ExchangeId,
+    instrument: Option<Instrument>,
+    symbol_hint: Option<String>,
+    raw: Value,
+    label: &str,
+) -> Result<Order> {
+    let object = raw.as_object().ok_or_else(|| Error::Adapter {
+        exchange,
+        message: format!("{label} is not an object"),
+    })?;
+    let exchange_symbol = string_field(object, "symbol")
+        .or(symbol_hint)
+        .unwrap_or_default();
+    let mapped_instrument =
+        instrument.unwrap_or_else(|| instrument_from_linear_symbol(&exchange_symbol));
+
+    Ok(Order {
+        exchange,
+        instrument: mapped_instrument,
+        exchange_symbol,
+        order_id: string_field(object, "algoId"),
+        client_order_id: string_field(object, "clientAlgoId"),
+        side: string_field(object, "side"),
+        order_type: first_string_field(object, &["orderType", "type"]),
+        price: first_string_field(object, &["triggerPrice", "price"]),
+        size: first_string_field(object, &["quantity", "origQty"]),
+        filled_size: first_string_field(object, &["executedQty", "cumQty"]),
+        average_price: first_string_field(object, &["actualPrice", "avgPrice", "averagePrice"]),
+        status: first_string_field(object, &["algoStatus", "status"]),
+        created_at: first_u64_field(object, &["createTime", "time"]),
+        updated_at: first_u64_field(object, &["updateTime", "time"]),
         raw,
     })
 }

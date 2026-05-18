@@ -15,7 +15,9 @@ use crate::market::{
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::Position;
-use crate::trade::{CancelOrderRequest, OrderAck, PlaceOrderRequest};
+use crate::trade::{
+    CancelOrderRequest, OrderAck, PlaceOrderRequest, ProtectiveOrderQuery, ProtectiveOrderRequest,
+};
 
 #[cfg(feature = "binance")]
 mod binance;
@@ -334,6 +336,26 @@ impl ExchangeClient {
         }
     }
 
+    pub(crate) async fn place_protective_order(
+        &self,
+        request: ProtectiveOrderRequest,
+    ) -> Result<OrderAck> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Okx,
+                capability: "protective order",
+            }),
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.place_protective_order(request).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "protective order",
+            }),
+        }
+    }
+
     pub(crate) async fn cancel_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
         match self {
             #[cfg(feature = "okx")]
@@ -353,6 +375,17 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.order(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.order(query).await,
+        }
+    }
+
+    pub(crate) async fn protective_order(&self, query: ProtectiveOrderQuery) -> Result<Order> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.order(query.into_order_query()).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.protective_order(query).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(adapter) => adapter.order(query.into_order_query()).await,
         }
     }
 

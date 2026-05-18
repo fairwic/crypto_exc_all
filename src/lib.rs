@@ -45,5 +45,6 @@ pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
 pub use position::{Position, PositionFacade};
 pub use sdk::CryptoSdk;
 pub use trade::{
-    CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, TimeInForce, TradeFacade,
+    CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, ProtectiveOrderQuery,
+    ProtectiveOrderRequest, ProtectiveOrderWorkingType, TimeInForce, TradeFacade,
 };
