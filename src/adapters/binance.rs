@@ -62,10 +62,6 @@ impl BinanceAdapter {
         if let Some(recv_window_ms) = config.recv_window_ms {
             binance_config.recv_window_ms = recv_window_ms;
         }
-        if let Some(proxy_url) = config.proxy_url {
-            binance_config.proxy_url = Some(proxy_url);
-        }
-
         let credentials = BinanceCredentials::new(config.api_key, config.api_secret);
         let client = BinanceClient::with_config(Some(credentials), binance_config)
             .map_err(Error::from_binance)?;
@@ -576,6 +572,33 @@ impl BinanceAdapter {
             }
             Err(error) => Err(error),
         }
+    }
+
+    pub(crate) async fn cancel_protective_order(
+        &self,
+        request: CancelOrderRequest,
+    ) -> Result<OrderAck> {
+        let exchange = ExchangeId::Binance;
+        let instrument = request.instrument.clone();
+        let symbol = instrument.symbol_for(exchange);
+        let algo_request = binance_algo_order_id_request(
+            exchange,
+            request.order_id.as_deref(),
+            request.client_order_id.as_deref(),
+        )?;
+        let raw = self
+            .trade
+            .cancel_algo_order(algo_request)
+            .await
+            .map_err(Error::from_binance)?;
+
+        algo_order_ack_from_value(
+            exchange,
+            instrument,
+            symbol,
+            raw,
+            "Binance cancel protective order response",
+        )
     }
 
     pub(crate) async fn order(&self, query: OrderQuery) -> Result<Order> {

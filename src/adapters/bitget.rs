@@ -44,10 +44,6 @@ impl BitgetAdapter {
         if let Some(api_timeout_ms) = config.api_timeout_ms {
             bitget_config.api_timeout_ms = api_timeout_ms;
         }
-        if let Some(proxy_url) = config.proxy_url {
-            bitget_config.proxy_url = Some(proxy_url);
-        }
-
         let product_type = config
             .product_type
             .unwrap_or_else(|| DEFAULT_PRODUCT_TYPE.to_string());
@@ -463,6 +459,7 @@ impl BitgetAdapter {
             bitget_request =
                 bitget_request.with_reduce_only(if reduce_only { "YES" } else { "NO" });
         }
+        bitget_request = bitget_apply_attached_stop_loss(bitget_request, &request);
 
         let raw = self
             .trade
@@ -958,6 +955,45 @@ fn bitget_force(value: Option<TimeInForce>) -> Option<&'static str> {
         Some(TimeInForce::Fok) => Some("fok"),
         Some(TimeInForce::PostOnly) => Some("post_only"),
         None => None,
+    }
+}
+
+fn bitget_apply_attached_stop_loss(
+    request: BitgetNewOrderRequest,
+    source: &PlaceOrderRequest,
+) -> BitgetNewOrderRequest {
+    match source
+        .attached_stop_loss_price
+        .as_ref()
+        .filter(|price| !price.trim().is_empty())
+    {
+        Some(price) => request.with_preset_stop_loss_price(price.clone()),
+        None => request,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::trade::OrderSide;
+
+    #[test]
+    fn bitget_attached_stop_loss_maps_to_preset_stop_loss_price() {
+        let source =
+            PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.1")
+                .with_attached_stop_loss_price("2200.5");
+        let target = BitgetNewOrderRequest::market(
+            "ETHUSDT",
+            "USDT-FUTURES",
+            "isolated",
+            "USDT",
+            "0.1",
+            "buy",
+        );
+
+        let mapped = bitget_apply_attached_stop_loss(target, &source);
+
+        assert_eq!(mapped.preset_stop_loss_price.as_deref(), Some("2200.5"));
     }
 }
 

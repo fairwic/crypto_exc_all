@@ -24,7 +24,10 @@ use okx_rs::dto::account_dto::{
     SetPositionModeRequest as OkxSetPositionModeRequest,
 };
 use okx_rs::dto::public_data_dto::{FundingRateHistoryOkxRespDto, FundingRateOkxRespDto};
-use okx_rs::dto::trade_dto::{OrdListReqDto, OrderDetailRespDto, OrderPendingRespDto, OrderReqDto};
+use okx_rs::dto::trade_dto::{
+    AttachAlgoOrdReqDto, OrdListReqDto, OrderDetailRespDto, OrderPendingRespDto, OrderReqDto,
+    OrderResDto,
+};
 use okx_rs::dto::{
     CandleOkxRespDto, EnumToStrTrait, MarginMode as OkxMarginMode, OrderType as OkxRawOrderType,
 };
@@ -477,7 +480,7 @@ impl OkxAdapter {
             quick_mgn_type: None,
             stp_id: None,
             stp_mode: None,
-            attach_algo_ords: None,
+            attach_algo_ords: okx_attached_stop_loss_ords(&request),
         };
         let mut response = self
             .trade
@@ -488,17 +491,7 @@ impl OkxAdapter {
             exchange,
             message: "OKX order response is empty".to_string(),
         })?;
-        let raw = serde_json::to_value(&order)?;
-
-        Ok(OrderAck {
-            exchange,
-            instrument,
-            exchange_symbol: symbol,
-            order_id: non_empty(order.ord_id),
-            client_order_id: order.cl_ord_id.and_then(non_empty),
-            status: non_empty(order.s_code),
-            raw,
-        })
+        okx_order_ack_from_response(instrument, symbol, order)
     }
 
     pub(crate) async fn cancel_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
@@ -683,6 +676,56 @@ fn okx_order_type(request: &PlaceOrderRequest) -> &'static str {
         (OrderType::Limit, _) => "limit",
         (OrderType::Market, _) => "market",
     }
+}
+
+fn okx_attached_stop_loss_ords(request: &PlaceOrderRequest) -> Option<Vec<AttachAlgoOrdReqDto>> {
+    request
+        .attached_stop_loss_price
+        .as_ref()
+        .filter(|price| !price.trim().is_empty())
+        .map(|price| {
+            vec![AttachAlgoOrdReqDto {
+                attach_algo_cl_ord_id: None,
+                tp_trigger_px: None,
+                tp_ord_px: None,
+                tp_ord_kind: None,
+                tp_trigger_px_type: None,
+                sl_trigger_px: Some(price.clone()),
+                sl_ord_px: Some("-1".to_string()),
+                sl_trigger_px_type: Some("mark".to_string()),
+                sz: None,
+                amend_px_on_trigger_type: None,
+            }]
+        })
+}
+
+fn okx_order_ack_from_response(
+    instrument: Instrument,
+    symbol: String,
+    order: OrderResDto,
+) -> Result<OrderAck> {
+    let exchange = ExchangeId::Okx;
+    if order.s_code.trim() != "0" {
+        return Err(Error::Api {
+            exchange,
+            status: None,
+            code: order.s_code,
+            message: order
+                .s_msg
+                .unwrap_or_else(|| "OKX order rejected".to_string()),
+        });
+    }
+    let raw = serde_json::to_value(&order)?;
+
+    Ok(OrderAck {
+        exchange,
+        instrument,
+        exchange_symbol: symbol,
+        order_id: non_empty(order.ord_id),
+        client_order_id: order.cl_ord_id.and_then(non_empty),
+        status: Some(order.s_code),
+        raw,
+    })
 }
 
 fn first_object_value(raw: Value, exchange: ExchangeId, label: &str) -> Result<Value> {
@@ -1139,4 +1182,48 @@ fn okx_fills_from_value(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::trade::OrderSide;
+
+    #[test]
+    fn okx_attached_stop_loss_maps_to_market_sl_algo_order() {
+        let request =
+            PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.1")
+                .with_attached_stop_loss_price("2200.5");
+
+        let attached =
+            okx_attached_stop_loss_ords(&request).expect("attached stop loss should be mapped");
+        assert_eq!(attached.len(), 1);
+        assert_eq!(attached[0].sl_trigger_px.as_deref(), Some("2200.5"));
+        assert_eq!(attached[0].sl_ord_px.as_deref(), Some("-1"));
+        assert_eq!(attached[0].sl_trigger_px_type.as_deref(), Some("mark"));
+        assert_eq!(attached[0].tp_trigger_px, None);
+        assert_eq!(attached[0].tp_ord_px, None);
+    }
+
+    #[test]
+    fn okx_order_ack_rejects_nonzero_order_s_code() {
+        let order = OrderResDto {
+            ord_id: String::new(),
+            cl_ord_id: Some("rq-okx-1".to_string()),
+            tag: None,
+            ts: "1710000000000".to_string(),
+            s_code: "51076".to_string(),
+            s_msg: Some("Attached TP/SL parameter error".to_string()),
+        };
+
+        let error = okx_order_ack_from_response(
+            Instrument::perp("ETH", "USDT"),
+            "ETH-USDT-SWAP".to_string(),
+            order,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("51076"));
+        assert!(error.to_string().contains("Attached TP/SL parameter error"));
+    }
 }

@@ -145,18 +145,7 @@ where
             &["BINANCE_RECV_WINDOW_MS", "binance_recv_window_ms"],
         )
         .and_then(|value| value.parse::<u64>().ok()),
-        proxy_url: env_any_with(
-            lookup,
-            &[
-                "BINANCE_PROXY_URL",
-                "binance_proxy_url",
-                "ALL_PROXY",
-                "all_proxy",
-                "HTTPS_PROXY",
-                "https_proxy",
-            ],
-        )
-        .and_then(normalize_proxy_url),
+        proxy_url: None,
     })
 }
 
@@ -180,18 +169,7 @@ where
         api_url: env_any_with(lookup, &["BITGET_API_URL", "bitget_api_url"]),
         api_timeout_ms: env_any_with(lookup, &["BITGET_API_TIMEOUT_MS", "bitget_api_timeout_ms"])
             .and_then(|value| value.parse::<u64>().ok()),
-        proxy_url: env_any_with(
-            lookup,
-            &[
-                "BITGET_PROXY_URL",
-                "bitget_proxy_url",
-                "ALL_PROXY",
-                "all_proxy",
-                "HTTPS_PROXY",
-                "https_proxy",
-            ],
-        )
-        .and_then(normalize_proxy_url),
+        proxy_url: None,
         product_type: env_any_with(lookup, &["BITGET_PRODUCT_TYPE", "bitget_product_type"]),
     })
 }
@@ -208,19 +186,6 @@ fn parse_boolish(value: &str) -> bool {
         value.trim().to_ascii_lowercase().as_str(),
         "1" | "true" | "yes" | "y" | "on"
     )
-}
-
-fn normalize_proxy_url(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    if let Some(rest) = trimmed.strip_prefix("socks5://") {
-        return Some(format!("socks5h://{rest}"));
-    }
-
-    Some(trimmed.to_string())
 }
 
 pub fn init_env() {
@@ -263,11 +228,9 @@ mod tests {
             "OKX_PASSPHRASE" => Some("okx-pass".to_string()),
             "BINANCE_API_KEY" => Some("binance-key".to_string()),
             "BINANCE_API_SECRET" => Some("binance-secret".to_string()),
-            "BINANCE_PROXY_URL" => Some("socks5://127.0.0.1:7897".to_string()),
             "BITGET_API_KEY" => Some("bitget-key".to_string()),
             "BITGET_API_SECRET" => Some("bitget-secret".to_string()),
             "bitget_PASSPHRASE" => Some("bitget-pass".to_string()),
-            "BITGET_PROXY_URL" => Some("socks5://127.0.0.1:7898".to_string()),
             "BITGET_PRODUCT_TYPE" => Some("USDT-FUTURES".to_string()),
             _ => None,
         });
@@ -276,17 +239,11 @@ mod tests {
             config.configured_exchanges(),
             vec![ExchangeId::Okx, ExchangeId::Binance, ExchangeId::Bitget]
         );
-        assert_eq!(
-            config.binance.unwrap().proxy_url.as_deref(),
-            Some("socks5h://127.0.0.1:7897")
-        );
+        assert_eq!(config.binance.unwrap().proxy_url, None);
         let bitget = config.bitget.unwrap();
         assert_eq!(bitget.passphrase, "bitget-pass");
         assert_eq!(bitget.product_type.as_deref(), Some("USDT-FUTURES"));
-        assert_eq!(
-            bitget.proxy_url.as_deref(),
-            Some("socks5h://127.0.0.1:7898")
-        );
+        assert_eq!(bitget.proxy_url, None);
     }
 
     #[test]

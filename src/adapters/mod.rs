@@ -367,6 +367,26 @@ impl ExchangeClient {
         }
     }
 
+    pub(crate) async fn cancel_protective_order(
+        &self,
+        request: CancelOrderRequest,
+    ) -> Result<OrderAck> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Okx,
+                capability: "protective order cancellation",
+            }),
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.cancel_protective_order(request).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "protective order cancellation",
+            }),
+        }
+    }
+
     pub(crate) async fn order(&self, query: OrderQuery) -> Result<Order> {
         match self {
             #[cfg(feature = "okx")]

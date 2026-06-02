@@ -61,19 +61,6 @@ impl Config {
         {
             config.api_timeout_ms = timeout;
         }
-        config.proxy_url = env_any_with(
-            &lookup,
-            &[
-                "BITGET_PROXY_URL",
-                "bitget_proxy_url",
-                "ALL_PROXY",
-                "all_proxy",
-                "HTTPS_PROXY",
-                "https_proxy",
-            ],
-        )
-        .and_then(normalize_proxy_url);
-
         config
     }
 }
@@ -150,19 +137,6 @@ where
     names.iter().find_map(|name| lookup(name))
 }
 
-fn normalize_proxy_url(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    if let Some(rest) = trimmed.strip_prefix("socks5://") {
-        return Some(format!("socks5h://{rest}"));
-    }
-
-    Some(trimmed.to_string())
-}
-
 fn env_file_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(mut dir) = env::current_dir() {
@@ -181,16 +155,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_reads_proxy_and_normalizes_socks5() {
+    fn config_ignores_proxy_env() {
         let config = Config::from_lookup(|key| match key {
             "BITGET_PROXY_URL" => Some("socks5://127.0.0.1:7897".to_string()),
+            "ALL_PROXY" => Some("http://proxy.example:8080".to_string()),
             _ => None,
         });
 
-        assert_eq!(
-            config.proxy_url,
-            Some("socks5h://127.0.0.1:7897".to_string())
-        );
+        assert_eq!(config.proxy_url, None);
     }
 
     #[test]

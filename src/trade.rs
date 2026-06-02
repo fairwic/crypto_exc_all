@@ -60,6 +60,7 @@ pub struct PlaceOrderRequest {
     pub client_order_id: Option<String>,
     pub reduce_only: Option<bool>,
     pub time_in_force: Option<TimeInForce>,
+    pub attached_stop_loss_price: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -207,6 +208,7 @@ impl PlaceOrderRequest {
             client_order_id: None,
             reduce_only: None,
             time_in_force: None,
+            attached_stop_loss_price: None,
         }
     }
 
@@ -260,6 +262,11 @@ impl PlaceOrderRequest {
 
     pub fn with_time_in_force(mut self, value: TimeInForce) -> Self {
         self.time_in_force = Some(value);
+        self
+    }
+
+    pub fn with_attached_stop_loss_price(mut self, value: impl Into<String>) -> Self {
+        self.attached_stop_loss_price = Some(value.into());
         self
     }
 }
@@ -340,6 +347,10 @@ impl<'a> TradeFacade<'a> {
     pub async fn cancel_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
         self.client.cancel_order(request).await
     }
+
+    pub async fn cancel_protective_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
+        self.client.cancel_protective_order(request).await
+    }
 }
 
 #[cfg(test)]
@@ -373,6 +384,15 @@ mod tests {
         );
         assert_eq!(request.price_protect, Some(true));
         assert_eq!(request.client_order_id.as_deref(), Some("sl-rqethopen3"));
+    }
+
+    #[test]
+    fn place_order_request_carries_attached_stop_loss_price() {
+        let request =
+            PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.1")
+                .with_attached_stop_loss_price("2200.5");
+
+        assert_eq!(request.attached_stop_loss_price.as_deref(), Some("2200.5"));
     }
 
     #[test]
