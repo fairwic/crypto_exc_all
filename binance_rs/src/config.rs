@@ -83,6 +83,10 @@ impl Config {
         {
             config.recv_window_ms = recv_window;
         }
+        if let Some(proxy_url) = env_any_with(&lookup, &["BINANCE_PROXY_URL", "binance_proxy_url"])
+        {
+            config.proxy_url = Some(proxy_url);
+        }
         config
     }
 }
@@ -157,13 +161,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_ignores_proxy_env() {
+    fn config_reads_proxy_env() {
         let config = Config::from_lookup(|key| match key {
             "BINANCE_PROXY_URL" => Some("socks5://127.0.0.1:7897".to_string()),
             "ALL_PROXY" => Some("http://proxy.example:8080".to_string()),
             _ => None,
         });
 
-        assert_eq!(config.proxy_url, None);
+        assert_eq!(config.proxy_url.as_deref(), Some("socks5://127.0.0.1:7897"));
     }
 }

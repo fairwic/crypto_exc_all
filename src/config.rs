@@ -145,7 +145,7 @@ where
             &["BINANCE_RECV_WINDOW_MS", "binance_recv_window_ms"],
         )
         .and_then(|value| value.parse::<u64>().ok()),
-        proxy_url: None,
+        proxy_url: env_any_with(lookup, &["BINANCE_PROXY_URL", "binance_proxy_url"]),
     })
 }
 
@@ -228,6 +228,7 @@ mod tests {
             "OKX_PASSPHRASE" => Some("okx-pass".to_string()),
             "BINANCE_API_KEY" => Some("binance-key".to_string()),
             "BINANCE_API_SECRET" => Some("binance-secret".to_string()),
+            "BINANCE_PROXY_URL" => Some("socks5h://127.0.0.1:7897".to_string()),
             "BITGET_API_KEY" => Some("bitget-key".to_string()),
             "BITGET_API_SECRET" => Some("bitget-secret".to_string()),
             "bitget_PASSPHRASE" => Some("bitget-pass".to_string()),
@@ -239,7 +240,10 @@ mod tests {
             config.configured_exchanges(),
             vec![ExchangeId::Okx, ExchangeId::Binance, ExchangeId::Bitget]
         );
-        assert_eq!(config.binance.unwrap().proxy_url, None);
+        assert_eq!(
+            config.binance.unwrap().proxy_url.as_deref(),
+            Some("socks5h://127.0.0.1:7897")
+        );
         let bitget = config.bitget.unwrap();
         assert_eq!(bitget.passphrase, "bitget-pass");
         assert_eq!(bitget.product_type.as_deref(), Some("USDT-FUTURES"));
