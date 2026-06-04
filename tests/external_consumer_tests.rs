@@ -116,6 +116,7 @@ async fn external_consumer_uses_root_crate_for_binance_okx_and_bitget_tickers() 
             proxy_url: None,
             product_type: Some("USDT-FUTURES".to_string()),
         }),
+        ..SdkConfig::default()
     })
     .unwrap();
 
@@ -2087,6 +2088,7 @@ fn configured_sdk(binance_url: String, okx_url: String, bitget_url: String) -> C
             proxy_url: None,
             product_type: Some("USDT-FUTURES".to_string()),
         }),
+        ..SdkConfig::default()
     })
     .unwrap()
 }

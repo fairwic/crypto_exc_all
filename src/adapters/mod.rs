@@ -4,7 +4,10 @@ use crate::account::{
     SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
     SymbolMarginModeSetting,
 };
-use crate::config::{BinanceExchangeConfig, BitgetExchangeConfig, OkxExchangeConfig};
+use crate::config::{
+    BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
+    OkxExchangeConfig,
+};
 use crate::error::Result;
 use crate::exchange::ExchangeId;
 use crate::fill::{Fill, FillListQuery};
@@ -23,6 +26,10 @@ use crate::trade::{
 mod binance;
 #[cfg(feature = "bitget")]
 mod bitget;
+#[cfg(feature = "bybit")]
+mod bybit;
+#[cfg(feature = "gate")]
+mod gate;
 #[cfg(feature = "okx")]
 mod okx;
 
@@ -30,6 +37,10 @@ mod okx;
 pub(crate) use binance::BinanceAdapter;
 #[cfg(feature = "bitget")]
 pub(crate) use bitget::BitgetAdapter;
+#[cfg(feature = "bybit")]
+pub(crate) use bybit::BybitAdapter;
+#[cfg(feature = "gate")]
+pub(crate) use gate::GateAdapter;
 #[cfg(feature = "okx")]
 pub(crate) use okx::OkxAdapter;
 
@@ -40,6 +51,10 @@ pub(crate) enum ExchangeClient {
     Binance(Box<BinanceAdapter>),
     #[cfg(feature = "bitget")]
     Bitget(Box<BitgetAdapter>),
+    #[cfg(feature = "bybit")]
+    Bybit(Box<BybitAdapter>),
+    #[cfg(feature = "gate")]
+    Gate(Box<GateAdapter>),
 }
 
 impl ExchangeClient {
@@ -58,6 +73,16 @@ impl ExchangeClient {
         Ok(Self::Bitget(Box::new(BitgetAdapter::new(config)?)))
     }
 
+    #[cfg(feature = "bybit")]
+    pub(crate) fn bybit(config: BybitExchangeConfig) -> Result<Self> {
+        Ok(Self::Bybit(Box::new(BybitAdapter::new(config)?)))
+    }
+
+    #[cfg(feature = "gate")]
+    pub(crate) fn gate(config: GateExchangeConfig) -> Result<Self> {
+        Ok(Self::Gate(Box::new(GateAdapter::new(config)?)))
+    }
+
     pub(crate) fn exchange_id(&self) -> ExchangeId {
         match self {
             #[cfg(feature = "okx")]
@@ -66,6 +91,10 @@ impl ExchangeClient {
             Self::Binance(_) => ExchangeId::Binance,
             #[cfg(feature = "bitget")]
             Self::Bitget(_) => ExchangeId::Bitget,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => ExchangeId::Bybit,
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => ExchangeId::Gate,
         }
     }
 
@@ -77,6 +106,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.ticker(instrument).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.ticker(instrument).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.ticker(instrument).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.ticker(instrument).await,
         }
     }
 
@@ -88,6 +121,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.orderbook(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.orderbook(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.orderbook(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.orderbook(query).await,
         }
     }
 
@@ -99,6 +136,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.candles(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.candles(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.candles(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.candles(query).await,
         }
     }
 
@@ -110,6 +151,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.funding_rate(instrument).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.funding_rate(instrument).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.funding_rate(instrument).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.funding_rate(instrument).await,
         }
     }
 
@@ -124,6 +169,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.funding_rate_history(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.funding_rate_history(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.funding_rate_history(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.funding_rate_history(query).await,
         }
     }
 
@@ -135,6 +184,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.mark_price(instrument).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.mark_price(instrument).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.mark_price(instrument).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.mark_price(instrument).await,
         }
     }
 
@@ -146,6 +199,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.open_interest(instrument).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.open_interest(instrument).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.open_interest(instrument).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.open_interest(instrument).await,
         }
     }
 
@@ -160,6 +217,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.long_short_ratio(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.long_short_ratio(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.long_short_ratio(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.long_short_ratio(query).await,
         }
     }
 
@@ -174,6 +235,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.taker_buy_sell_volume(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.taker_buy_sell_volume(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.taker_buy_sell_volume(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.taker_buy_sell_volume(query).await,
         }
     }
 
@@ -185,6 +250,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.balances().await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.balances().await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.balances().await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.balances().await,
         }
     }
 
@@ -199,6 +268,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.set_leverage(request).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.set_leverage(request).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.set_leverage(request).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.set_leverage(request).await,
         }
     }
 
@@ -210,6 +283,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.account_capabilities(),
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.account_capabilities(),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.account_capabilities(),
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.account_capabilities(),
         }
     }
 
@@ -224,6 +301,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.set_position_mode(request).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.set_position_mode(request).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.set_position_mode(request).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.set_position_mode(request).await,
         }
     }
 
@@ -238,6 +319,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.set_symbol_margin_mode(request).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.set_symbol_margin_mode(request).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.set_symbol_margin_mode(request).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.set_symbol_margin_mode(request).await,
         }
     }
 
@@ -252,6 +337,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.ensure_order_margin_mode(request).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.ensure_order_margin_mode(request).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.ensure_order_margin_mode(request).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.ensure_order_margin_mode(request).await,
         }
     }
 
@@ -322,6 +411,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.positions(instrument).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.positions(instrument).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.positions(instrument).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.positions(instrument).await,
         }
     }
 
@@ -333,6 +426,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.place_order(request).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.place_order(request).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.place_order(request).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.place_order(request).await,
         }
     }
 
@@ -353,6 +450,16 @@ impl ExchangeClient {
                 exchange: ExchangeId::Bitget,
                 capability: "protective order",
             }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "protective order",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "protective order",
+            }),
         }
     }
 
@@ -364,6 +471,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.cancel_order(request).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.cancel_order(request).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.cancel_order(request).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.cancel_order(request).await,
         }
     }
 
@@ -384,6 +495,16 @@ impl ExchangeClient {
                 exchange: ExchangeId::Bitget,
                 capability: "protective order cancellation",
             }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "protective order cancellation",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "protective order cancellation",
+            }),
         }
     }
 
@@ -395,6 +516,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.order(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.order(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.order(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.order(query).await,
         }
     }
 
@@ -406,6 +531,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.protective_order(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.order(query.into_order_query()).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.order(query.into_order_query()).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.order(query.into_order_query()).await,
         }
     }
 
@@ -417,6 +546,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.open_orders(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.open_orders(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.open_orders(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.open_orders(query).await,
         }
     }
 
@@ -428,6 +561,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.order_history(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.order_history(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.order_history(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.order_history(query).await,
         }
     }
 
@@ -439,6 +576,10 @@ impl ExchangeClient {
             Self::Binance(adapter) => adapter.fills(query).await,
             #[cfg(feature = "bitget")]
             Self::Bitget(adapter) => adapter.fills(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.fills(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.fills(query).await,
         }
     }
 }

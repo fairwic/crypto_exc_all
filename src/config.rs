@@ -10,6 +10,8 @@ pub struct SdkConfig {
     pub okx: Option<OkxExchangeConfig>,
     pub binance: Option<BinanceExchangeConfig>,
     pub bitget: Option<BitgetExchangeConfig>,
+    pub bybit: Option<BybitExchangeConfig>,
+    pub gate: Option<GateExchangeConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +48,27 @@ pub struct BitgetExchangeConfig {
     pub product_type: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BybitExchangeConfig {
+    pub api_key: String,
+    pub api_secret: String,
+    pub api_url: Option<String>,
+    pub api_timeout_ms: Option<u64>,
+    pub recv_window_ms: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GateExchangeConfig {
+    pub api_key: String,
+    pub api_secret: String,
+    pub api_url: Option<String>,
+    pub api_timeout_ms: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub settle: Option<String>,
+}
+
 impl SdkConfig {
     pub fn from_env() -> Self {
         init_env();
@@ -60,6 +83,8 @@ impl SdkConfig {
             okx: read_okx_config(&lookup),
             binance: read_binance_config(&lookup),
             bitget: read_bitget_config(&lookup),
+            bybit: read_bybit_config(&lookup),
+            gate: read_gate_config(&lookup),
         }
     }
 
@@ -73,6 +98,12 @@ impl SdkConfig {
         }
         if self.bitget.is_some() {
             exchanges.push(ExchangeId::Bitget);
+        }
+        if self.bybit.is_some() {
+            exchanges.push(ExchangeId::Bybit);
+        }
+        if self.gate.is_some() {
+            exchanges.push(ExchangeId::Gate);
         }
         exchanges
     }
@@ -174,6 +205,38 @@ where
     })
 }
 
+fn read_bybit_config<F>(lookup: &F) -> Option<BybitExchangeConfig>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    Some(BybitExchangeConfig {
+        api_key: env_any_with(lookup, &["BYBIT_API_KEY", "bybit_api_key"])?,
+        api_secret: env_any_with(lookup, &["BYBIT_API_SECRET", "bybit_api_secret"])?,
+        api_url: env_any_with(lookup, &["BYBIT_API_URL", "bybit_api_url"]),
+        api_timeout_ms: env_any_with(lookup, &["BYBIT_API_TIMEOUT_MS", "bybit_api_timeout_ms"])
+            .and_then(|value| value.parse::<u64>().ok()),
+        recv_window_ms: env_any_with(lookup, &["BYBIT_RECV_WINDOW_MS", "bybit_recv_window_ms"])
+            .and_then(|value| value.parse::<u64>().ok()),
+        proxy_url: env_any_with(lookup, &["BYBIT_PROXY_URL", "bybit_proxy_url"]),
+        category: env_any_with(lookup, &["BYBIT_CATEGORY", "bybit_category"]),
+    })
+}
+
+fn read_gate_config<F>(lookup: &F) -> Option<GateExchangeConfig>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    Some(GateExchangeConfig {
+        api_key: env_any_with(lookup, &["GATE_API_KEY", "gate_api_key"])?,
+        api_secret: env_any_with(lookup, &["GATE_API_SECRET", "gate_api_secret"])?,
+        api_url: env_any_with(lookup, &["GATE_API_URL", "gate_api_url"]),
+        api_timeout_ms: env_any_with(lookup, &["GATE_API_TIMEOUT_MS", "gate_api_timeout_ms"])
+            .and_then(|value| value.parse::<u64>().ok()),
+        proxy_url: env_any_with(lookup, &["GATE_PROXY_URL", "gate_proxy_url"]),
+        settle: env_any_with(lookup, &["GATE_SETTLE", "gate_settle"]),
+    })
+}
+
 fn env_any_with<F>(lookup: &F, names: &[&str]) -> Option<String>
 where
     F: Fn(&str) -> Option<String>,
@@ -233,12 +296,24 @@ mod tests {
             "BITGET_API_SECRET" => Some("bitget-secret".to_string()),
             "bitget_PASSPHRASE" => Some("bitget-pass".to_string()),
             "BITGET_PRODUCT_TYPE" => Some("USDT-FUTURES".to_string()),
+            "BYBIT_API_KEY" => Some("bybit-key".to_string()),
+            "BYBIT_API_SECRET" => Some("bybit-secret".to_string()),
+            "BYBIT_CATEGORY" => Some("linear".to_string()),
+            "GATE_API_KEY" => Some("gate-key".to_string()),
+            "GATE_API_SECRET" => Some("gate-secret".to_string()),
+            "GATE_SETTLE" => Some("usdt".to_string()),
             _ => None,
         });
 
         assert_eq!(
             config.configured_exchanges(),
-            vec![ExchangeId::Okx, ExchangeId::Binance, ExchangeId::Bitget]
+            vec![
+                ExchangeId::Okx,
+                ExchangeId::Binance,
+                ExchangeId::Bitget,
+                ExchangeId::Bybit,
+                ExchangeId::Gate
+            ]
         );
         assert_eq!(
             config.binance.unwrap().proxy_url.as_deref(),
@@ -248,6 +323,8 @@ mod tests {
         assert_eq!(bitget.passphrase, "bitget-pass");
         assert_eq!(bitget.product_type.as_deref(), Some("USDT-FUTURES"));
         assert_eq!(bitget.proxy_url, None);
+        assert_eq!(config.bybit.unwrap().category.as_deref(), Some("linear"));
+        assert_eq!(config.gate.unwrap().settle.as_deref(), Some("usdt"));
     }
 
     #[test]

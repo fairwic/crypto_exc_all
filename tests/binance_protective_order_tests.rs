@@ -69,6 +69,7 @@ async fn places_queries_and_directly_cancels_binance_protective_order() {
             proxy_url: None,
         }),
         bitget: None,
+        ..SdkConfig::default()
     })
     .unwrap();
 

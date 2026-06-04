@@ -19,6 +19,12 @@ pub mod raw {
     #[cfg(feature = "bitget")]
     pub use bitget_rs as bitget;
 
+    #[cfg(feature = "bybit")]
+    pub use bybit_rs as bybit;
+
+    #[cfg(feature = "gate")]
+    pub use gate_rs as gate;
+
     #[cfg(feature = "okx")]
     pub use okx_rs as okx;
 }
@@ -30,7 +36,10 @@ pub use account::{
     SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
     SymbolMarginModeSetting,
 };
-pub use config::{BinanceExchangeConfig, BitgetExchangeConfig, OkxExchangeConfig, SdkConfig};
+pub use config::{
+    BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
+    OkxExchangeConfig, SdkConfig,
+};
 pub use error::{Error, Result};
 pub use exchange::ExchangeId;
 pub use fill::{Fill, FillFacade, FillListQuery};

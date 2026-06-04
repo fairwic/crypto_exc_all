@@ -8,6 +8,8 @@ pub enum ExchangeId {
     Okx,
     Binance,
     Bitget,
+    Bybit,
+    Gate,
 }
 
 impl ExchangeId {
@@ -16,6 +18,8 @@ impl ExchangeId {
             Self::Okx => "okx",
             Self::Binance => "binance",
             Self::Bitget => "bitget",
+            Self::Bybit => "bybit",
+            Self::Gate => "gate",
         }
     }
 }
@@ -34,6 +38,8 @@ impl FromStr for ExchangeId {
             "okx" => Ok(Self::Okx),
             "binance" => Ok(Self::Binance),
             "bitget" => Ok(Self::Bitget),
+            "bybit" => Ok(Self::Bybit),
+            "gate" | "gateio" | "gate.io" => Ok(Self::Gate),
             other => Err(format!("unsupported exchange: {other}")),
         }
     }
@@ -47,5 +53,13 @@ mod tests {
     fn parses_bitget_exchange_id() {
         assert_eq!("bitget".parse::<ExchangeId>().unwrap(), ExchangeId::Bitget);
         assert_eq!(ExchangeId::Bitget.as_str(), "bitget");
+    }
+
+    #[test]
+    fn parses_secondary_listing_exchange_ids() {
+        assert_eq!("bybit".parse::<ExchangeId>().unwrap(), ExchangeId::Bybit);
+        assert_eq!("gate".parse::<ExchangeId>().unwrap(), ExchangeId::Gate);
+        assert_eq!(ExchangeId::Bybit.as_str(), "bybit");
+        assert_eq!(ExchangeId::Gate.as_str(), "gate");
     }
 }

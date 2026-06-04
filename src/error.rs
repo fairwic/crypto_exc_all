@@ -103,4 +103,48 @@ impl Error {
             },
         }
     }
+
+    #[cfg(feature = "bybit")]
+    pub(crate) fn from_bybit(error: bybit_rs::Error) -> Self {
+        match error {
+            bybit_rs::Error::BybitApiError {
+                status,
+                code,
+                message,
+            } => Self::Api {
+                exchange: ExchangeId::Bybit,
+                status,
+                code,
+                message,
+            },
+            bybit_rs::Error::ConfigError(message) => Self::Config(message),
+            bybit_rs::Error::MissingCredentials => Self::MissingCredentials(ExchangeId::Bybit),
+            other => Self::Adapter {
+                exchange: ExchangeId::Bybit,
+                message: other.to_string(),
+            },
+        }
+    }
+
+    #[cfg(feature = "gate")]
+    pub(crate) fn from_gate(error: gate_rs::Error) -> Self {
+        match error {
+            gate_rs::Error::GateApiError {
+                status,
+                code,
+                message,
+            } => Self::Api {
+                exchange: ExchangeId::Gate,
+                status,
+                code,
+                message,
+            },
+            gate_rs::Error::ConfigError(message) => Self::Config(message),
+            gate_rs::Error::MissingCredentials => Self::MissingCredentials(ExchangeId::Gate),
+            other => Self::Adapter {
+                exchange: ExchangeId::Gate,
+                message: other.to_string(),
+            },
+        }
+    }
 }

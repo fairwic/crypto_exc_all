@@ -47,6 +47,8 @@ impl Instrument {
             ExchangeId::Okx => self.okx_symbol(),
             ExchangeId::Binance => self.binance_symbol(),
             ExchangeId::Bitget => self.bitget_symbol(),
+            ExchangeId::Bybit => self.bybit_symbol(),
+            ExchangeId::Gate => self.gate_symbol(),
         }
     }
 
@@ -70,5 +72,26 @@ impl Instrument {
 
     fn bitget_symbol(&self) -> String {
         format!("{}{}", self.base, self.quote)
+    }
+
+    fn bybit_symbol(&self) -> String {
+        format!("{}{}", self.base, self.quote)
+    }
+
+    fn gate_symbol(&self) -> String {
+        format!("{}_{}", self.base, self.quote)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secondary_perp_symbols_match_exchange_contracts() {
+        let instrument = Instrument::perp("TEST", "USDT");
+
+        assert_eq!(instrument.symbol_for(ExchangeId::Bybit), "TESTUSDT");
+        assert_eq!(instrument.symbol_for(ExchangeId::Gate), "TEST_USDT");
     }
 }

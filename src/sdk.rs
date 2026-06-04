@@ -40,6 +40,18 @@ impl CryptoSdk {
             clients.insert(client.exchange_id(), client);
         }
 
+        #[cfg(feature = "bybit")]
+        if let Some(bybit_config) = config.bybit {
+            let client = ExchangeClient::bybit(bybit_config)?;
+            clients.insert(client.exchange_id(), client);
+        }
+
+        #[cfg(feature = "gate")]
+        if let Some(gate_config) = config.gate {
+            let client = ExchangeClient::gate(gate_config)?;
+            clients.insert(client.exchange_id(), client);
+        }
+
         Ok(Self { clients })
     }
 
@@ -83,7 +95,10 @@ impl CryptoSdk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{BinanceExchangeConfig, BitgetExchangeConfig, OkxExchangeConfig};
+    use crate::config::{
+        BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
+        OkxExchangeConfig,
+    };
 
     #[test]
     fn builds_sdk_from_explicit_config() {
@@ -116,16 +131,41 @@ mod tests {
                 proxy_url: None,
                 product_type: Some("USDT-FUTURES".to_string()),
             }),
+            bybit: Some(BybitExchangeConfig {
+                api_key: "bybit-key".to_string(),
+                api_secret: "bybit-secret".to_string(),
+                api_url: Some("http://127.0.0.1:1".to_string()),
+                api_timeout_ms: Some(1_000),
+                recv_window_ms: Some(5_000),
+                proxy_url: None,
+                category: Some("linear".to_string()),
+            }),
+            gate: Some(GateExchangeConfig {
+                api_key: "gate-key".to_string(),
+                api_secret: "gate-secret".to_string(),
+                api_url: Some("http://127.0.0.1:1".to_string()),
+                api_timeout_ms: Some(1_000),
+                proxy_url: None,
+                settle: Some("usdt".to_string()),
+            }),
         })
         .unwrap();
 
         assert_eq!(
             sdk.configured_exchanges(),
-            vec![ExchangeId::Binance, ExchangeId::Bitget, ExchangeId::Okx]
+            vec![
+                ExchangeId::Binance,
+                ExchangeId::Bitget,
+                ExchangeId::Bybit,
+                ExchangeId::Gate,
+                ExchangeId::Okx
+            ]
         );
         assert!(sdk.market(ExchangeId::Okx).is_ok());
         assert!(sdk.account(ExchangeId::Binance).is_ok());
         assert!(sdk.market(ExchangeId::Bitget).is_ok());
+        assert!(sdk.market(ExchangeId::Bybit).is_ok());
+        assert!(sdk.market(ExchangeId::Gate).is_ok());
         assert!(sdk.positions(ExchangeId::Bitget).is_ok());
         assert!(sdk.trade(ExchangeId::Okx).is_ok());
         assert!(sdk.orders(ExchangeId::Bitget).is_ok());
