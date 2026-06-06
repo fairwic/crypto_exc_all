@@ -105,11 +105,23 @@ impl BitgetAdapter {
         let exchange = ExchangeId::Bitget;
         let instrument = query.instrument;
         let symbol = instrument.symbol_for(exchange);
-        let raw = self
-            .market
-            .get_candles(&symbol, &self.product_type, &query.interval, query.limit)
-            .await
-            .map_err(Error::from_bitget)?;
+        let raw = if query.start_time.is_some() || query.end_time.is_some() {
+            self.market
+                .get_history_candles(
+                    &symbol,
+                    &self.product_type,
+                    &query.interval,
+                    query.limit,
+                    query.start_time,
+                    query.end_time,
+                )
+                .await
+        } else {
+            self.market
+                .get_candles(&symbol, &self.product_type, &query.interval, query.limit)
+                .await
+        }
+        .map_err(Error::from_bitget)?;
 
         bitget_candles_from_value(exchange, instrument, symbol, raw)
     }

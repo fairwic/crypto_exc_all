@@ -106,11 +106,23 @@ impl BitgetMarket {
         product_type: &str,
         granularity: &str,
         limit: Option<u32>,
+        start_time: Option<u64>,
+        end_time: Option<u64>,
     ) -> Result<Value, Error> {
         let path = format!("{API_MIX_MARKET_PATH}/history-candles");
         let mut params = symbol_product_params(symbol, product_type);
         params.push(("granularity", granularity.to_string()));
         push_opt_string(&mut params, "limit", limit.map(|value| value.to_string()));
+        push_opt_string(
+            &mut params,
+            "startTime",
+            start_time.map(|value| value.to_string()),
+        );
+        push_opt_string(
+            &mut params,
+            "endTime",
+            end_time.map(|value| value.to_string()),
+        );
         self.client
             .send_public_request(Method::GET, &path, &params)
             .await
@@ -304,5 +316,53 @@ fn push_opt_string(
 ) {
     if let Some(value) = value {
         params.push((key, value));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[tokio::test]
+    async fn history_candles_sends_start_and_end_time_window() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock(
+                "GET",
+                "/api/v2/mix/market/history-candles?endTime=1700007200000&granularity=1m&limit=200&productType=USDT-FUTURES&startTime=1700000000000&symbol=TESTUSDT",
+            )
+            .with_status(200)
+            .with_body(r#"{"code":"00000","msg":"success","data":[]}"#)
+            .create_async()
+            .await;
+
+        let client = BitgetClient::with_config(
+            None,
+            Config {
+                api_url: server.url(),
+                api_timeout_ms: 1_000,
+                proxy_url: None,
+                ws_public_url: "ws://127.0.0.1/public".to_string(),
+                ws_private_url: "ws://127.0.0.1/private".to_string(),
+            },
+        )
+        .unwrap();
+        let market = BitgetMarket::new(client);
+
+        let result = market
+            .get_history_candles(
+                "TESTUSDT",
+                "USDT-FUTURES",
+                "1m",
+                Some(200),
+                Some(1_700_000_000_000),
+                Some(1_700_007_200_000),
+            )
+            .await
+            .unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(result, serde_json::json!([]));
     }
 }

@@ -115,7 +115,14 @@ impl BybitAdapter {
         let symbol = instrument.symbol_for(exchange);
         let raw = self
             .client
-            .kline(&self.category, &symbol, &query.interval, query.limit)
+            .kline(
+                &self.category,
+                &symbol,
+                &query.interval,
+                query.limit,
+                query.start_time,
+                query.end_time,
+            )
             .await
             .map_err(Error::from_bybit)?;
         let rows = raw.get("list").and_then(Value::as_array).cloned().unwrap_or_default();

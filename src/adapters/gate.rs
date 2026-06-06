@@ -113,7 +113,14 @@ impl GateAdapter {
         let symbol = instrument.symbol_for(exchange);
         let raw = self
             .client
-            .candlesticks(&self.settle, &symbol, &query.interval, query.limit)
+            .candlesticks(
+                &self.settle,
+                &symbol,
+                &query.interval,
+                query.limit,
+                query.start_time.map(millis_to_seconds),
+                query.end_time.map(millis_to_seconds),
+            )
             .await
             .map_err(Error::from_gate)?;
         let rows = raw.as_array().cloned().unwrap_or_default();
@@ -263,6 +270,10 @@ fn string_field(value: &Value, key: &str) -> Option<String> {
 fn value_u64(value: &Value) -> Option<u64> {
     value.as_u64()
         .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+}
+
+fn millis_to_seconds(value: u64) -> u64 {
+    value / 1_000
 }
 
 fn gate_levels(value: Option<&Value>) -> Vec<OrderBookLevel> {

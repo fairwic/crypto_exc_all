@@ -96,13 +96,23 @@ impl GateClient {
         contract: &str,
         interval: &str,
         limit: Option<u32>,
+        from: Option<u64>,
+        to: Option<u64>,
     ) -> Result<Value, Error> {
         let mut params = vec![
             ("contract", contract.to_string()),
             ("interval", interval.to_string()),
         ];
         if let Some(limit) = limit {
-            params.push(("limit", limit.to_string()));
+            if from.is_none() && to.is_none() {
+                params.push(("limit", limit.to_string()));
+            }
+        }
+        if let Some(from) = from {
+            params.push(("from", from.to_string()));
+        }
+        if let Some(to) = to {
+            params.push(("to", to.to_string()));
         }
         self.send_public(&format!("/futures/{settle}/candlesticks"), &params)
             .await
@@ -329,6 +339,45 @@ mod tests {
 
         mock.assert_async().await;
         assert_eq!(result[0]["contract"], "BTC_USDT");
+    }
+
+    #[tokio::test]
+    async fn sends_public_candlesticks_with_from_and_to_window() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock(
+                "GET",
+                "/futures/usdt/candlesticks?contract=TEST_USDT&from=1700000000&interval=1m&to=1700007200",
+            )
+            .with_status(200)
+            .with_body(r#"[]"#)
+            .create_async()
+            .await;
+
+        let client = GateClient::with_config(
+            None,
+            Config {
+                api_url: server.url(),
+                api_timeout_ms: 1_000,
+                proxy_url: None,
+            },
+        )
+        .unwrap();
+
+        let result = client
+            .candlesticks(
+                "usdt",
+                "TEST_USDT",
+                "1m",
+                Some(200),
+                Some(1_700_000_000),
+                Some(1_700_007_200),
+            )
+            .await
+            .unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(result, serde_json::json!([]));
     }
 
     #[tokio::test]

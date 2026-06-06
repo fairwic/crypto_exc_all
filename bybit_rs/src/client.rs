@@ -133,6 +133,8 @@ impl BybitClient {
         symbol: &str,
         interval: &str,
         limit: Option<u32>,
+        start: Option<u64>,
+        end: Option<u64>,
     ) -> Result<Value, Error> {
         let mut params = vec![
             ("category", category.to_string()),
@@ -141,6 +143,12 @@ impl BybitClient {
         ];
         if let Some(limit) = limit {
             params.push(("limit", limit.to_string()));
+        }
+        if let Some(start) = start {
+            params.push(("start", start.to_string()));
+        }
+        if let Some(end) = end {
+            params.push(("end", end.to_string()));
         }
         self.send_public("/v5/market/kline", &params).await
     }
@@ -237,7 +245,16 @@ impl BybitClient {
     async fn decode(&self, response: reqwest::Response) -> Result<Value, Error> {
         let status = response.status();
         let body = response.text().await.map_err(Error::HttpError)?;
-        let value: BybitResponse = serde_json::from_str(&body).map_err(Error::JsonError)?;
+        let value: BybitResponse = match serde_json::from_str(&body) {
+            Ok(value) => value,
+            Err(_) => {
+                return Err(Error::BybitApiError {
+                    status: Some(status.as_u16()),
+                    code: status.as_u16().to_string(),
+                    message: body.chars().take(240).collect(),
+                });
+            }
+        };
         if status.is_success() && value.ret_code == 0 {
             Ok(value.result)
         } else {
@@ -358,6 +375,77 @@ mod tests {
 
         mock.assert_async().await;
         assert_eq!(result["list"][0]["symbol"], "BTCUSDT");
+    }
+
+    #[tokio::test]
+    async fn sends_public_kline_with_start_and_end_window() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock(
+                "GET",
+                "/v5/market/kline?category=linear&end=1700007200000&interval=1&limit=200&start=1700000000000&symbol=TESTUSDT",
+            )
+            .with_status(200)
+            .with_body(r#"{"retCode":0,"retMsg":"OK","result":{"list":[]}}"#)
+            .create_async()
+            .await;
+
+        let client = BybitClient::with_config(
+            None,
+            Config {
+                api_url: server.url(),
+                api_timeout_ms: 1_000,
+                recv_window_ms: 5_000,
+                proxy_url: None,
+            },
+        )
+        .unwrap();
+
+        let result = client
+            .kline(
+                "linear",
+                "TESTUSDT",
+                "1",
+                Some(200),
+                Some(1_700_000_000_000),
+                Some(1_700_007_200_000),
+            )
+            .await
+            .unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(result["list"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn maps_non_json_public_error_body_to_api_error() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/v5/market/kline?category=linear&interval=1&symbol=TESTUSDT")
+            .with_status(403)
+            .with_body("{\n    error:blocked by edge\n}")
+            .create_async()
+            .await;
+
+        let client = BybitClient::with_config(
+            None,
+            Config {
+                api_url: server.url(),
+                api_timeout_ms: 1_000,
+                recv_window_ms: 5_000,
+                proxy_url: None,
+            },
+        )
+        .unwrap();
+
+        let error = client
+            .kline("linear", "TESTUSDT", "1", None, None, None)
+            .await
+            .expect_err("non-json body should map to api error");
+
+        mock.assert_async().await;
+        assert!(error.to_string().contains("status=Some(403)"));
+        assert!(error.to_string().contains("blocked by edge"));
     }
 
     #[tokio::test]
