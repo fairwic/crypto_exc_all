@@ -3,7 +3,7 @@ use crate::error::Error;
 use hmac::{Hmac, Mac};
 use reqwest::{Client, Method, Proxy};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -167,11 +167,7 @@ impl GateClient {
         self.decode(response).await
     }
 
-    async fn send_signed_get(
-        &self,
-        path: &str,
-        params: &[(&str, String)],
-    ) -> Result<Value, Error> {
+    async fn send_signed_get(&self, path: &str, params: &[(&str, String)]) -> Result<Value, Error> {
         self.send_signed(Method::GET, path, params, "").await
     }
 
@@ -312,7 +308,15 @@ mod tests {
         assert_eq!(signature.len(), 128);
         assert_ne!(
             signature,
-            sign("secret", "GET", "/futures/usdt/orders/2", "", "", "1700000000").unwrap()
+            sign(
+                "secret",
+                "GET",
+                "/futures/usdt/orders/2",
+                "",
+                "",
+                "1700000000"
+            )
+            .unwrap()
         );
     }
 

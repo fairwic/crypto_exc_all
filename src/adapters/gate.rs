@@ -8,10 +8,16 @@ use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::fill::{Fill, FillListQuery};
 use crate::instrument::Instrument;
-use crate::market::{Candle, CandleQuery, FundingRate, FundingRateQuery, LongShortRatio, MarkPrice, MarketStatsQuery, OpenInterest, OrderBook, OrderBookLevel, OrderBookQuery, TakerBuySellVolume, Ticker};
+use crate::market::{
+    Candle, CandleQuery, FundingRate, FundingRateQuery, LongShortRatio, MarkPrice,
+    MarketStatsQuery, OpenInterest, OrderBook, OrderBookLevel, OrderBookQuery, TakerBuySellVolume,
+    Ticker,
+};
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::Position;
-use crate::trade::{CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, TimeInForce};
+use crate::trade::{
+    CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, TimeInForce,
+};
 use gate_rs::{
     CancelOrderRequest as GateCancelOrderRequest, Config as GateConfig,
     Credentials as GateCredentials, GateClient, OrderRequest as GateOrderRequest,
@@ -69,10 +75,13 @@ impl GateAdapter {
             .ticker(&self.settle, &symbol)
             .await
             .map_err(Error::from_gate)?;
-        let item = raw.as_array().and_then(|items| items.first()).ok_or_else(|| Error::Adapter {
-            exchange,
-            message: format!("Gate ticker response is empty for {symbol}"),
-        })?;
+        let item = raw
+            .as_array()
+            .and_then(|items| items.first())
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: format!("Gate ticker response is empty for {symbol}"),
+            })?;
 
         Ok(Ticker {
             exchange,
@@ -81,7 +90,8 @@ impl GateAdapter {
             last_price: string_field(item, "last").unwrap_or_default(),
             bid_price: string_field(item, "highest_bid"),
             ask_price: string_field(item, "lowest_ask"),
-            volume_24h: string_field(item, "volume_24h_quote").or_else(|| string_field(item, "volume_24h_base")),
+            volume_24h: string_field(item, "volume_24h_quote")
+                .or_else(|| string_field(item, "volume_24h_base")),
             timestamp: None,
             raw,
         })
@@ -268,7 +278,8 @@ fn string_field(value: &Value, key: &str) -> Option<String> {
 }
 
 fn value_u64(value: &Value) -> Option<u64> {
-    value.as_u64()
+    value
+        .as_u64()
         .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
 }
 
@@ -312,7 +323,12 @@ fn gate_candle(exchange: ExchangeId, instrument: &Instrument, symbol: &str, raw:
     }
 }
 
-fn order_from_value(exchange: ExchangeId, instrument: Instrument, symbol: String, raw: Value) -> Order {
+fn order_from_value(
+    exchange: ExchangeId,
+    instrument: Instrument,
+    symbol: String,
+    raw: Value,
+) -> Order {
     Order {
         exchange,
         instrument,

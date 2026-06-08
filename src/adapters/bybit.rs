@@ -8,10 +8,16 @@ use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::fill::{Fill, FillListQuery};
 use crate::instrument::Instrument;
-use crate::market::{Candle, CandleQuery, FundingRate, FundingRateQuery, LongShortRatio, MarkPrice, MarketStatsQuery, OpenInterest, OrderBook, OrderBookLevel, OrderBookQuery, TakerBuySellVolume, Ticker};
+use crate::market::{
+    Candle, CandleQuery, FundingRate, FundingRateQuery, LongShortRatio, MarkPrice,
+    MarketStatsQuery, OpenInterest, OrderBook, OrderBookLevel, OrderBookQuery, TakerBuySellVolume,
+    Ticker,
+};
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::Position;
-use crate::trade::{CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, TimeInForce};
+use crate::trade::{
+    CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, TimeInForce,
+};
 use bybit_rs::{
     BybitClient, CancelOrderRequest as BybitCancelOrderRequest, Config as BybitConfig,
     Credentials as BybitCredentials, OrderRequest as BybitOrderRequest,
@@ -61,7 +67,9 @@ impl BybitAdapter {
                 bybit_config,
             )
             .map_err(Error::from_bybit)?,
-            category: config.category.unwrap_or_else(|| DEFAULT_CATEGORY.to_string()),
+            category: config
+                .category
+                .unwrap_or_else(|| DEFAULT_CATEGORY.to_string()),
         })
     }
 
@@ -82,7 +90,8 @@ impl BybitAdapter {
             last_price: string_field(item, "lastPrice").unwrap_or_default(),
             bid_price: string_field(item, "bid1Price"),
             ask_price: string_field(item, "ask1Price"),
-            volume_24h: string_field(item, "turnover24h").or_else(|| string_field(item, "volume24h")),
+            volume_24h: string_field(item, "turnover24h")
+                .or_else(|| string_field(item, "volume24h")),
             timestamp: None,
             raw,
         })
@@ -125,7 +134,11 @@ impl BybitAdapter {
             )
             .await
             .map_err(Error::from_bybit)?;
-        let rows = raw.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
+        let rows = raw
+            .get("list")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         Ok(rows
             .into_iter()
             .filter_map(|row| bybit_candle(exchange, &instrument, &symbol, row))
@@ -143,7 +156,11 @@ impl BybitAdapter {
             })
             .await
             .map_err(Error::from_bybit)?;
-        let list = raw.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
+        let list = raw
+            .get("list")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         Ok(list
             .into_iter()
             .map(|item| {
@@ -236,7 +253,12 @@ impl BybitAdapter {
             .await
             .map_err(Error::from_bybit)?;
         let item = first_list_item(&raw, exchange, "Bybit order response")?;
-        Ok(order_from_value(exchange, query.instrument, symbol, item.clone()))
+        Ok(order_from_value(
+            exchange,
+            query.instrument,
+            symbol,
+            item.clone(),
+        ))
     }
 
     pub(crate) fn account_capabilities(&self) -> AccountCapabilities {
@@ -285,7 +307,8 @@ fn string_field(value: &Value, key: &str) -> Option<String> {
 }
 
 fn value_u64(value: &Value) -> Option<u64> {
-    value.as_u64()
+    value
+        .as_u64()
         .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
 }
 

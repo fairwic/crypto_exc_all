@@ -106,7 +106,10 @@ impl BybitClient {
     pub async fn ticker(&self, category: &str, symbol: &str) -> Result<Value, Error> {
         self.send_public(
             "/v5/market/tickers",
-            &[("category", category.to_string()), ("symbol", symbol.to_string())],
+            &[
+                ("category", category.to_string()),
+                ("symbol", symbol.to_string()),
+            ],
         )
         .await
     }
@@ -193,11 +196,7 @@ impl BybitClient {
         self.decode(response).await
     }
 
-    async fn send_signed_get(
-        &self,
-        path: &str,
-        params: &[(&str, String)],
-    ) -> Result<Value, Error> {
+    async fn send_signed_get(&self, path: &str, params: &[(&str, String)]) -> Result<Value, Error> {
         let query = build_query_string(params);
         let request = self.signed_request(Method::GET, path, &query, "")?;
         let response = request.send().await.map_err(Error::HttpError)?;
@@ -230,8 +229,13 @@ impl BybitClient {
         let timestamp = (self.timestamp_provider)().to_string();
         let recv_window = self.config.recv_window_ms.to_string();
         let payload = if method == Method::GET { query } else { body };
-        let signature =
-            sign(&credentials.api_secret, &timestamp, &credentials.api_key, &recv_window, payload)?;
+        let signature = sign(
+            &credentials.api_secret,
+            &timestamp,
+            &credentials.api_key,
+            &recv_window,
+            payload,
+        )?;
         Ok(self
             .client
             .request(method, self.url(path, query))
@@ -345,17 +349,17 @@ mod tests {
         .unwrap();
 
         assert_eq!(signature.len(), 64);
-        assert_ne!(signature, sign("secret", "1700000000001", "api-key", "5000", "{}").unwrap());
+        assert_ne!(
+            signature,
+            sign("secret", "1700000000001", "api-key", "5000", "{}").unwrap()
+        );
     }
 
     #[tokio::test]
     async fn sends_public_ticker_to_v5_market_path() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
-            .mock(
-                "GET",
-                "/v5/market/tickers?category=linear&symbol=BTCUSDT",
-            )
+            .mock("GET", "/v5/market/tickers?category=linear&symbol=BTCUSDT")
             .with_status(200)
             .with_body(r#"{"retCode":0,"retMsg":"OK","result":{"list":[{"symbol":"BTCUSDT"}]}}"#)
             .create_async()
@@ -421,7 +425,10 @@ mod tests {
     async fn maps_non_json_public_error_body_to_api_error() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
-            .mock("GET", "/v5/market/kline?category=linear&interval=1&symbol=TESTUSDT")
+            .mock(
+                "GET",
+                "/v5/market/kline?category=linear&interval=1&symbol=TESTUSDT",
+            )
             .with_status(403)
             .with_body("{\n    error:blocked by edge\n}")
             .create_async()
