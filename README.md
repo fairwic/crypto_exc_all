@@ -60,10 +60,8 @@ Binance:
 ```env
 BINANCE_API_KEY=...
 BINANCE_API_SECRET=...
-BINANCE_PROXY_URL=socks5h://127.0.0.1:7897
 ```
 
-`BINANCE_PROXY_URL` 可省略；如果传入 `socks5://`，SDK 会自动规范化成 `socks5h://`。
 
 Bitget:
 
@@ -72,7 +70,6 @@ BITGET_API_KEY=...
 BITGET_API_SECRET=...
 BITGET_PASSPHRASE=...
 BITGET_PRODUCT_TYPE=USDT-FUTURES
-BITGET_PROXY_URL=socks5h://127.0.0.1:7897
 BITGET_WS_PUBLIC_URL=wss://ws.bitget.com/v2/ws/public
 BITGET_WS_PRIVATE_URL=wss://ws.bitget.com/v2/ws/private
 ```
@@ -330,5 +327,4 @@ cargo test -p crypto_exc_all -- --nocapture
 ```
 
 ## 继续接入交易所
-
 新增 Bybit、Hyperliquid 等交易所时，按 [Exchange Integration Playbook](docs/exchange-integration-playbook.md) 执行。该文档记录了本轮迭代沉淀下来的 crate 命名、dependency alias、adapter、测试、发布和安全检查流程。
