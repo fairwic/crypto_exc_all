@@ -194,6 +194,57 @@ impl OkxAccount {
             .await
     }
 
+    /// 获取账户历史账单归档
+    pub async fn get_bills_archive(
+        &self,
+        inst_type: Option<&str>,
+        ccy: Option<&str>,
+        margin_mode: Option<&str>,
+        typ: Option<&str>,
+        start_time: Option<&str>,
+        end_time: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<serde_json::Value, Error> {
+        let mut path = format!("{}/bills-archive", API_ACCOUNT_PATH);
+        let mut query_params = vec![];
+
+        if let Some(it) = inst_type {
+            query_params.push(format!("instType={}", it));
+        }
+
+        if let Some(currency) = ccy {
+            query_params.push(format!("ccy={}", currency));
+        }
+
+        if let Some(mode) = margin_mode {
+            query_params.push(format!("mgnMode={}", mode));
+        }
+
+        if let Some(t) = typ {
+            query_params.push(format!("type={}", t));
+        }
+
+        if let Some(st) = start_time {
+            query_params.push(format!("begin={}", st));
+        }
+
+        if let Some(et) = end_time {
+            query_params.push(format!("end={}", et));
+        }
+
+        if let Some(l) = limit {
+            query_params.push(format!("limit={}", l));
+        }
+
+        if !query_params.is_empty() {
+            path.push_str(&format!("?{}", query_params.join("&")));
+        }
+
+        self.client
+            .send_request::<serde_json::Value>(Method::GET, &path, "")
+            .await
+    }
+
     /// 获取账户持仓信息
     /// 限速：10次/2s
     // 限速规则：User ID

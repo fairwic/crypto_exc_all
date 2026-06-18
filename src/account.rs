@@ -16,6 +16,87 @@ pub struct Balance {
     pub raw: Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AccountBill {
+    pub exchange: ExchangeId,
+    pub instrument: Option<Instrument>,
+    pub exchange_symbol: Option<String>,
+    pub bill_id: Option<String>,
+    pub asset: Option<String>,
+    pub balance_change: Option<String>,
+    pub balance_after: Option<String>,
+    pub fee: Option<String>,
+    pub pnl: Option<String>,
+    pub bill_type: Option<String>,
+    pub bill_sub_type: Option<String>,
+    pub order_id: Option<String>,
+    pub trade_id: Option<String>,
+    pub timestamp: Option<u64>,
+    pub raw: Value,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountBillQuery {
+    pub instrument: Option<Instrument>,
+    pub asset: Option<String>,
+    pub inst_type: Option<String>,
+    pub bill_type: Option<String>,
+    pub limit: Option<u32>,
+    pub start_time: Option<u64>,
+    pub end_time: Option<u64>,
+    pub archive: bool,
+}
+
+impl AccountBillQuery {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn for_instrument(instrument: Instrument) -> Self {
+        Self::new().with_instrument(instrument)
+    }
+
+    pub fn with_instrument(mut self, value: Instrument) -> Self {
+        self.instrument = Some(value);
+        self
+    }
+
+    pub fn with_asset(mut self, value: impl Into<String>) -> Self {
+        self.asset = Some(value.into());
+        self
+    }
+
+    pub fn with_inst_type(mut self, value: impl Into<String>) -> Self {
+        self.inst_type = Some(value.into());
+        self
+    }
+
+    pub fn with_bill_type(mut self, value: impl Into<String>) -> Self {
+        self.bill_type = Some(value.into());
+        self
+    }
+
+    pub fn with_limit(mut self, value: u32) -> Self {
+        self.limit = Some(value);
+        self
+    }
+
+    pub fn with_start_time(mut self, value: u64) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+
+    pub fn with_end_time(mut self, value: u64) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+
+    pub fn with_archive(mut self, value: bool) -> Self {
+        self.archive = value;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SetLeverageRequest {
     pub instrument: Instrument,
@@ -299,6 +380,10 @@ impl<'a> AccountFacade<'a> {
 
     pub async fn balances(&self) -> Result<Vec<Balance>> {
         self.client.balances().await
+    }
+
+    pub async fn bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
+        self.client.account_bills(query).await
     }
 
     pub async fn set_leverage(&self, request: SetLeverageRequest) -> Result<LeverageSetting> {

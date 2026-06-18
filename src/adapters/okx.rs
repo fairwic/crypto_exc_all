@@ -1,7 +1,8 @@
 use crate::account::{
-    AccountCapabilities, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
-    LeverageSetting, MarginModeApplyMethod, PositionMode, PositionModeSetting, SetLeverageRequest,
-    SetPositionModeRequest, SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
+    EnsureOrderMarginModeResult, LeverageSetting, MarginModeApplyMethod, PositionMode,
+    PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
+    SymbolMarginModeSetting,
 };
 use crate::config::OkxExchangeConfig;
 use crate::error::{Error, Result};
@@ -327,6 +328,48 @@ impl OkxAdapter {
         Ok(output)
     }
 
+    pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
+        let exchange = ExchangeId::Okx;
+        let symbol_hint = query
+            .instrument
+            .as_ref()
+            .map(|instrument| instrument.symbol_for(exchange));
+        let inst_type = query
+            .inst_type
+            .clone()
+            .or_else(|| query.instrument.as_ref().map(okx_inst_type_for_instrument));
+        let begin = query.start_time.map(|value| value.to_string());
+        let end = query.end_time.map(|value| value.to_string());
+        let raw = if query.archive {
+            self.account
+                .get_bills_archive(
+                    inst_type.as_deref(),
+                    query.asset.as_deref(),
+                    None,
+                    query.bill_type.as_deref(),
+                    begin.as_deref(),
+                    end.as_deref(),
+                    query.limit,
+                )
+                .await
+        } else {
+            self.account
+                .get_bills(
+                    inst_type.as_deref(),
+                    query.asset.as_deref(),
+                    None,
+                    query.bill_type.as_deref(),
+                    begin.as_deref(),
+                    end.as_deref(),
+                    query.limit,
+                )
+                .await
+        }
+        .map_err(Error::from_okx)?;
+
+        okx_account_bills_from_value(exchange, query.instrument, symbol_hint, raw)
+    }
+
     pub(crate) async fn set_leverage(
         &self,
         request: SetLeverageRequest,
@@ -636,6 +679,17 @@ impl OkxAdapter {
 
 fn non_empty(value: String) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
+}
+
+fn okx_inst_type_for_instrument(instrument: &Instrument) -> String {
+    match instrument.market_type {
+        MarketType::Spot => "SPOT",
+        MarketType::Margin => "MARGIN",
+        MarketType::Perpetual => "SWAP",
+        MarketType::Futures => "FUTURES",
+        MarketType::Option => "OPTION",
+    }
+    .to_string()
 }
 
 fn okx_ticker_from_dto(
@@ -1252,6 +1306,61 @@ fn okx_fills_from_value(
         .collect()
 }
 
+fn okx_account_bills_from_value(
+    exchange: ExchangeId,
+    instrument: Option<Instrument>,
+    symbol_hint: Option<String>,
+    raw: Value,
+) -> Result<Vec<AccountBill>> {
+    okx_owned_items(raw, exchange, "OKX account bills response")?
+        .into_iter()
+        .filter_map(|value| {
+            let object = match value.as_object() {
+                Some(object) => object,
+                None => {
+                    return Some(Err(Error::Adapter {
+                        exchange,
+                        message: "OKX account bill item is not an object".to_string(),
+                    }));
+                }
+            };
+            let exchange_symbol = first_string_field(object, &["instId", "inst_id"]);
+            if let Some(expected) = symbol_hint.as_deref() {
+                match exchange_symbol.as_deref() {
+                    Some(actual) if actual.eq_ignore_ascii_case(expected) => {}
+                    _ => {
+                        return None;
+                    }
+                }
+            }
+            let mapped_instrument = exchange_symbol
+                .as_deref()
+                .map(instrument_from_okx_symbol)
+                .or_else(|| instrument.clone());
+            Some(Ok(AccountBill {
+                exchange,
+                instrument: mapped_instrument,
+                exchange_symbol,
+                bill_id: first_string_field(object, &["billId", "bill_id"]),
+                asset: first_string_field(object, &["ccy", "currency", "asset"]),
+                balance_change: first_string_field(
+                    object,
+                    &["balChg", "bal_chg", "balance_change"],
+                ),
+                balance_after: first_string_field(object, &["bal", "balance", "balance_after"]),
+                fee: string_field(object, "fee"),
+                pnl: string_field(object, "pnl"),
+                bill_type: string_field(object, "type"),
+                bill_sub_type: first_string_field(object, &["subType", "sub_type"]),
+                order_id: first_string_field(object, &["ordId", "ord_id"]),
+                trade_id: first_string_field(object, &["tradeId", "trade_id"]),
+                timestamp: u64_field(object, "ts"),
+                raw: value,
+            }))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1271,6 +1380,52 @@ mod tests {
         assert_eq!(attached[0].sl_trigger_px_type.as_deref(), Some("mark"));
         assert_eq!(attached[0].tp_trigger_px, None);
         assert_eq!(attached[0].tp_ord_px, None);
+    }
+
+    #[test]
+    fn okx_account_bills_map_only_matching_instrument_items() {
+        let bills = okx_account_bills_from_value(
+            ExchangeId::Okx,
+            Some(Instrument::perp("BTC", "USDT")),
+            Some("BTC-USDT-SWAP".to_string()),
+            serde_json::json!([
+                {
+                    "billId": "bill-1",
+                    "instId": "BTC-USDT-SWAP",
+                    "ccy": "USDT",
+                    "balChg": "9.7",
+                    "bal": "8211.49",
+                    "fee": "-0.3",
+                    "pnl": "10",
+                    "type": "2",
+                    "subType": "1",
+                    "ordId": "order-1",
+                    "tradeId": "fill-1",
+                    "ts": "1773810600000"
+                },
+                {
+                    "billId": "bill-transfer",
+                    "ccy": "USDT",
+                    "balChg": "100",
+                    "ts": "1773810600000"
+                },
+                {
+                    "billId": "bill-eth",
+                    "instId": "ETH-USDT-SWAP",
+                    "ccy": "USDT",
+                    "balChg": "1",
+                    "ts": "1773810600000"
+                }
+            ]),
+        )
+        .expect("map account bills");
+
+        assert_eq!(bills.len(), 1);
+        assert_eq!(bills[0].bill_id.as_deref(), Some("bill-1"));
+        assert_eq!(bills[0].exchange_symbol.as_deref(), Some("BTC-USDT-SWAP"));
+        assert_eq!(bills[0].balance_change.as_deref(), Some("9.7"));
+        assert_eq!(bills[0].fee.as_deref(), Some("-0.3"));
+        assert_eq!(bills[0].pnl.as_deref(), Some("10"));
     }
 
     #[test]

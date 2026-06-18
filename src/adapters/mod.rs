@@ -1,14 +1,14 @@
 use crate::account::{
-    AccountCapabilities, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
-    LeverageSetting, PositionModeSetting, PrepareOrderSettingsRequest, PrepareOrderSettingsResult,
-    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
-    SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
+    EnsureOrderMarginModeResult, LeverageSetting, PositionModeSetting, PrepareOrderSettingsRequest,
+    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
+    SetSymbolMarginModeRequest, SymbolMarginModeSetting,
 };
 use crate::config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
     OkxExchangeConfig,
 };
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::fill::{Fill, FillListQuery};
 use crate::instrument::Instrument;
@@ -269,6 +269,33 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.balances().await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.balances().await,
+        }
+    }
+
+    pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.account_bills(query).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Binance,
+                capability: "account bills",
+            }),
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "account bills",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account bills",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "account bills",
+            }),
         }
     }
 
