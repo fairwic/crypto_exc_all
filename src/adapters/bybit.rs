@@ -86,14 +86,32 @@ impl BybitAdapter {
         Ok(Ticker {
             exchange,
             instrument: instrument.clone(),
+            instrument_type: Some(self.category.clone()),
             exchange_symbol: symbol,
             last_price: string_field(item, "lastPrice").unwrap_or_default(),
+            last_size: None,
             bid_price: string_field(item, "bid1Price"),
+            bid_size: string_field(item, "bid1Size"),
             ask_price: string_field(item, "ask1Price"),
+            ask_size: string_field(item, "ask1Size"),
+            open_24h: string_field(item, "prevPrice24h"),
+            high_24h: string_field(item, "highPrice24h"),
+            low_24h: string_field(item, "lowPrice24h"),
             volume_24h: string_field(item, "turnover24h")
                 .or_else(|| string_field(item, "volume24h")),
+            base_volume_24h: string_field(item, "volume24h"),
+            quote_volume_24h: string_field(item, "turnover24h"),
+            sod_utc0: None,
+            sod_utc8: None,
             timestamp: None,
             raw,
+        })
+    }
+
+    pub(crate) async fn tickers(&self, _instrument_type: &str) -> Result<Vec<Ticker>> {
+        Err(Error::Unsupported {
+            exchange: ExchangeId::Bybit,
+            capability: "market tickers",
         })
     }
 
@@ -122,12 +140,13 @@ impl BybitAdapter {
         let exchange = ExchangeId::Bybit;
         let instrument = query.instrument;
         let symbol = instrument.symbol_for(exchange);
+        let interval = bybit_candle_interval(&query.interval);
         let raw = self
             .client
             .kline(
                 &self.category,
                 &symbol,
-                &query.interval,
+                &interval,
                 query.limit,
                 query.start_time,
                 query.end_time,
@@ -310,6 +329,25 @@ fn value_u64(value: &Value) -> Option<u64> {
     value
         .as_u64()
         .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+}
+
+fn bybit_candle_interval(interval: &str) -> String {
+    match interval.trim() {
+        "1M" => "M".to_string(),
+        value if value.ends_with('m') || value.ends_with('M') => {
+            value[..value.len() - 1].to_string()
+        }
+        value if value.eq_ignore_ascii_case("1h") => "60".to_string(),
+        value if value.eq_ignore_ascii_case("2h") => "120".to_string(),
+        value if value.eq_ignore_ascii_case("4h") => "240".to_string(),
+        value if value.eq_ignore_ascii_case("6h") => "360".to_string(),
+        value if value.eq_ignore_ascii_case("12h") => "720".to_string(),
+        value if value.eq_ignore_ascii_case("1d") || value.eq_ignore_ascii_case("1Dutc") => {
+            "D".to_string()
+        }
+        value if value.eq_ignore_ascii_case("1w") => "W".to_string(),
+        value => value.to_string(),
+    }
 }
 
 fn bybit_levels(value: Option<&Value>) -> Vec<OrderBookLevel> {

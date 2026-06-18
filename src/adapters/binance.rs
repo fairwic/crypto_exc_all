@@ -91,13 +91,31 @@ impl BinanceAdapter {
         Ok(Ticker {
             exchange,
             instrument: instrument.clone(),
+            instrument_type: None,
             exchange_symbol: symbol,
             last_price: string_field(object, "lastPrice").unwrap_or_default(),
+            last_size: None,
             bid_price: string_field(object, "bidPrice"),
+            bid_size: string_field(object, "bidQty"),
             ask_price: string_field(object, "askPrice"),
+            ask_size: string_field(object, "askQty"),
+            open_24h: string_field(object, "openPrice"),
+            high_24h: string_field(object, "highPrice"),
+            low_24h: string_field(object, "lowPrice"),
             volume_24h: string_field(object, "volume"),
+            base_volume_24h: string_field(object, "volume"),
+            quote_volume_24h: string_field(object, "quoteVolume"),
+            sod_utc0: None,
+            sod_utc8: None,
             timestamp: u64_field(object, "closeTime"),
             raw,
+        })
+    }
+
+    pub(crate) async fn tickers(&self, _instrument_type: &str) -> Result<Vec<Ticker>> {
+        Err(Error::Unsupported {
+            exchange: ExchangeId::Binance,
+            capability: "market tickers",
         })
     }
 

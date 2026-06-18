@@ -77,13 +77,32 @@ impl BitgetAdapter {
         Ok(Ticker {
             exchange,
             instrument: instrument.clone(),
+            instrument_type: Some(self.product_type.clone()),
             exchange_symbol: symbol,
             last_price: ticker.last_price,
+            last_size: None,
             bid_price: non_empty(ticker.bid_price),
+            bid_size: None,
             ask_price: non_empty(ticker.ask_price),
-            volume_24h: non_empty(ticker.quote_volume).or_else(|| non_empty(ticker.base_volume)),
+            ask_size: None,
+            open_24h: None,
+            high_24h: None,
+            low_24h: None,
+            volume_24h: non_empty(ticker.quote_volume.clone())
+                .or_else(|| non_empty(ticker.base_volume.clone())),
+            base_volume_24h: non_empty(ticker.base_volume),
+            quote_volume_24h: non_empty(ticker.quote_volume),
+            sod_utc0: None,
+            sod_utc8: None,
             timestamp: ticker.ts.parse::<u64>().ok(),
             raw,
+        })
+    }
+
+    pub(crate) async fn tickers(&self, _instrument_type: &str) -> Result<Vec<Ticker>> {
+        Err(Error::Unsupported {
+            exchange: ExchangeId::Bitget,
+            capability: "market tickers",
         })
     }
 

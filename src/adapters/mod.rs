@@ -113,6 +113,21 @@ impl ExchangeClient {
         }
     }
 
+    pub(crate) async fn tickers(&self, instrument_type: &str) -> Result<Vec<Ticker>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.tickers(instrument_type).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.tickers(instrument_type).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(adapter) => adapter.tickers(instrument_type).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.tickers(instrument_type).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(adapter) => adapter.tickers(instrument_type).await,
+        }
+    }
+
     pub(crate) async fn orderbook(&self, query: OrderBookQuery) -> Result<OrderBook> {
         match self {
             #[cfg(feature = "okx")]

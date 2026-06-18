@@ -86,14 +86,32 @@ impl GateAdapter {
         Ok(Ticker {
             exchange,
             instrument: instrument.clone(),
+            instrument_type: Some(self.settle.clone()),
             exchange_symbol: symbol,
             last_price: string_field(item, "last").unwrap_or_default(),
+            last_size: None,
             bid_price: string_field(item, "highest_bid"),
+            bid_size: None,
             ask_price: string_field(item, "lowest_ask"),
+            ask_size: None,
+            open_24h: None,
+            high_24h: string_field(item, "high_24h"),
+            low_24h: string_field(item, "low_24h"),
             volume_24h: string_field(item, "volume_24h_quote")
                 .or_else(|| string_field(item, "volume_24h_base")),
+            base_volume_24h: string_field(item, "volume_24h_base"),
+            quote_volume_24h: string_field(item, "volume_24h_quote"),
+            sod_utc0: None,
+            sod_utc8: None,
             timestamp: None,
             raw,
+        })
+    }
+
+    pub(crate) async fn tickers(&self, _instrument_type: &str) -> Result<Vec<Ticker>> {
+        Err(Error::Unsupported {
+            exchange: ExchangeId::Gate,
+            capability: "market tickers",
         })
     }
 

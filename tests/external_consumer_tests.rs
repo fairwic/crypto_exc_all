@@ -1,10 +1,10 @@
 use crypto_exc_all::{
-    BinanceExchangeConfig, BitgetExchangeConfig, CancelOrderRequest, CandleQuery, CryptoSdk,
-    EnsureOrderMarginModeRequest, Error, ExchangeId, FillListQuery, FundingRateQuery, Instrument,
-    MarginMode, MarginModeApplyMethod, MarketStatsQuery, OkxExchangeConfig, OrderBookQuery,
-    OrderListQuery, OrderQuery, OrderSide, OrderType, PlaceOrderRequest, PositionMode,
-    PrepareOrderSettingsRequest, SdkConfig, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, TimeInForce,
+    BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, CancelOrderRequest,
+    CandleQuery, CryptoSdk, EnsureOrderMarginModeRequest, Error, ExchangeId, FillListQuery,
+    FundingRateQuery, Instrument, MarginMode, MarginModeApplyMethod, MarketStatsQuery,
+    OkxExchangeConfig, OrderBookQuery, OrderListQuery, OrderQuery, OrderSide, OrderType,
+    PlaceOrderRequest, PositionMode, PrepareOrderSettingsRequest, SdkConfig, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, TimeInForce,
 };
 use mockito::{Matcher, Server};
 
@@ -317,6 +317,154 @@ async fn external_consumer_uses_root_crate_for_unified_orderbook_and_candles() {
     okx_candles.assert_async().await;
     bitget_orderbook.assert_async().await;
     bitget_candles.assert_async().await;
+}
+
+#[tokio::test]
+async fn okx_adapter_normalizes_candle_interval_for_okx_bar_parameter() {
+    let mut okx_server = Server::new_async().await;
+    let okx_candles = okx_server
+        .mock(
+            "GET",
+            "/api/v5/market/candles?instId=BTC-USDT-SWAP&bar=4H&limit=2",
+        )
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{
+                "code":"0",
+                "msg":"",
+                "data":[["1730000000001","59001","61001","58001","60001","12.35","12.35","740401","1"]]
+            }"#,
+        )
+        .create_async()
+        .await;
+
+    let sdk = configured_sdk(
+        "http://127.0.0.1:1".to_string(),
+        okx_server.url(),
+        "http://127.0.0.1:1".to_string(),
+    );
+    let candles = sdk
+        .market(ExchangeId::Okx)
+        .unwrap()
+        .candles(CandleQuery::new(Instrument::perp("BTC", "USDT"), "4h").with_limit(2))
+        .await
+        .unwrap();
+
+    assert_eq!(candles[0].exchange_symbol, "BTC-USDT-SWAP");
+    okx_candles.assert_async().await;
+}
+
+#[tokio::test]
+async fn bybit_adapter_normalizes_candle_interval_for_bybit_kline_parameter() {
+    let mut bybit_server = Server::new_async().await;
+    let bybit_candles = bybit_server
+        .mock("GET", "/v5/market/kline")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("category".into(), "linear".into()),
+            Matcher::UrlEncoded("symbol".into(), "BTCUSDT".into()),
+            Matcher::UrlEncoded("interval".into(), "1".into()),
+            Matcher::UrlEncoded("limit".into(), "2".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{
+                "retCode":0,
+                "retMsg":"OK",
+                "result":{
+                    "category":"linear",
+                    "symbol":"BTCUSDT",
+                    "list":[["1730000000002","59002","61002","58002","60002","12.36","740402"]]
+                }
+            }"#,
+        )
+        .create_async()
+        .await;
+
+    let sdk = CryptoSdk::from_config(SdkConfig {
+        bybit: Some(BybitExchangeConfig {
+            api_key: "bybit-key".to_string(),
+            api_secret: "bybit-secret".to_string(),
+            api_url: Some(bybit_server.url()),
+            api_timeout_ms: Some(1_000),
+            recv_window_ms: Some(5_000),
+            proxy_url: None,
+            category: Some("linear".to_string()),
+        }),
+        ..SdkConfig::default()
+    })
+    .unwrap();
+
+    let candles = sdk
+        .market(ExchangeId::Bybit)
+        .unwrap()
+        .candles(CandleQuery::new(Instrument::perp("BTC", "USDT"), "1m").with_limit(2))
+        .await
+        .unwrap();
+
+    assert_eq!(candles[0].exchange_symbol, "BTCUSDT");
+    bybit_candles.assert_async().await;
+}
+
+#[tokio::test]
+async fn okx_adapter_exposes_unified_tickers_with_24h_fields() {
+    let mut okx_server = Server::new_async().await;
+    let okx_tickers = okx_server
+        .mock("GET", "/api/v5/market/tickers?instType=SWAP")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{
+                "code":"0",
+                "msg":"",
+                "data":[{
+                    "instType":"SWAP",
+                    "instId":"BTC-USDT-SWAP",
+                    "last":"70001.20",
+                    "lastSz":"0.1",
+                    "askPx":"70001.30",
+                    "askSz":"0.2",
+                    "bidPx":"70001.10",
+                    "bidSz":"0.3",
+                    "open24h":"69000",
+                    "high24h":"71000",
+                    "low24h":"68000",
+                    "volCcy24h":"456.7",
+                    "vol24h":"100000",
+                    "sodUtc0":"0",
+                    "sodUtc8":"0",
+                    "ts":"1730000000001"
+                }]
+            }"#,
+        )
+        .create_async()
+        .await;
+
+    let sdk = configured_sdk(
+        "http://127.0.0.1:1".to_string(),
+        okx_server.url(),
+        "http://127.0.0.1:1".to_string(),
+    );
+    let tickers = sdk
+        .market(ExchangeId::Okx)
+        .unwrap()
+        .tickers("SWAP")
+        .await
+        .unwrap();
+
+    assert_eq!(tickers.len(), 1);
+    assert_eq!(tickers[0].exchange_symbol, "BTC-USDT-SWAP");
+    assert_eq!(tickers[0].instrument.base, "BTC");
+    assert_eq!(tickers[0].instrument.quote, "USDT");
+    assert_eq!(tickers[0].instrument_type.as_deref(), Some("SWAP"));
+    assert_eq!(tickers[0].volume_24h.as_deref(), Some("100000"));
+    assert_eq!(tickers[0].quote_volume_24h.as_deref(), None);
+    assert_eq!(tickers[0].base_volume_24h.as_deref(), Some("456.7"));
+    assert_eq!(tickers[0].open_24h.as_deref(), Some("69000"));
+    assert_eq!(tickers[0].high_24h.as_deref(), Some("71000"));
+    assert_eq!(tickers[0].low_24h.as_deref(), Some("68000"));
+    okx_tickers.assert_async().await;
 }
 
 #[tokio::test]

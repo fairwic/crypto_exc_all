@@ -9,11 +9,22 @@ use serde_json::Value;
 pub struct Ticker {
     pub exchange: ExchangeId,
     pub instrument: Instrument,
+    pub instrument_type: Option<String>,
     pub exchange_symbol: String,
     pub last_price: String,
+    pub last_size: Option<String>,
     pub bid_price: Option<String>,
+    pub bid_size: Option<String>,
     pub ask_price: Option<String>,
+    pub ask_size: Option<String>,
+    pub open_24h: Option<String>,
+    pub high_24h: Option<String>,
+    pub low_24h: Option<String>,
     pub volume_24h: Option<String>,
+    pub base_volume_24h: Option<String>,
+    pub quote_volume_24h: Option<String>,
+    pub sod_utc0: Option<String>,
+    pub sod_utc8: Option<String>,
     pub timestamp: Option<u64>,
     pub raw: Value,
 }
@@ -281,6 +292,10 @@ impl<'a> MarketFacade<'a> {
 
     pub async fn ticker(&self, instrument: &Instrument) -> Result<Ticker> {
         self.client.ticker(instrument).await
+    }
+
+    pub async fn tickers(&self, instrument_type: &str) -> Result<Vec<Ticker>> {
+        self.client.tickers(instrument_type).await
     }
 
     pub async fn orderbook(&self, query: OrderBookQuery) -> Result<OrderBook> {

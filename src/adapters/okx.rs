@@ -30,6 +30,7 @@ use okx_rs::dto::trade_dto::{
 };
 use okx_rs::dto::{
     CandleOkxRespDto, EnumToStrTrait, MarginMode as OkxMarginMode, OrderType as OkxRawOrderType,
+    TickerOkxResDto,
 };
 use okx_rs::{OkxAccount, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
 use serde_json::Value;
@@ -80,19 +81,21 @@ impl OkxAdapter {
             exchange,
             message: format!("OKX ticker response is empty for {symbol}"),
         })?;
-        let raw = serde_json::to_value(&ticker)?;
+        okx_ticker_from_dto(exchange, Some(instrument.clone()), Some(symbol), ticker)
+    }
 
-        Ok(Ticker {
-            exchange,
-            instrument: instrument.clone(),
-            exchange_symbol: symbol,
-            last_price: ticker.last,
-            bid_price: non_empty(ticker.bid_px),
-            ask_price: non_empty(ticker.ask_px),
-            volume_24h: non_empty(ticker.vol24h),
-            timestamp: ticker.ts.parse::<u64>().ok(),
-            raw,
-        })
+    pub(crate) async fn tickers(&self, instrument_type: &str) -> Result<Vec<Ticker>> {
+        let exchange = ExchangeId::Okx;
+        let tickers = self
+            .market
+            .get_tickers(instrument_type)
+            .await
+            .map_err(Error::from_okx)?;
+
+        tickers
+            .into_iter()
+            .map(|ticker| okx_ticker_from_dto(exchange, None, None, ticker))
+            .collect()
     }
 
     pub(crate) async fn orderbook(&self, query: OrderBookQuery) -> Result<OrderBook> {
@@ -125,12 +128,13 @@ impl OkxAdapter {
         let exchange = ExchangeId::Okx;
         let instrument = query.instrument;
         let symbol = instrument.symbol_for(exchange);
+        let interval = okx_candle_interval(&query.interval);
         let limit = query.limit.map(|value| value.to_string());
         let candles = self
             .market
             .get_candles(
                 &symbol,
-                &query.interval,
+                &interval,
                 query.after.as_deref(),
                 query.before.as_deref(),
                 limit.as_deref(),
@@ -634,6 +638,57 @@ fn non_empty(value: String) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
 }
 
+fn okx_ticker_from_dto(
+    exchange: ExchangeId,
+    instrument: Option<Instrument>,
+    symbol: Option<String>,
+    ticker: TickerOkxResDto,
+) -> Result<Ticker> {
+    let exchange_symbol = if ticker.inst_id.is_empty() {
+        symbol.unwrap_or_default()
+    } else {
+        ticker.inst_id.clone()
+    };
+    let instrument = instrument.unwrap_or_else(|| instrument_from_okx_symbol(&exchange_symbol));
+    let instrument_type = non_empty(ticker.inst_type.clone());
+    let is_spot = instrument_type
+        .as_deref()
+        .map(|value| value.eq_ignore_ascii_case("SPOT"))
+        .unwrap_or(false);
+    let raw = serde_json::to_value(&ticker)?;
+
+    Ok(Ticker {
+        exchange,
+        instrument,
+        instrument_type,
+        exchange_symbol,
+        last_price: ticker.last,
+        last_size: non_empty(ticker.last_sz),
+        bid_price: non_empty(ticker.bid_px),
+        bid_size: non_empty(ticker.bid_sz),
+        ask_price: non_empty(ticker.ask_px),
+        ask_size: non_empty(ticker.ask_sz),
+        open_24h: non_empty(ticker.open24h),
+        high_24h: non_empty(ticker.high24h),
+        low_24h: non_empty(ticker.low24h),
+        volume_24h: non_empty(ticker.vol24h.clone()),
+        base_volume_24h: if is_spot {
+            non_empty(ticker.vol24h)
+        } else {
+            non_empty(ticker.vol_ccy24h.clone())
+        },
+        quote_volume_24h: if is_spot {
+            non_empty(ticker.vol_ccy24h)
+        } else {
+            None
+        },
+        sod_utc0: non_empty(ticker.sod_utc0),
+        sod_utc8: non_empty(ticker.sod_utc8),
+        timestamp: ticker.ts.parse::<u64>().ok(),
+        raw,
+    })
+}
+
 fn instrument_from_okx_symbol(symbol: &str) -> Instrument {
     let mut parts = symbol.split('-');
     let base = parts.next().unwrap_or(symbol);
@@ -1078,6 +1133,19 @@ fn okx_taker_volume_from_values(
     })
 }
 
+fn okx_candle_interval(interval: &str) -> String {
+    match interval.trim() {
+        "1Dutc" | "1DUTC" => "1Dutc".to_string(),
+        value if value.ends_with('h') || value.ends_with('H') => {
+            format!("{}H", &value[..value.len() - 1])
+        }
+        value if value.ends_with('d') || value.ends_with('D') => {
+            format!("{}D", &value[..value.len() - 1])
+        }
+        value => value.to_string(),
+    }
+}
+
 fn okx_leverage_setting_from_value(
     exchange: ExchangeId,
     instrument: Instrument,
@@ -1225,5 +1293,14 @@ mod tests {
 
         assert!(error.to_string().contains("51076"));
         assert!(error.to_string().contains("Attached TP/SL parameter error"));
+    }
+
+    #[test]
+    fn okx_candle_interval_uses_okx_bar_case() {
+        assert_eq!(okx_candle_interval("4h"), "4H");
+        assert_eq!(okx_candle_interval("1h"), "1H");
+        assert_eq!(okx_candle_interval("1d"), "1D");
+        assert_eq!(okx_candle_interval("1Dutc"), "1Dutc");
+        assert_eq!(okx_candle_interval("1m"), "1m");
     }
 }
