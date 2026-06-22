@@ -1539,7 +1539,7 @@ async fn external_consumer_uses_root_crate_for_unified_order_queries() {
     let okx_history = okx_server
         .mock(
             "GET",
-            "/api/v5/trade/orders-history?instType=SWAP&instId=BTC-USDT-SWAP&limit=2",
+            "/api/v5/trade/orders-history-archive?instType=SWAP&instId=BTC-USDT-SWAP&begin=1720000000000&end=1730000000000&limit=2",
         )
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -1626,7 +1626,12 @@ async fn external_consumer_uses_root_crate_for_unified_order_queries() {
     let okx_history_orders = sdk
         .orders(ExchangeId::Okx)
         .unwrap()
-        .history(OrderListQuery::for_instrument(btc_perp.clone()).with_limit(2))
+        .history(
+            OrderListQuery::for_instrument(btc_perp.clone())
+                .with_start_time(1720000000000)
+                .with_end_time(1730000000000)
+                .with_limit(2),
+        )
         .await
         .unwrap();
 
@@ -1713,7 +1718,7 @@ async fn external_consumer_uses_root_crate_for_unified_fills() {
     let okx_fills = okx_server
         .mock(
             "GET",
-            "/api/v5/trade/fills?instType=SWAP&instId=BTC-USDT-SWAP&limit=2",
+            "/api/v5/trade/fills-history?instType=SWAP&instId=BTC-USDT-SWAP&begin=1720000000000&end=1730000000000&limit=2",
         )
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -1765,7 +1770,12 @@ async fn external_consumer_uses_root_crate_for_unified_fills() {
     let okx_items = sdk
         .fills(ExchangeId::Okx)
         .unwrap()
-        .list(FillListQuery::for_instrument(btc_perp.clone()).with_limit(2))
+        .list(
+            FillListQuery::for_instrument(btc_perp.clone())
+                .with_start_time(1720000000000)
+                .with_end_time(1730000000000)
+                .with_limit(2),
+        )
         .await
         .unwrap();
     let bitget_items = sdk

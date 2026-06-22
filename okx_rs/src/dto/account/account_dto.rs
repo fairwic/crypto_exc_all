@@ -521,3 +521,30 @@ pub struct Position {
     /// 外部业务类型
     pub biz_ref_type: Option<String>,
 }
+
+/// 历史仓位信息
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionHistoryRespDto {
+    pub inst_type: Option<String>,
+    pub inst_id: Option<String>,
+    pub mgn_mode: Option<String>,
+    pub pos_id: Option<String>,
+    pub pos_side: Option<String>,
+    pub direction: Option<String>,
+    pub lever: Option<String>,
+    pub open_avg_px: Option<String>,
+    pub close_avg_px: Option<String>,
+    pub open_max_pos: Option<String>,
+    pub close_total_pos: Option<String>,
+    pub realized_pnl: Option<String>,
+    pub pnl: Option<String>,
+    pub pnl_ratio: Option<String>,
+    pub fee: Option<String>,
+    pub funding_fee: Option<String>,
+    pub liq_penalty: Option<String>,
+    #[serde(rename = "type")]
+    pub close_type: Option<String>,
+    pub c_time: Option<String>,
+    pub u_time: Option<String>,
+}

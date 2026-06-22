@@ -233,6 +233,14 @@ impl OkxTrade {
             path.push_str(&format!("&before={}", b));
         }
 
+        if let Some(begin) = params.begin {
+            path.push_str(&format!("&begin={}", begin));
+        }
+
+        if let Some(end) = params.end {
+            path.push_str(&format!("&end={}", end));
+        }
+
         if let Some(l) = params.limit {
             path.push_str(&format!("&limit={}", l));
         }
@@ -275,6 +283,14 @@ impl OkxTrade {
             path.push_str(&format!("&before={}", b));
         }
 
+        if let Some(begin) = params.begin {
+            path.push_str(&format!("&begin={}", begin));
+        }
+
+        if let Some(end) = params.end {
+            path.push_str(&format!("&end={}", end));
+        }
+
         if let Some(l) = params.limit {
             path.push_str(&format!("&limit={}", l));
         }
@@ -315,6 +331,62 @@ impl OkxTrade {
 
         if let Some(b) = before {
             query_params.push(format!("before={}", b));
+        }
+
+        if let Some(l) = limit {
+            query_params.push(format!("limit={}", l));
+        }
+
+        if !query_params.is_empty() {
+            path.push_str(&format!("?{}", query_params.join("&")));
+        }
+
+        self.client
+            .send_request::<serde_json::Value>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 获取历史成交明细（近三个月）
+    pub async fn get_fills_history(
+        &self,
+        inst_type: Option<&str>,
+        inst_id: Option<&str>,
+        ord_id: Option<&str>,
+        after: Option<&str>,
+        before: Option<&str>,
+        begin: Option<&str>,
+        end: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<serde_json::Value, Error> {
+        let mut path = format!("{}/fills-history", API_TRADE_PATH);
+        let mut query_params = vec![];
+
+        if let Some(it) = inst_type {
+            query_params.push(format!("instType={}", it));
+        }
+
+        if let Some(id) = inst_id {
+            query_params.push(format!("instId={}", id));
+        }
+
+        if let Some(oid) = ord_id {
+            query_params.push(format!("ordId={}", oid));
+        }
+
+        if let Some(a) = after {
+            query_params.push(format!("after={}", a));
+        }
+
+        if let Some(b) = before {
+            query_params.push(format!("before={}", b));
+        }
+
+        if let Some(begin) = begin {
+            query_params.push(format!("begin={}", begin));
+        }
+
+        if let Some(end) = end {
+            query_params.push(format!("end={}", end));
         }
 
         if let Some(l) = limit {

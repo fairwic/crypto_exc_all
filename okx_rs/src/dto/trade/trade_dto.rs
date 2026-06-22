@@ -673,5 +673,7 @@ pub struct OrdListReqDto {
     pub state: Option<String>,
     pub after: Option<String>,
     pub before: Option<String>,
+    pub begin: Option<String>,
+    pub end: Option<String>,
     pub limit: Option<u32>,
 }

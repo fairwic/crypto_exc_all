@@ -2,8 +2,8 @@ use crate::api::api_trait::OkxApiTrait;
 use crate::api::API_ACCOUNT_PATH;
 use crate::client::OkxClient;
 use crate::dto::account::account_dto::{
-    AccountConfig, AccountRisk, Balance, Position, SetLeverageRequest, SetPositionModeRequest,
-    TradingSwapNumResponseData,
+    AccountConfig, AccountRisk, Balance, Position, PositionHistoryRespDto, SetLeverageRequest,
+    SetPositionModeRequest, TradingSwapNumResponseData,
 };
 use crate::dto::trade::trade_dto::PositionRespDto;
 use crate::error::Error;
@@ -67,6 +67,62 @@ impl OkxAccount {
 
         self.client
             .send_request::<Vec<PositionRespDto>>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 查询历史仓位
+    pub async fn get_positions_history(
+        &self,
+        inst_type: Option<&str>,
+        inst_id: Option<&str>,
+        mgn_mode: Option<&str>,
+        close_type: Option<&str>,
+        pos_id: Option<&str>,
+        after: Option<&str>,
+        before: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<PositionHistoryRespDto>, Error> {
+        let mut path = format!("{}/positions-history", API_ACCOUNT_PATH);
+        let mut query_params = vec![];
+
+        if let Some(it) = inst_type {
+            query_params.push(format!("instType={}", it));
+        }
+
+        if let Some(id) = inst_id {
+            query_params.push(format!("instId={}", id));
+        }
+
+        if let Some(mode) = mgn_mode {
+            query_params.push(format!("mgnMode={}", mode));
+        }
+
+        if let Some(value) = close_type {
+            query_params.push(format!("type={}", value));
+        }
+
+        if let Some(pid) = pos_id {
+            query_params.push(format!("posId={}", pid));
+        }
+
+        if let Some(cursor) = after {
+            query_params.push(format!("after={}", cursor));
+        }
+
+        if let Some(cursor) = before {
+            query_params.push(format!("before={}", cursor));
+        }
+
+        if let Some(value) = limit {
+            query_params.push(format!("limit={}", value));
+        }
+
+        if !query_params.is_empty() {
+            path.push_str(&format!("?{}", query_params.join("&")));
+        }
+
+        self.client
+            .send_request::<Vec<PositionHistoryRespDto>>(Method::GET, &path, "")
             .await
     }
 

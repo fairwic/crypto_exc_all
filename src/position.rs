@@ -21,6 +21,94 @@ pub struct Position {
     pub raw: Value,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PositionHistoryQuery {
+    pub instrument: Option<Instrument>,
+    pub instrument_type: Option<String>,
+    pub margin_mode: Option<String>,
+    pub close_type: Option<String>,
+    pub position_id: Option<String>,
+    pub after: Option<String>,
+    pub before: Option<String>,
+    pub limit: Option<u32>,
+}
+
+impl PositionHistoryQuery {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn for_instrument(instrument: Instrument) -> Self {
+        Self::new().with_instrument(instrument)
+    }
+
+    pub fn with_instrument(mut self, value: Instrument) -> Self {
+        self.instrument = Some(value);
+        self
+    }
+
+    pub fn with_instrument_type(mut self, value: impl Into<String>) -> Self {
+        self.instrument_type = Some(value.into());
+        self
+    }
+
+    pub fn with_margin_mode(mut self, value: impl Into<String>) -> Self {
+        self.margin_mode = Some(value.into());
+        self
+    }
+
+    pub fn with_close_type(mut self, value: impl Into<String>) -> Self {
+        self.close_type = Some(value.into());
+        self
+    }
+
+    pub fn with_position_id(mut self, value: impl Into<String>) -> Self {
+        self.position_id = Some(value.into());
+        self
+    }
+
+    pub fn with_after(mut self, value: impl Into<String>) -> Self {
+        self.after = Some(value.into());
+        self
+    }
+
+    pub fn with_before(mut self, value: impl Into<String>) -> Self {
+        self.before = Some(value.into());
+        self
+    }
+
+    pub fn with_limit(mut self, value: u32) -> Self {
+        self.limit = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PositionHistory {
+    pub exchange: ExchangeId,
+    pub instrument: Instrument,
+    pub exchange_symbol: String,
+    pub position_id: Option<String>,
+    pub side: Option<String>,
+    pub direction: Option<String>,
+    pub leverage: Option<String>,
+    pub margin_mode: Option<String>,
+    pub open_avg_price: Option<String>,
+    pub close_avg_price: Option<String>,
+    pub open_max_position: Option<String>,
+    pub close_total_position: Option<String>,
+    pub realized_pnl: Option<String>,
+    pub pnl: Option<String>,
+    pub pnl_ratio: Option<String>,
+    pub fee: Option<String>,
+    pub funding_fee: Option<String>,
+    pub liquidation_penalty: Option<String>,
+    pub close_type: Option<String>,
+    pub open_time: Option<u64>,
+    pub close_time: Option<u64>,
+    pub raw: Value,
+}
+
 pub struct PositionFacade<'a> {
     pub(crate) client: &'a ExchangeClient,
 }
@@ -32,5 +120,9 @@ impl<'a> PositionFacade<'a> {
 
     pub async fn list(&self, instrument: Option<&Instrument>) -> Result<Vec<Position>> {
         self.client.positions(instrument).await
+    }
+
+    pub async fn history(&self, query: PositionHistoryQuery) -> Result<Vec<PositionHistory>> {
+        self.client.position_history(query).await
     }
 }

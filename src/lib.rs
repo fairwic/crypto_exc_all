@@ -51,7 +51,7 @@ pub use market::{
     Ticker,
 };
 pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
-pub use position::{Position, PositionFacade};
+pub use position::{Position, PositionFacade, PositionHistory, PositionHistoryQuery};
 pub use sdk::CryptoSdk;
 pub use trade::{
     CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, ProtectiveOrderQuery,

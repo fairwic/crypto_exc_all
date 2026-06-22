@@ -17,7 +17,7 @@ use crate::market::{
     MarketStatsQuery, OpenInterest, OrderBook, OrderBookQuery, TakerBuySellVolume, Ticker,
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
-use crate::position::Position;
+use crate::position::{Position, PositionHistory, PositionHistoryQuery};
 use crate::trade::{
     CancelOrderRequest, OrderAck, PlaceOrderRequest, ProtectiveOrderQuery, ProtectiveOrderRequest,
 };
@@ -457,6 +457,36 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.positions(instrument).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.positions(instrument).await,
+        }
+    }
+
+    pub(crate) async fn position_history(
+        &self,
+        query: PositionHistoryQuery,
+    ) -> Result<Vec<PositionHistory>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.position_history(query).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Binance,
+                capability: "position history",
+            }),
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "position history",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "position history",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "position history",
+            }),
         }
     }
 

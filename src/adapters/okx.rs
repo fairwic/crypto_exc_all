@@ -16,7 +16,7 @@ use crate::market::{
     Ticker,
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
-use crate::position::Position;
+use crate::position::{Position, PositionHistory, PositionHistoryQuery};
 use crate::trade::{CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, TimeInForce};
 use okx_rs::api::api_trait::OkxApiTrait;
 use okx_rs::config::Credentials as OkxCredentials;
@@ -495,6 +495,44 @@ impl OkxAdapter {
             .collect()
     }
 
+    pub(crate) async fn position_history(
+        &self,
+        query: PositionHistoryQuery,
+    ) -> Result<Vec<PositionHistory>> {
+        let exchange = ExchangeId::Okx;
+        let instrument = query.instrument;
+        let symbol = instrument
+            .as_ref()
+            .map(|instrument| instrument.symbol_for(exchange));
+        let inst_type = query
+            .instrument_type
+            .clone()
+            .or_else(|| instrument.as_ref().map(okx_inst_type_for_instrument))
+            .unwrap_or_else(|| "SWAP".to_string());
+        let response = self
+            .account
+            .get_positions_history(
+                Some(inst_type.as_str()),
+                symbol.as_deref(),
+                query.margin_mode.as_deref(),
+                query.close_type.as_deref(),
+                query.position_id.as_deref(),
+                query.after.as_deref(),
+                query.before.as_deref(),
+                query.limit,
+            )
+            .await
+            .map_err(Error::from_okx)?;
+
+        response
+            .into_iter()
+            .map(|item| {
+                let value = serde_json::to_value(item)?;
+                okx_position_history_from_value(exchange, instrument.clone(), symbol.clone(), value)
+            })
+            .collect()
+    }
+
     pub(crate) async fn place_order(&self, request: PlaceOrderRequest) -> Result<OrderAck> {
         let exchange = ExchangeId::Okx;
         let instrument = request.instrument.clone();
@@ -634,19 +672,24 @@ impl OkxAdapter {
         let symbol = instrument
             .as_ref()
             .map(|instrument| instrument.symbol_for(exchange));
-        let response = self
-            .trade
-            .get_order_history(OrdListReqDto {
-                inst_type: "SWAP".to_string(),
-                inst_id: symbol.clone(),
-                ord_type: None,
-                state: query.status,
-                after: query.after,
-                before: query.before,
-                limit: query.limit,
-            })
-            .await
-            .map_err(Error::from_okx)?;
+        let use_archive = query.start_time.is_some() || query.end_time.is_some();
+        let request = OrdListReqDto {
+            inst_type: "SWAP".to_string(),
+            inst_id: symbol.clone(),
+            ord_type: None,
+            state: query.status,
+            after: query.after,
+            before: query.before,
+            begin: query.start_time.map(|value| value.to_string()),
+            end: query.end_time.map(|value| value.to_string()),
+            limit: query.limit,
+        };
+        let response = if use_archive {
+            self.trade.get_order_history_archive(request).await
+        } else {
+            self.trade.get_order_history(request).await
+        }
+        .map_err(Error::from_okx)?;
 
         response
             .into_iter()
@@ -660,18 +703,35 @@ impl OkxAdapter {
         let symbol = instrument
             .as_ref()
             .map(|instrument| instrument.symbol_for(exchange));
-        let raw = self
-            .trade
-            .get_fills(
-                Some("SWAP"),
-                symbol.as_deref(),
-                query.order_id.as_deref(),
-                query.after.as_deref(),
-                query.before.as_deref(),
-                query.limit,
-            )
-            .await
-            .map_err(Error::from_okx)?;
+        let begin = query.start_time.map(|value| value.to_string());
+        let end = query.end_time.map(|value| value.to_string());
+        let use_history = begin.is_some() || end.is_some();
+        let raw = if use_history {
+            self.trade
+                .get_fills_history(
+                    Some("SWAP"),
+                    symbol.as_deref(),
+                    query.order_id.as_deref(),
+                    query.after.as_deref(),
+                    query.before.as_deref(),
+                    begin.as_deref(),
+                    end.as_deref(),
+                    query.limit,
+                )
+                .await
+        } else {
+            self.trade
+                .get_fills(
+                    Some("SWAP"),
+                    symbol.as_deref(),
+                    query.order_id.as_deref(),
+                    query.after.as_deref(),
+                    query.before.as_deref(),
+                    query.limit,
+                )
+                .await
+        }
+        .map_err(Error::from_okx)?;
 
         okx_fills_from_value(exchange, instrument, symbol, raw, "OKX fills response")
     }
@@ -1306,6 +1366,48 @@ fn okx_fills_from_value(
         .collect()
 }
 
+fn okx_position_history_from_value(
+    exchange: ExchangeId,
+    instrument: Option<Instrument>,
+    symbol_hint: Option<String>,
+    raw: Value,
+) -> Result<PositionHistory> {
+    let object = raw.as_object().ok_or_else(|| Error::Adapter {
+        exchange,
+        message: "OKX position history item is not an object".to_string(),
+    })?;
+    let exchange_symbol = first_string_field(object, &["instId", "inst_id"])
+        .or(symbol_hint)
+        .unwrap_or_default();
+    let mapped_instrument =
+        instrument.unwrap_or_else(|| instrument_from_okx_symbol(&exchange_symbol));
+
+    Ok(PositionHistory {
+        exchange,
+        instrument: mapped_instrument,
+        exchange_symbol,
+        position_id: first_string_field(object, &["posId", "pos_id"]),
+        side: first_string_field(object, &["posSide", "pos_side"]),
+        direction: string_field(object, "direction"),
+        leverage: string_field(object, "lever"),
+        margin_mode: first_string_field(object, &["mgnMode", "mgn_mode"]),
+        open_avg_price: first_string_field(object, &["openAvgPx", "open_avg_px"]),
+        close_avg_price: first_string_field(object, &["closeAvgPx", "close_avg_px"]),
+        open_max_position: first_string_field(object, &["openMaxPos", "open_max_pos"]),
+        close_total_position: first_string_field(object, &["closeTotalPos", "close_total_pos"]),
+        realized_pnl: first_string_field(object, &["realizedPnl", "realized_pnl"]),
+        pnl: string_field(object, "pnl"),
+        pnl_ratio: first_string_field(object, &["pnlRatio", "pnl_ratio"]),
+        fee: string_field(object, "fee"),
+        funding_fee: first_string_field(object, &["fundingFee", "funding_fee"]),
+        liquidation_penalty: first_string_field(object, &["liqPenalty", "liq_penalty"]),
+        close_type: string_field(object, "type"),
+        open_time: u64_field(object, "cTime").or_else(|| u64_field(object, "c_time")),
+        close_time: u64_field(object, "uTime").or_else(|| u64_field(object, "u_time")),
+        raw,
+    })
+}
+
 fn okx_account_bills_from_value(
     exchange: ExchangeId,
     instrument: Option<Instrument>,
@@ -1426,6 +1528,54 @@ mod tests {
         assert_eq!(bills[0].balance_change.as_deref(), Some("9.7"));
         assert_eq!(bills[0].fee.as_deref(), Some("-0.3"));
         assert_eq!(bills[0].pnl.as_deref(), Some("10"));
+    }
+
+    #[test]
+    fn okx_position_history_maps_closed_position_fields() {
+        let history = okx_position_history_from_value(
+            ExchangeId::Okx,
+            Some(Instrument::perp("ASTER", "USDT")),
+            Some("ASTER-USDT-SWAP".to_string()),
+            serde_json::json!({
+                "posId": "okx-position-1",
+                "instId": "ASTER-USDT-SWAP",
+                "instType": "SWAP",
+                "posSide": "long",
+                "direction": "long",
+                "mgnMode": "cross",
+                "lever": "3",
+                "openAvgPx": "0.6208",
+                "closeAvgPx": "0.6047",
+                "openMaxPos": "1",
+                "closeTotalPos": "1",
+                "realizedPnl": "-0.01",
+                "pnl": "-0.01",
+                "pnlRatio": "-0.0817",
+                "fee": "-0.0002",
+                "fundingFee": "0",
+                "liqPenalty": "0",
+                "type": "2",
+                "cTime": "1780980141000",
+                "uTime": "1781122152000"
+            }),
+        )
+        .expect("map position history");
+
+        assert_eq!(history.exchange_symbol, "ASTER-USDT-SWAP");
+        assert_eq!(history.position_id.as_deref(), Some("okx-position-1"));
+        assert_eq!(history.side.as_deref(), Some("long"));
+        assert_eq!(history.direction.as_deref(), Some("long"));
+        assert_eq!(history.leverage.as_deref(), Some("3"));
+        assert_eq!(history.margin_mode.as_deref(), Some("cross"));
+        assert_eq!(history.open_avg_price.as_deref(), Some("0.6208"));
+        assert_eq!(history.close_avg_price.as_deref(), Some("0.6047"));
+        assert_eq!(history.open_max_position.as_deref(), Some("1"));
+        assert_eq!(history.close_total_position.as_deref(), Some("1"));
+        assert_eq!(history.realized_pnl.as_deref(), Some("-0.01"));
+        assert_eq!(history.pnl_ratio.as_deref(), Some("-0.0817"));
+        assert_eq!(history.close_type.as_deref(), Some("2"));
+        assert_eq!(history.open_time, Some(1_780_980_141_000));
+        assert_eq!(history.close_time, Some(1_781_122_152_000));
     }
 
     #[test]
