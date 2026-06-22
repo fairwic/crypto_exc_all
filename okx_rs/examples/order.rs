@@ -1,7 +1,6 @@
 use okx::api::api_trait::OkxApiTrait;
 use okx::config::Credentials;
-use okx::{Error, OkxClient, OkxMarket, OkxTrade};
-use serde_json::json;
+use okx::{Error, OkxClient, OkxTrade};
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     env_logger::init();

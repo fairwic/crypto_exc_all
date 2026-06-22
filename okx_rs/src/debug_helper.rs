@@ -65,12 +65,16 @@ impl DebugHelper {
     /// 诊断OKX API错误
     pub fn diagnose_okx_error(error: &Error) {
         match error {
-            Error::JsonError(json_err) => {
+            Error::JsonError(_json_err) => {
                 println!("🔍 JSON解析错误诊断:");
                 println!("   这通常表示OKX API的响应格式与期望不符");
                 println!("   建议: 检查API文档是否有更新，或联系OKX技术支持");
             }
-            Error::OkxApiError { code, message, smg } => {
+            Error::OkxApiError {
+                code,
+                message,
+                smg: _,
+            } => {
                 println!("🔍 OKX API错误诊断:");
                 println!("   错误代码: {}", code);
                 println!("   错误信息: {}", message);

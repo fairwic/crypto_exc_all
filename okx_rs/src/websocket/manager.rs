@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 
-use super::auto_reconnect_client::{
-    AutoReconnectWebsocketClient, ConnectionState, ReconnectConfig,
-};
+use super::auto_reconnect_client::{AutoReconnectWebsocketClient, ConnectionState};
 use super::channel::{Args, ChannelType};
 use crate::config::Credentials;
 use crate::error::Error;
@@ -54,9 +52,11 @@ pub struct SubscriptionInfo {
 /// - 连接状态监控
 /// - 错误恢复
 pub struct OkxWebsocketManager {
+    #[allow(dead_code)]
     config: ManagerConfig,
     public_client: Arc<Mutex<AutoReconnectWebsocketClient>>,
     private_client: Option<Arc<Mutex<AutoReconnectWebsocketClient>>>,
+    #[allow(dead_code)]
     business_client: Option<Arc<Mutex<AutoReconnectWebsocketClient>>>,
     subscriptions: Arc<RwLock<HashMap<String, SubscriptionInfo>>>,
     message_sender: Arc<Mutex<Option<mpsc::UnboundedSender<Value>>>>,
@@ -76,17 +76,6 @@ impl OkxWebsocketManager {
 
     /// 使用自定义配置创建WebSocket管理器
     pub fn new_with_config(credentials: Option<Credentials>, config: ManagerConfig) -> Self {
-        // 转换配置
-        let reconnect_config = ReconnectConfig {
-            enabled: config.auto_reconnect,
-            interval: config.reconnect_interval,
-            max_attempts: config.max_reconnect_attempts,
-            backoff_factor: 1.5,
-            max_backoff: 60,
-            heartbeat_interval: config.heartbeat_interval,
-            message_timeout: config.message_timeout,
-        };
-
         let public_client = Arc::new(Mutex::new(AutoReconnectWebsocketClient::new_public()));
 
         let private_client = credentials

@@ -17,13 +17,6 @@ pub struct OkxApiResponse<T: Serialize> {
     pub data: T,
 }
 
-/// OKX API错误响应
-#[derive(Serialize, Deserialize, Debug)]
-struct OkxApiErrorResponse {
-    msg: String,
-    code: String,
-}
-
 /// OKX HTTP API客户端
 #[derive(Debug, Clone)]
 pub struct OkxClient {

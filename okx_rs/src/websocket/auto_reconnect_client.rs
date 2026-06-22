@@ -484,7 +484,6 @@ impl AutoReconnectWebsocketClient {
         credentials: &Credentials,
     ) -> Result<(), Error> {
         let timestamp = utils::generate_timestamp_websocket();
-        let sign_str = format!("{}GET/users/self/verify", timestamp);
         let signature = utils::generate_signature(
             &credentials.api_secret,
             &timestamp,
