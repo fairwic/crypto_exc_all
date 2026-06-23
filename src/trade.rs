@@ -84,6 +84,7 @@ pub struct ProtectiveOrderRequest {
     pub instrument: Instrument,
     pub side: OrderSide,
     pub stop_price: String,
+    pub quantity: Option<String>,
     pub position_side: Option<String>,
     pub reduce_only: Option<bool>,
     pub close_position: Option<bool>,
@@ -102,6 +103,7 @@ impl ProtectiveOrderRequest {
             instrument,
             side,
             stop_price: stop_price.into(),
+            quantity: None,
             position_side: None,
             reduce_only: None,
             close_position: None,
@@ -113,6 +115,11 @@ impl ProtectiveOrderRequest {
 
     pub fn with_position_side(mut self, value: impl Into<String>) -> Self {
         self.position_side = Some(value.into());
+        self
+    }
+
+    pub fn with_quantity(mut self, value: impl Into<String>) -> Self {
+        self.quantity = Some(value.into());
         self
     }
 

@@ -851,6 +851,9 @@ fn binance_protective_order_request(request: &ProtectiveOrderRequest) -> Binance
     if let Some(position_side) = request.position_side.as_deref() {
         binance_request = binance_request.with_position_side(position_side.to_ascii_uppercase());
     }
+    if let Some(quantity) = request.quantity.as_deref() {
+        binance_request = binance_request.with_quantity(quantity);
+    }
     if let Some(reduce_only) = request.reduce_only {
         binance_request = binance_request.with_reduce_only(reduce_only);
     }
@@ -942,6 +945,25 @@ mod tests {
         assert!(params.contains(&("workingType", "MARK_PRICE".to_string())));
         assert!(params.contains(&("priceProtect", "true".to_string())));
         assert!(params.contains(&("clientAlgoId", "sl-rqethopen3".to_string())));
+    }
+
+    #[test]
+    fn maps_fixed_size_protective_stop_market_request_to_binance_algo_order_params() {
+        let request = ProtectiveOrderRequest::stop_market(
+            Instrument::perp("ETH", "USDT"),
+            OrderSide::Sell,
+            "2200",
+        )
+        .with_position_side("LONG")
+        .with_quantity("0.012")
+        .with_working_type(ProtectiveOrderWorkingType::MarkPrice)
+        .with_price_protect(true)
+        .with_client_order_id("sl-rqethopen3");
+
+        let params = binance_protective_order_request(&request).to_params();
+
+        assert!(params.contains(&("quantity", "0.012".to_string())));
+        assert!(!params.iter().any(|(key, _)| *key == "closePosition"));
     }
 
     #[test]
