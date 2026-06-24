@@ -142,7 +142,7 @@ impl OkxBigData {
     // 限速： 5次/2s
     // 限速规则： IP + instrumentID
     // 权限：读取
-    pub async fn get_long_short_postion_ratio_contract_top_trader(
+    pub async fn get_long_short_position_ratio_contract_top_trader(
         &self,
         inst_id: &str,
         period: Option<&str>,
@@ -151,7 +151,7 @@ impl OkxBigData {
         limit: Option<&str>,
     ) -> Result<Vec<Vec<String>>, Error> {
         let mut path = format!(
-            "/api/v5/rubik/stat/contracts/long-short-account-ratio-contract-top-trader?instId={}",
+            "/api/v5/rubik/stat/contracts/long-short-position-ratio-contract-top-trader?instId={}",
             inst_id
         );
 
@@ -168,5 +168,17 @@ impl OkxBigData {
             path.push_str(&format!("&limit={}", limit_value));
         }
         self.client.send_request(Method::GET, &path, "").await
+    }
+
+    pub async fn get_long_short_postion_ratio_contract_top_trader(
+        &self,
+        inst_id: &str,
+        period: Option<&str>,
+        begin: Option<&str>,
+        end: Option<&str>,
+        limit: Option<&str>,
+    ) -> Result<Vec<Vec<String>>, Error> {
+        self.get_long_short_position_ratio_contract_top_trader(inst_id, period, begin, end, limit)
+            .await
     }
 }

@@ -322,8 +322,22 @@ impl<'a> MarketFacade<'a> {
         self.client.open_interest(instrument).await
     }
 
+    pub async fn open_interest_history(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<OpenInterest>> {
+        self.client.open_interest_history(query).await
+    }
+
     pub async fn long_short_ratio(&self, query: MarketStatsQuery) -> Result<Vec<LongShortRatio>> {
         self.client.long_short_ratio(query).await
+    }
+
+    pub async fn top_trader_position_ratio(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<LongShortRatio>> {
+        self.client.top_trader_position_ratio(query).await
     }
 
     pub async fn taker_buy_sell_volume(

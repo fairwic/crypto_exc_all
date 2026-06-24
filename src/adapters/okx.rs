@@ -18,6 +18,7 @@ use crate::market::{
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::{Position, PositionHistory, PositionHistoryQuery};
 use crate::trade::{CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, TimeInForce};
+use okx_rs::api::announcements::announcements_api::OkxAnnouncements;
 use okx_rs::api::api_trait::OkxApiTrait;
 use okx_rs::config::Credentials as OkxCredentials;
 use okx_rs::dto::account_dto::{
@@ -36,8 +37,12 @@ use okx_rs::dto::{
 use okx_rs::{OkxAccount, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
 use serde_json::Value;
 
+#[path = "okx/platform.rs"]
+mod platform;
+
 pub(crate) struct OkxAdapter {
     account: OkxAccount,
+    announcements: OkxAnnouncements,
     big_data: OkxBigData,
     market: OkxMarket,
     public_data: OkxPublicData,
@@ -63,6 +68,7 @@ impl OkxAdapter {
 
         Ok(Self {
             account: <OkxAccount as OkxApiTrait>::new(client.clone()),
+            announcements: <OkxAnnouncements as OkxApiTrait>::new(client.clone()),
             big_data: <OkxBigData as OkxApiTrait>::new(client.clone()),
             market: <OkxMarket as OkxApiTrait>::new(client.clone()),
             public_data: <OkxPublicData as OkxApiTrait>::new(client.clone()),
@@ -241,6 +247,41 @@ impl OkxAdapter {
         let raw = self
             .big_data
             .get_long_short_account_ratio_contract_top_trader(
+                &symbol,
+                Some(&query.period),
+                begin.as_deref(),
+                end.as_deref(),
+                limit.as_deref(),
+            )
+            .await
+            .map_err(Error::from_okx)?;
+
+        raw.into_iter()
+            .map(|values| {
+                okx_long_short_ratio_from_values(
+                    exchange,
+                    instrument.clone(),
+                    symbol.clone(),
+                    query.period.clone(),
+                    values,
+                )
+            })
+            .collect()
+    }
+
+    pub(crate) async fn top_trader_position_ratio(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<LongShortRatio>> {
+        let exchange = ExchangeId::Okx;
+        let instrument = query.instrument;
+        let symbol = instrument.symbol_for(exchange);
+        let limit = query.limit.map(|value| value.to_string());
+        let begin = query.start_time.map(|value| value.to_string());
+        let end = query.end_time.map(|value| value.to_string());
+        let raw = self
+            .big_data
+            .get_long_short_position_ratio_contract_top_trader(
                 &symbol,
                 Some(&query.period),
                 begin.as_deref(),

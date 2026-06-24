@@ -12,22 +12,25 @@ members = [
     "bitget_rs",
     "bybit_rs",
     "gate_rs",
+    "hyperliquid_rs",
 ]
 resolver = "2"
 
 [features]
-default = ["okx", "binance", "bitget", "bybit", "gate"]
+default = ["okx", "binance", "bitget", "bybit", "gate", "hyperliquid"]
 okx = ["dep:okx_rs"]
 binance = ["dep:binance_rs"]
 bitget = ["dep:bitget_rs"]
 bybit = ["dep:bybit_rs"]
 gate = ["dep:gate_rs"]
+hyperliquid = ["dep:hyperliquid_rs"]
 
 [dependencies]
 binance_rs = { package = "bnb_rs", version = "0.1.0", path = "binance_rs", optional = true }
 bitget_rs = { version = "0.1.0", path = "bitget_rs", optional = true }
 bybit_rs = { version = "0.1.0", path = "bybit_rs", optional = true }
 gate_rs = { version = "0.1.0", path = "gate_rs", optional = true }
+hyperliquid_rs = { version = "0.1.0", path = "hyperliquid_rs", optional = true }
 okx_rs = { package = "okx", version = "0.2.1", path = "okx_rs", optional = true }
 dotenv = "0.15.0"
 serde = { version = "1.0.219", features = ["derive"] }

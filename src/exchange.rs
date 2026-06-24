@@ -10,6 +10,7 @@ pub enum ExchangeId {
     Bitget,
     Bybit,
     Gate,
+    Hyperliquid,
 }
 
 impl ExchangeId {
@@ -20,6 +21,7 @@ impl ExchangeId {
             Self::Bitget => "bitget",
             Self::Bybit => "bybit",
             Self::Gate => "gate",
+            Self::Hyperliquid => "hyperliquid",
         }
     }
 }
@@ -40,6 +42,7 @@ impl FromStr for ExchangeId {
             "bitget" => Ok(Self::Bitget),
             "bybit" => Ok(Self::Bybit),
             "gate" | "gateio" | "gate.io" => Ok(Self::Gate),
+            "hyperliquid" | "hl" => Ok(Self::Hyperliquid),
             other => Err(format!("unsupported exchange: {other}")),
         }
     }
@@ -59,7 +62,12 @@ mod tests {
     fn parses_secondary_listing_exchange_ids() {
         assert_eq!("bybit".parse::<ExchangeId>().unwrap(), ExchangeId::Bybit);
         assert_eq!("gate".parse::<ExchangeId>().unwrap(), ExchangeId::Gate);
+        assert_eq!(
+            "hyperliquid".parse::<ExchangeId>().unwrap(),
+            ExchangeId::Hyperliquid
+        );
         assert_eq!(ExchangeId::Bybit.as_str(), "bybit");
         assert_eq!(ExchangeId::Gate.as_str(), "gate");
+        assert_eq!(ExchangeId::Hyperliquid.as_str(), "hyperliquid");
     }
 }

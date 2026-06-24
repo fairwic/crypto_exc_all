@@ -77,11 +77,9 @@ impl OkxAnnouncements {
         if let Some(l) = language {
             client.set_accept_language(l);
         }
-        println!("body: {}", body);
         let res = client
             .send_request::<Vec<AnnouncementPage>>(Method::GET, path, &body)
             .await?;
-        println!("res: {:?}", res);
         Ok(res)
     }
 }

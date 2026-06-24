@@ -6,6 +6,7 @@ use crate::exchange::ExchangeId;
 use crate::fill::FillFacade;
 use crate::market::MarketFacade;
 use crate::order::OrderFacade;
+use crate::platform::PlatformFacade;
 use crate::position::PositionFacade;
 use crate::trade::TradeFacade;
 use std::collections::HashMap;
@@ -52,6 +53,12 @@ impl CryptoSdk {
             clients.insert(client.exchange_id(), client);
         }
 
+        #[cfg(feature = "hyperliquid")]
+        if let Some(hyperliquid_config) = config.hyperliquid {
+            let client = ExchangeClient::hyperliquid(hyperliquid_config)?;
+            clients.insert(client.exchange_id(), client);
+        }
+
         Ok(Self { clients })
     }
 
@@ -85,6 +92,10 @@ impl CryptoSdk {
         Ok(FillFacade::new(self.client(exchange)?))
     }
 
+    pub fn platform(&self, exchange: ExchangeId) -> Result<PlatformFacade<'_>> {
+        Ok(PlatformFacade::new(self.client(exchange)?))
+    }
+
     fn client(&self, exchange: ExchangeId) -> Result<&ExchangeClient> {
         self.clients
             .get(&exchange)
@@ -97,7 +108,7 @@ mod tests {
     use super::*;
     use crate::config::{
         BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
-        OkxExchangeConfig,
+        HyperliquidExchangeConfig, OkxExchangeConfig,
     };
 
     #[test]
@@ -148,6 +159,12 @@ mod tests {
                 proxy_url: None,
                 settle: Some("usdt".to_string()),
             }),
+            hyperliquid: Some(HyperliquidExchangeConfig {
+                api_url: Some("http://127.0.0.1:1".to_string()),
+                api_timeout_ms: Some(1_000),
+                proxy_url: None,
+                user_address: Some("0x0000000000000000000000000000000000000000".to_string()),
+            }),
         })
         .unwrap();
 
@@ -158,6 +175,7 @@ mod tests {
                 ExchangeId::Bitget,
                 ExchangeId::Bybit,
                 ExchangeId::Gate,
+                ExchangeId::Hyperliquid,
                 ExchangeId::Okx
             ]
         );
@@ -166,6 +184,7 @@ mod tests {
         assert!(sdk.market(ExchangeId::Bitget).is_ok());
         assert!(sdk.market(ExchangeId::Bybit).is_ok());
         assert!(sdk.market(ExchangeId::Gate).is_ok());
+        assert!(sdk.market(ExchangeId::Hyperliquid).is_ok());
         assert!(sdk.positions(ExchangeId::Bitget).is_ok());
         assert!(sdk.trade(ExchangeId::Okx).is_ok());
         assert!(sdk.orders(ExchangeId::Bitget).is_ok());

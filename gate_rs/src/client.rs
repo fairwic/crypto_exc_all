@@ -68,61 +68,6 @@ impl GateClient {
         self.timestamp_provider = Arc::new(provider);
     }
 
-    pub async fn ticker(&self, settle: &str, contract: &str) -> Result<Value, Error> {
-        self.send_public(
-            &format!("/futures/{settle}/tickers"),
-            &[("contract", contract.to_string())],
-        )
-        .await
-    }
-
-    pub async fn orderbook(
-        &self,
-        settle: &str,
-        contract: &str,
-        limit: Option<u32>,
-    ) -> Result<Value, Error> {
-        let mut params = vec![("contract", contract.to_string())];
-        if let Some(limit) = limit {
-            params.push(("limit", limit.to_string()));
-        }
-        self.send_public(&format!("/futures/{settle}/order_book"), &params)
-            .await
-    }
-
-    pub async fn candlesticks(
-        &self,
-        settle: &str,
-        contract: &str,
-        interval: &str,
-        limit: Option<u32>,
-        from: Option<u64>,
-        to: Option<u64>,
-    ) -> Result<Value, Error> {
-        let mut params = vec![
-            ("contract", contract.to_string()),
-            ("interval", interval.to_string()),
-        ];
-        if let Some(limit) = limit {
-            if from.is_none() && to.is_none() {
-                params.push(("limit", limit.to_string()));
-            }
-        }
-        if let Some(from) = from {
-            params.push(("from", from.to_string()));
-        }
-        if let Some(to) = to {
-            params.push(("to", to.to_string()));
-        }
-        self.send_public(&format!("/futures/{settle}/candlesticks"), &params)
-            .await
-    }
-
-    pub async fn contract(&self, settle: &str, contract: &str) -> Result<Value, Error> {
-        self.send_public(&format!("/futures/{settle}/contracts/{contract}"), &[])
-            .await
-    }
-
     pub async fn place_order(&self, settle: &str, request: &OrderRequest) -> Result<Value, Error> {
         self.send_signed_json(Method::POST, &format!("/futures/{settle}/orders"), request)
             .await
@@ -156,7 +101,11 @@ impl GateClient {
             .await
     }
 
-    async fn send_public(&self, path: &str, params: &[(&str, String)]) -> Result<Value, Error> {
+    pub(crate) async fn send_public(
+        &self,
+        path: &str,
+        params: &[(&str, String)],
+    ) -> Result<Value, Error> {
         let query = build_query_string(params);
         let response = self
             .client
@@ -167,7 +116,11 @@ impl GateClient {
         self.decode(response).await
     }
 
-    async fn send_signed_get(&self, path: &str, params: &[(&str, String)]) -> Result<Value, Error> {
+    pub(crate) async fn send_signed_get(
+        &self,
+        path: &str,
+        params: &[(&str, String)],
+    ) -> Result<Value, Error> {
         self.send_signed(Method::GET, path, params, "").await
     }
 
@@ -257,6 +210,36 @@ fn build_query_string(params: &[(&str, String)]) -> String {
         .map(|(key, value)| format!("{key}={value}"))
         .collect::<Vec<_>>()
         .join("&")
+}
+
+pub(crate) fn push_optional_str(
+    params: &mut Vec<(&str, String)>,
+    key: &'static str,
+    value: Option<&str>,
+) {
+    if let Some(value) = value {
+        params.push((key, value.to_string()));
+    }
+}
+
+pub(crate) fn push_optional_u64(
+    params: &mut Vec<(&str, String)>,
+    key: &'static str,
+    value: Option<u64>,
+) {
+    if let Some(value) = value {
+        params.push((key, value.to_string()));
+    }
+}
+
+pub(crate) fn push_optional_u32(
+    params: &mut Vec<(&str, String)>,
+    key: &'static str,
+    value: Option<u32>,
+) {
+    if let Some(value) = value {
+        params.push((key, value.to_string()));
+    }
 }
 
 fn sign(

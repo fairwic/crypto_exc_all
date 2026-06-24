@@ -1,7 +1,7 @@
 use crate::account::{
-    AccountCapabilities, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
-    LeverageSetting, PositionModeSetting, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
+    EnsureOrderMarginModeResult, LeverageSetting, PositionModeSetting, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SymbolMarginModeSetting,
 };
 use crate::config::BybitExchangeConfig;
 use crate::error::{Error, Result};
@@ -14,13 +14,15 @@ use crate::market::{
     Ticker,
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
+use crate::platform::{PlatformEvent, PlatformEventQuery};
 use crate::position::Position;
 use crate::trade::{
     CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, TimeInForce,
 };
 use bybit_rs::{
-    BybitClient, CancelOrderRequest as BybitCancelOrderRequest, Config as BybitConfig,
-    Credentials as BybitCredentials, OrderRequest as BybitOrderRequest,
+    BybitClient, BybitDepositRecordRequest, BybitTransferRecordRequest,
+    BybitWithdrawalRecordRequest, CancelOrderRequest as BybitCancelOrderRequest,
+    Config as BybitConfig, Credentials as BybitCredentials, OrderRequest as BybitOrderRequest,
     OrderStatusRequest as BybitOrderStatusRequest, PositionListRequest as BybitPositionListRequest,
 };
 use serde_json::Value;
@@ -207,6 +209,13 @@ impl BybitAdapter {
 
     pub(crate) async fn place_order(&self, request: PlaceOrderRequest) -> Result<OrderAck> {
         let exchange = ExchangeId::Bybit;
+        if request.attached_stop_loss_price.is_some() {
+            return Err(Error::Unsupported {
+                exchange,
+                capability: "attached stop loss on place_order",
+            });
+        }
+
         let symbol = request.instrument.symbol_for(exchange);
         let raw = self
             .client
@@ -289,12 +298,291 @@ impl BybitAdapter {
         }
     }
 
+    pub(crate) async fn platform_system_status(
+        &self,
+        query: PlatformEventQuery,
+    ) -> Result<Vec<PlatformEvent>> {
+        if query.locale.is_some()
+            || query.event_type.is_some()
+            || query.tag.is_some()
+            || query.page.is_some()
+            || query.limit.is_some()
+        {
+            return Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "platform system status announcement filters",
+            });
+        }
+
+        let raw = self
+            .client
+            .system_status(query.id.as_deref(), query.state.as_deref())
+            .await
+            .map_err(Error::from_bybit)?;
+        Ok(bybit_platform_items(raw)
+            .into_iter()
+            .map(bybit_system_status_event)
+            .collect())
+    }
+
+    pub(crate) async fn platform_announcements(
+        &self,
+        query: PlatformEventQuery,
+    ) -> Result<Vec<PlatformEvent>> {
+        if query.id.is_some() || query.state.is_some() {
+            return Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "platform announcements status filters",
+            });
+        }
+
+        let locale = query.locale.as_deref().unwrap_or("en-US");
+        let raw = self
+            .client
+            .announcements(
+                locale,
+                query.event_type.as_deref(),
+                query.tag.as_deref(),
+                query.page,
+                query.limit,
+            )
+            .await
+            .map_err(Error::from_bybit)?;
+        Ok(bybit_platform_items(raw)
+            .into_iter()
+            .map(bybit_announcement_event)
+            .collect())
+    }
+
+    pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
+        if query.instrument.is_some() || query.archive {
+            return Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account bills instrument/archive filter",
+            });
+        }
+
+        let request_kind = BybitAccountBillKind::from_query(query.bill_type.as_deref())?;
+        let mut output = Vec::new();
+
+        if request_kind.includes_transfer() {
+            let raw = self
+                .client
+                .internal_transfer_records(bybit_transfer_request(&query))
+                .await
+                .map_err(Error::from_bybit)?;
+            output.extend(bybit_transfer_bills(raw)?);
+        }
+        if request_kind.includes_deposit() {
+            let raw = self
+                .client
+                .deposit_records(bybit_deposit_request(&query))
+                .await
+                .map_err(Error::from_bybit)?;
+            output.extend(bybit_deposit_bills(raw)?);
+        }
+        if request_kind.includes_withdrawal() {
+            let raw = self
+                .client
+                .withdrawal_records(bybit_withdrawal_request(&query))
+                .await
+                .map_err(Error::from_bybit)?;
+            output.extend(bybit_withdrawal_bills(raw)?);
+        }
+
+        Ok(output)
+    }
+
+    pub(crate) async fn funding_rate(&self, instrument: &Instrument) -> Result<FundingRate> {
+        let exchange = ExchangeId::Bybit;
+        let symbol = instrument.symbol_for(exchange);
+        let item = self.ticker_item(&symbol).await?;
+        Ok(FundingRate {
+            exchange,
+            instrument: instrument.clone(),
+            exchange_symbol: symbol,
+            funding_rate: string_field(&item, "fundingRate").unwrap_or_default(),
+            funding_time: None,
+            next_funding_rate: None,
+            next_funding_time: item.get("nextFundingTime").and_then(value_u64),
+            mark_price: string_field(&item, "markPrice"),
+            raw: item,
+        })
+    }
+
+    pub(crate) async fn funding_rate_history(
+        &self,
+        query: FundingRateQuery,
+    ) -> Result<Vec<FundingRate>> {
+        if query.after.is_some() || query.before.is_some() {
+            return Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "funding rate history cursor",
+            });
+        }
+
+        let exchange = ExchangeId::Bybit;
+        let instrument = query.instrument;
+        let symbol = instrument.symbol_for(exchange);
+        let raw = self
+            .client
+            .funding_rate_history(
+                &self.category,
+                &symbol,
+                query.start_time,
+                query.end_time,
+                query.limit,
+            )
+            .await
+            .map_err(Error::from_bybit)?;
+        let rows = raw
+            .get("list")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        Ok(rows
+            .into_iter()
+            .map(|row| FundingRate {
+                exchange,
+                instrument: instrument.clone(),
+                exchange_symbol: string_field(&row, "symbol").unwrap_or_else(|| symbol.clone()),
+                funding_rate: string_field(&row, "fundingRate").unwrap_or_default(),
+                funding_time: row.get("fundingRateTimestamp").and_then(value_u64),
+                next_funding_rate: None,
+                next_funding_time: None,
+                mark_price: None,
+                raw: row,
+            })
+            .collect())
+    }
+
+    pub(crate) async fn mark_price(&self, instrument: &Instrument) -> Result<MarkPrice> {
+        let exchange = ExchangeId::Bybit;
+        let symbol = instrument.symbol_for(exchange);
+        let item = self.ticker_item(&symbol).await?;
+        Ok(MarkPrice {
+            exchange,
+            instrument: instrument.clone(),
+            exchange_symbol: symbol,
+            mark_price: string_field(&item, "markPrice").unwrap_or_default(),
+            index_price: string_field(&item, "indexPrice"),
+            funding_rate: string_field(&item, "fundingRate"),
+            next_funding_time: item.get("nextFundingTime").and_then(value_u64),
+            timestamp: None,
+            raw: item,
+        })
+    }
+
+    pub(crate) async fn open_interest(&self, instrument: &Instrument) -> Result<OpenInterest> {
+        let exchange = ExchangeId::Bybit;
+        let symbol = instrument.symbol_for(exchange);
+        let raw = self
+            .client
+            .open_interest(&self.category, &symbol, "5min", None, None, None, None)
+            .await
+            .map_err(Error::from_bybit)?;
+        let item = first_list_item(&raw, exchange, "Bybit open interest response")?;
+        Ok(OpenInterest {
+            exchange,
+            instrument: instrument.clone(),
+            exchange_symbol: symbol,
+            open_interest: string_field(item, "openInterest").unwrap_or_default(),
+            open_interest_value: None,
+            timestamp: item.get("timestamp").and_then(value_u64),
+            raw,
+        })
+    }
+
+    pub(crate) async fn open_interest_history(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<OpenInterest>> {
+        let exchange = ExchangeId::Bybit;
+        let instrument = query.instrument;
+        let symbol = instrument.symbol_for(exchange);
+        let period = bybit_stats_period(&query.period);
+        let raw = self
+            .client
+            .open_interest(
+                &self.category,
+                &symbol,
+                &period,
+                query.start_time,
+                query.end_time,
+                query.limit,
+                None,
+            )
+            .await
+            .map_err(Error::from_bybit)?;
+        let rows = raw
+            .get("list")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        Ok(rows
+            .into_iter()
+            .map(|row| OpenInterest {
+                exchange,
+                instrument: instrument.clone(),
+                exchange_symbol: string_field(&row, "symbol").unwrap_or_else(|| symbol.clone()),
+                open_interest: string_field(&row, "openInterest").unwrap_or_default(),
+                open_interest_value: None,
+                timestamp: row.get("timestamp").and_then(value_u64),
+                raw: row,
+            })
+            .collect())
+    }
+
+    pub(crate) async fn long_short_ratio(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<LongShortRatio>> {
+        let exchange = ExchangeId::Bybit;
+        let instrument = query.instrument;
+        let symbol = instrument.symbol_for(exchange);
+        let period = bybit_stats_period(&query.period);
+        let raw = self
+            .client
+            .long_short_ratio(
+                &self.category,
+                &symbol,
+                &period,
+                query.start_time,
+                query.end_time,
+                query.limit,
+                None,
+            )
+            .await
+            .map_err(Error::from_bybit)?;
+        let rows = raw
+            .get("list")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let long_ratio = string_field(&row, "buyRatio");
+                let short_ratio = string_field(&row, "sellRatio");
+                LongShortRatio {
+                    exchange,
+                    instrument: instrument.clone(),
+                    exchange_symbol: string_field(&row, "symbol").unwrap_or_else(|| symbol.clone()),
+                    period: query.period.clone(),
+                    ratio: string_field(&row, "ratio")
+                        .or_else(|| ratio_from_sides(long_ratio.as_deref(), short_ratio.as_deref()))
+                        .unwrap_or_default(),
+                    long_ratio,
+                    short_ratio,
+                    timestamp: row.get("timestamp").and_then(value_u64),
+                    raw: row,
+                }
+            })
+            .collect())
+    }
+
     unsupported_methods! {
-        funding_rate(&self, _instrument: &Instrument) -> FundingRate, "funding rate";
-        funding_rate_history(&self, _query: FundingRateQuery) -> Vec<FundingRate>, "funding rate history";
-        mark_price(&self, _instrument: &Instrument) -> MarkPrice, "mark price";
-        open_interest(&self, _instrument: &Instrument) -> OpenInterest, "open interest";
-        long_short_ratio(&self, _query: MarketStatsQuery) -> Vec<LongShortRatio>, "long short ratio";
         taker_buy_sell_volume(&self, _query: MarketStatsQuery) -> Vec<TakerBuySellVolume>, "taker buy sell volume";
         balances(&self) -> Vec<Balance>, "balances";
         set_leverage(&self, _request: SetLeverageRequest) -> LeverageSetting, "set leverage";
@@ -304,6 +592,15 @@ impl BybitAdapter {
         open_orders(&self, _query: OrderListQuery) -> Vec<Order>, "open orders";
         order_history(&self, _query: OrderListQuery) -> Vec<Order>, "order history";
         fills(&self, _query: FillListQuery) -> Vec<Fill>, "fills";
+    }
+
+    async fn ticker_item(&self, symbol: &str) -> Result<Value> {
+        let raw = self
+            .client
+            .ticker(&self.category, symbol)
+            .await
+            .map_err(Error::from_bybit)?;
+        first_list_item(&raw, ExchangeId::Bybit, "Bybit ticker response").cloned()
     }
 }
 
@@ -331,6 +628,204 @@ fn value_u64(value: &Value) -> Option<u64> {
         .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
 }
 
+enum BybitAccountBillKind {
+    All,
+    Transfer,
+    Deposit,
+    Withdrawal,
+}
+
+impl BybitAccountBillKind {
+    fn from_query(value: Option<&str>) -> Result<Self> {
+        match value.map(|value| value.to_ascii_lowercase()) {
+            None => Ok(Self::All),
+            Some(value) if value == "dnw" || value == "all" => Ok(Self::All),
+            Some(value) if value == "transfer" || value == "internal_transfer" => {
+                Ok(Self::Transfer)
+            }
+            Some(value) if value == "deposit" => Ok(Self::Deposit),
+            Some(value) if value == "withdraw" || value == "withdrawal" => Ok(Self::Withdrawal),
+            Some(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account bills type filter",
+            }),
+        }
+    }
+
+    fn includes_transfer(&self) -> bool {
+        matches!(self, Self::All | Self::Transfer)
+    }
+
+    fn includes_deposit(&self) -> bool {
+        matches!(self, Self::All | Self::Deposit)
+    }
+
+    fn includes_withdrawal(&self) -> bool {
+        matches!(self, Self::All | Self::Withdrawal)
+    }
+}
+
+fn bybit_transfer_request(query: &AccountBillQuery) -> BybitTransferRecordRequest {
+    let mut request = BybitTransferRecordRequest::new();
+    if let Some(asset) = query.asset.as_deref() {
+        request = request.with_coin(asset);
+    }
+    if let Some(start_time) = query.start_time {
+        request = request.with_start_time(start_time);
+    }
+    if let Some(end_time) = query.end_time {
+        request = request.with_end_time(end_time);
+    }
+    if let Some(limit) = query.limit {
+        request = request.with_limit(limit);
+    }
+    request
+}
+
+fn bybit_deposit_request(query: &AccountBillQuery) -> BybitDepositRecordRequest {
+    let mut request = BybitDepositRecordRequest::new();
+    if let Some(asset) = query.asset.as_deref() {
+        request = request.with_coin(asset);
+    }
+    if let Some(start_time) = query.start_time {
+        request = request.with_start_time(start_time);
+    }
+    if let Some(end_time) = query.end_time {
+        request = request.with_end_time(end_time);
+    }
+    if let Some(limit) = query.limit {
+        request = request.with_limit(limit);
+    }
+    request
+}
+
+fn bybit_withdrawal_request(query: &AccountBillQuery) -> BybitWithdrawalRecordRequest {
+    let mut request = BybitWithdrawalRecordRequest::new();
+    if let Some(asset) = query.asset.as_deref() {
+        request = request.with_coin(asset);
+    }
+    if let Some(start_time) = query.start_time {
+        request = request.with_start_time(start_time);
+    }
+    if let Some(end_time) = query.end_time {
+        request = request.with_end_time(end_time);
+    }
+    if let Some(limit) = query.limit {
+        request = request.with_limit(limit);
+    }
+    request
+}
+
+fn bybit_transfer_bills(raw: Value) -> Result<Vec<AccountBill>> {
+    let rows = raw
+        .get("list")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    Ok(rows
+        .into_iter()
+        .map(|row| bybit_account_bill(row, "transfer", "transferId", &["timestamp", "createdTime"]))
+        .collect())
+}
+
+fn bybit_deposit_bills(raw: Value) -> Result<Vec<AccountBill>> {
+    let rows = raw
+        .get("rows")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    Ok(rows
+        .into_iter()
+        .map(|row| bybit_account_bill(row, "deposit", "id", &["successAt", "createdTime"]))
+        .collect())
+}
+
+fn bybit_withdrawal_bills(raw: Value) -> Result<Vec<AccountBill>> {
+    let rows = raw
+        .get("rows")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            bybit_account_bill(
+                row,
+                "withdrawal",
+                "withdrawID",
+                &["updatedTime", "successAt", "createdTime"],
+            )
+        })
+        .collect())
+}
+
+fn bybit_account_bill(
+    raw: Value,
+    bill_type: &str,
+    id_field: &str,
+    time_fields: &[&str],
+) -> AccountBill {
+    AccountBill {
+        exchange: ExchangeId::Bybit,
+        instrument: None,
+        exchange_symbol: None,
+        bill_id: string_field(&raw, id_field),
+        asset: string_field(&raw, "coin"),
+        balance_change: string_field(&raw, "amount"),
+        balance_after: None,
+        fee: string_field(&raw, "fee"),
+        pnl: None,
+        bill_type: Some(bill_type.to_string()),
+        bill_sub_type: string_field(&raw, "status"),
+        order_id: None,
+        trade_id: None,
+        timestamp: first_u64_value(&raw, time_fields),
+        raw,
+    }
+}
+
+fn first_u64_value(value: &Value, keys: &[&str]) -> Option<u64> {
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(value_u64))
+}
+
+fn bybit_platform_items(raw: Value) -> Vec<Value> {
+    raw.get("list")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn bybit_system_status_event(raw: Value) -> PlatformEvent {
+    PlatformEvent {
+        exchange: ExchangeId::Bybit,
+        event_type: "system_status".to_string(),
+        event_id: string_field(&raw, "id"),
+        title: string_field(&raw, "title").or_else(|| string_field(&raw, "name")),
+        status: string_field(&raw, "state").or_else(|| string_field(&raw, "status")),
+        url: string_field(&raw, "url"),
+        start_time: first_u64_value(&raw, &["begin", "startTime", "startAt"]),
+        end_time: first_u64_value(&raw, &["end", "endTime", "endAt"]),
+        published_at: first_u64_value(&raw, &["dateTimestamp", "publishTime", "publishedAt"]),
+        raw,
+    }
+}
+
+fn bybit_announcement_event(raw: Value) -> PlatformEvent {
+    PlatformEvent {
+        exchange: ExchangeId::Bybit,
+        event_type: "announcement".to_string(),
+        event_id: string_field(&raw, "id").or_else(|| string_field(&raw, "articleId")),
+        title: string_field(&raw, "title"),
+        status: string_field(&raw, "state").or_else(|| string_field(&raw, "status")),
+        url: string_field(&raw, "url"),
+        start_time: None,
+        end_time: None,
+        published_at: first_u64_value(&raw, &["dateTimestamp", "publishTime", "publishedAt"]),
+        raw,
+    }
+}
+
 fn bybit_candle_interval(interval: &str) -> String {
     match interval.trim() {
         "1M" => "M".to_string(),
@@ -348,6 +843,30 @@ fn bybit_candle_interval(interval: &str) -> String {
         value if value.eq_ignore_ascii_case("1w") => "W".to_string(),
         value => value.to_string(),
     }
+}
+
+fn bybit_stats_period(period: &str) -> String {
+    match period.trim() {
+        "5m" => "5min".to_string(),
+        "15m" => "15min".to_string(),
+        "30m" => "30min".to_string(),
+        value => value.to_string(),
+    }
+}
+
+fn ratio_from_sides(long_ratio: Option<&str>, short_ratio: Option<&str>) -> Option<String> {
+    let long = long_ratio?.parse::<f64>().ok()?;
+    let short = short_ratio?.parse::<f64>().ok()?;
+    if short == 0.0 {
+        return None;
+    }
+    let ratio = long / short;
+    Some(
+        format!("{ratio:.12}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string(),
+    )
 }
 
 fn bybit_levels(value: Option<&Value>) -> Vec<OrderBookLevel> {

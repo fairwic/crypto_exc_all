@@ -6,7 +6,7 @@ use crate::account::{
 };
 use crate::config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
-    OkxExchangeConfig,
+    HyperliquidExchangeConfig, OkxExchangeConfig,
 };
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
@@ -17,9 +17,11 @@ use crate::market::{
     MarketStatsQuery, OpenInterest, OrderBook, OrderBookQuery, TakerBuySellVolume, Ticker,
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
+use crate::platform::{PlatformEvent, PlatformEventQuery};
 use crate::position::{Position, PositionHistory, PositionHistoryQuery};
 use crate::trade::{
     CancelOrderRequest, OrderAck, PlaceOrderRequest, ProtectiveOrderQuery, ProtectiveOrderRequest,
+    TradeCapabilities,
 };
 
 #[cfg(feature = "binance")]
@@ -30,6 +32,16 @@ mod bitget;
 mod bybit;
 #[cfg(feature = "gate")]
 mod gate;
+#[cfg(feature = "hyperliquid")]
+mod hyperliquid;
+#[cfg(feature = "hyperliquid")]
+mod hyperliquid_bills;
+#[cfg(feature = "hyperliquid")]
+mod hyperliquid_market;
+#[cfg(feature = "hyperliquid")]
+mod hyperliquid_orders;
+#[cfg(feature = "hyperliquid")]
+mod hyperliquid_spot;
 #[cfg(feature = "okx")]
 mod okx;
 
@@ -41,6 +53,8 @@ pub(crate) use bitget::BitgetAdapter;
 pub(crate) use bybit::BybitAdapter;
 #[cfg(feature = "gate")]
 pub(crate) use gate::GateAdapter;
+#[cfg(feature = "hyperliquid")]
+pub(crate) use hyperliquid::HyperliquidAdapter;
 #[cfg(feature = "okx")]
 pub(crate) use okx::OkxAdapter;
 
@@ -55,6 +69,8 @@ pub(crate) enum ExchangeClient {
     Bybit(Box<BybitAdapter>),
     #[cfg(feature = "gate")]
     Gate(Box<GateAdapter>),
+    #[cfg(feature = "hyperliquid")]
+    Hyperliquid(Box<HyperliquidAdapter>),
 }
 
 impl ExchangeClient {
@@ -83,6 +99,13 @@ impl ExchangeClient {
         Ok(Self::Gate(Box::new(GateAdapter::new(config)?)))
     }
 
+    #[cfg(feature = "hyperliquid")]
+    pub(crate) fn hyperliquid(config: HyperliquidExchangeConfig) -> Result<Self> {
+        Ok(Self::Hyperliquid(Box::new(HyperliquidAdapter::new(
+            config,
+        )?)))
+    }
+
     pub(crate) fn exchange_id(&self) -> ExchangeId {
         match self {
             #[cfg(feature = "okx")]
@@ -95,6 +118,8 @@ impl ExchangeClient {
             Self::Bybit(_) => ExchangeId::Bybit,
             #[cfg(feature = "gate")]
             Self::Gate(_) => ExchangeId::Gate,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => ExchangeId::Hyperliquid,
         }
     }
 
@@ -110,6 +135,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.ticker(instrument).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.ticker(instrument).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.ticker(instrument).await,
         }
     }
 
@@ -125,6 +152,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.tickers(instrument_type).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.tickers(instrument_type).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.tickers(instrument_type).await,
         }
     }
 
@@ -140,6 +169,60 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.orderbook(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.orderbook(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.orderbook(query).await,
+        }
+    }
+
+    pub(crate) async fn platform_system_status(
+        &self,
+        query: PlatformEventQuery,
+    ) -> Result<Vec<PlatformEvent>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.platform_system_status(query).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.platform_system_status(query).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(adapter) => adapter.platform_system_status(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.platform_system_status(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "platform system status",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "platform system status",
+            }),
+        }
+    }
+
+    pub(crate) async fn platform_announcements(
+        &self,
+        query: PlatformEventQuery,
+    ) -> Result<Vec<PlatformEvent>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.platform_announcements(query).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.platform_announcements(query).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(adapter) => adapter.platform_announcements(query).await,
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.platform_announcements(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "platform announcements",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "platform announcements",
+            }),
         }
     }
 
@@ -155,6 +238,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.candles(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.candles(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.candles(query).await,
         }
     }
 
@@ -170,6 +255,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.funding_rate(instrument).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.funding_rate(instrument).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.funding_rate(instrument).await,
         }
     }
 
@@ -188,6 +275,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.funding_rate_history(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.funding_rate_history(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.funding_rate_history(query).await,
         }
     }
 
@@ -203,6 +292,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.mark_price(instrument).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.mark_price(instrument).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.mark_price(instrument).await,
         }
     }
 
@@ -218,6 +309,40 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.open_interest(instrument).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.open_interest(instrument).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.open_interest(instrument).await,
+        }
+    }
+
+    pub(crate) async fn open_interest_history(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<OpenInterest>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Okx,
+                capability: "open interest history",
+            }),
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.open_interest_history(query).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "open interest history",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(adapter) => adapter.open_interest_history(query).await,
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "open interest history",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "open interest history",
+            }),
         }
     }
 
@@ -236,6 +361,43 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.long_short_ratio(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.long_short_ratio(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "long-short ratio",
+            }),
+        }
+    }
+
+    pub(crate) async fn top_trader_position_ratio(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<LongShortRatio>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.top_trader_position_ratio(query).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.top_trader_position_ratio(query).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "top trader position ratio",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "top trader position ratio",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "top trader position ratio",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "top trader position ratio",
+            }),
         }
     }
 
@@ -254,6 +416,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.taker_buy_sell_volume(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.taker_buy_sell_volume(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "taker buy-sell volume",
+            }),
         }
     }
 
@@ -269,6 +436,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.balances().await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.balances().await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.balances().await,
         }
     }
 
@@ -277,25 +446,15 @@ impl ExchangeClient {
             #[cfg(feature = "okx")]
             Self::Okx(adapter) => adapter.account_bills(query).await,
             #[cfg(feature = "binance")]
-            Self::Binance(_) => Err(Error::Unsupported {
-                exchange: ExchangeId::Binance,
-                capability: "account bills",
-            }),
+            Self::Binance(adapter) => adapter.account_bills(query).await,
             #[cfg(feature = "bitget")]
-            Self::Bitget(_) => Err(Error::Unsupported {
-                exchange: ExchangeId::Bitget,
-                capability: "account bills",
-            }),
+            Self::Bitget(adapter) => adapter.account_bills(query).await,
             #[cfg(feature = "bybit")]
-            Self::Bybit(_) => Err(Error::Unsupported {
-                exchange: ExchangeId::Bybit,
-                capability: "account bills",
-            }),
+            Self::Bybit(adapter) => adapter.account_bills(query).await,
             #[cfg(feature = "gate")]
-            Self::Gate(_) => Err(Error::Unsupported {
-                exchange: ExchangeId::Gate,
-                capability: "account bills",
-            }),
+            Self::Gate(adapter) => adapter.account_bills(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.account_bills(query).await,
         }
     }
 
@@ -314,6 +473,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.set_leverage(request).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.set_leverage(request).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "set leverage",
+            }),
         }
     }
 
@@ -329,6 +493,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.account_capabilities(),
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.account_capabilities(),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.account_capabilities(),
         }
     }
 
@@ -347,6 +513,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.set_position_mode(request).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.set_position_mode(request).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "set position mode",
+            }),
         }
     }
 
@@ -365,6 +536,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.set_symbol_margin_mode(request).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.set_symbol_margin_mode(request).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "set symbol margin mode",
+            }),
         }
     }
 
@@ -383,6 +559,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.ensure_order_margin_mode(request).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.ensure_order_margin_mode(request).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "ensure order margin mode",
+            }),
         }
     }
 
@@ -457,6 +638,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.positions(instrument).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.positions(instrument).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.positions(instrument).await,
         }
     }
 
@@ -487,6 +670,11 @@ impl ExchangeClient {
                 exchange: ExchangeId::Gate,
                 capability: "position history",
             }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "position history",
+            }),
         }
     }
 
@@ -502,6 +690,46 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.place_order(request).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.place_order(request).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "place order",
+            }),
+        }
+    }
+
+    pub(crate) fn trade_capabilities(&self) -> TradeCapabilities {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(_) => TradeCapabilities {
+                attached_stop_loss_on_place_order: true,
+                protective_order: false,
+            },
+            #[cfg(feature = "binance")]
+            Self::Binance(_) => TradeCapabilities {
+                attached_stop_loss_on_place_order: false,
+                protective_order: true,
+            },
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => TradeCapabilities {
+                attached_stop_loss_on_place_order: true,
+                protective_order: false,
+            },
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => TradeCapabilities {
+                attached_stop_loss_on_place_order: false,
+                protective_order: false,
+            },
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => TradeCapabilities {
+                attached_stop_loss_on_place_order: false,
+                protective_order: false,
+            },
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => TradeCapabilities {
+                attached_stop_loss_on_place_order: false,
+                protective_order: false,
+            },
         }
     }
 
@@ -532,6 +760,11 @@ impl ExchangeClient {
                 exchange: ExchangeId::Gate,
                 capability: "protective order",
             }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "protective order",
+            }),
         }
     }
 
@@ -547,6 +780,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.cancel_order(request).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.cancel_order(request).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "cancel order",
+            }),
         }
     }
 
@@ -577,6 +815,11 @@ impl ExchangeClient {
                 exchange: ExchangeId::Gate,
                 capability: "protective order cancellation",
             }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(crate::error::Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "protective order cancellation",
+            }),
         }
     }
 
@@ -592,6 +835,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.order(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.order(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.order(query).await,
         }
     }
 
@@ -607,6 +852,11 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.order(query.into_order_query()).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.order(query.into_order_query()).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "protective order detail",
+            }),
         }
     }
 
@@ -622,6 +872,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.open_orders(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.open_orders(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.open_orders(query).await,
         }
     }
 
@@ -637,6 +889,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.order_history(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.order_history(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.order_history(query).await,
         }
     }
 
@@ -652,6 +906,8 @@ impl ExchangeClient {
             Self::Bybit(adapter) => adapter.fills(query).await,
             #[cfg(feature = "gate")]
             Self::Gate(adapter) => adapter.fills(query).await,
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(adapter) => adapter.fills(query).await,
         }
     }
 }

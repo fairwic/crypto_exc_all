@@ -392,6 +392,7 @@ dependencies = [
  "bybit_rs",
  "dotenv",
  "gate_rs",
+ "hyperliquid_rs",
  "mockito",
  "okx",
  "serde",
@@ -949,6 +950,19 @@ dependencies = [
  "tokio",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "hyperliquid_rs"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "mockito",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

@@ -49,6 +49,7 @@ impl Instrument {
             ExchangeId::Bitget => self.bitget_symbol(),
             ExchangeId::Bybit => self.bybit_symbol(),
             ExchangeId::Gate => self.gate_symbol(),
+            ExchangeId::Hyperliquid => self.hyperliquid_symbol(),
         }
     }
 
@@ -81,6 +82,13 @@ impl Instrument {
     fn gate_symbol(&self) -> String {
         format!("{}_{}", self.base, self.quote)
     }
+
+    fn hyperliquid_symbol(&self) -> String {
+        match self.market_type {
+            MarketType::Spot | MarketType::Margin => format!("{}/{}", self.base, self.quote),
+            MarketType::Perpetual | MarketType::Futures | MarketType::Option => self.base.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -93,5 +101,10 @@ mod tests {
 
         assert_eq!(instrument.symbol_for(ExchangeId::Bybit), "TESTUSDT");
         assert_eq!(instrument.symbol_for(ExchangeId::Gate), "TEST_USDT");
+        assert_eq!(instrument.symbol_for(ExchangeId::Hyperliquid), "TEST");
+        assert_eq!(
+            Instrument::spot("PURR", "USDC").symbol_for(ExchangeId::Hyperliquid),
+            "PURR/USDC"
+        );
     }
 }

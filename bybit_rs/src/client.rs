@@ -103,68 +103,6 @@ impl BybitClient {
         self.timestamp_provider = Arc::new(provider);
     }
 
-    pub async fn ticker(&self, category: &str, symbol: &str) -> Result<Value, Error> {
-        self.send_public(
-            "/v5/market/tickers",
-            &[
-                ("category", category.to_string()),
-                ("symbol", symbol.to_string()),
-            ],
-        )
-        .await
-    }
-
-    pub async fn orderbook(
-        &self,
-        category: &str,
-        symbol: &str,
-        limit: Option<u32>,
-    ) -> Result<Value, Error> {
-        let mut params = vec![
-            ("category", category.to_string()),
-            ("symbol", symbol.to_string()),
-        ];
-        if let Some(limit) = limit {
-            params.push(("limit", limit.to_string()));
-        }
-        self.send_public("/v5/market/orderbook", &params).await
-    }
-
-    pub async fn kline(
-        &self,
-        category: &str,
-        symbol: &str,
-        interval: &str,
-        limit: Option<u32>,
-        start: Option<u64>,
-        end: Option<u64>,
-    ) -> Result<Value, Error> {
-        let mut params = vec![
-            ("category", category.to_string()),
-            ("symbol", symbol.to_string()),
-            ("interval", interval.to_string()),
-        ];
-        if let Some(limit) = limit {
-            params.push(("limit", limit.to_string()));
-        }
-        if let Some(start) = start {
-            params.push(("start", start.to_string()));
-        }
-        if let Some(end) = end {
-            params.push(("end", end.to_string()));
-        }
-        self.send_public("/v5/market/kline", &params).await
-    }
-
-    pub async fn instruments(&self, category: &str, symbol: Option<&str>) -> Result<Value, Error> {
-        let mut params = vec![("category", category.to_string())];
-        if let Some(symbol) = symbol {
-            params.push(("symbol", symbol.to_string()));
-        }
-        self.send_public("/v5/market/instruments-info", &params)
-            .await
-    }
-
     pub async fn place_order(&self, request: &OrderRequest) -> Result<Value, Error> {
         self.send_signed_json(Method::POST, "/v5/order/create", request)
             .await
@@ -185,7 +123,11 @@ impl BybitClient {
         self.send_signed_get("/v5/position/list", &params).await
     }
 
-    async fn send_public(&self, path: &str, params: &[(&str, String)]) -> Result<Value, Error> {
+    pub(crate) async fn send_public(
+        &self,
+        path: &str,
+        params: &[(&str, String)],
+    ) -> Result<Value, Error> {
         let query = build_query_string(params);
         let response = self
             .client
@@ -196,7 +138,11 @@ impl BybitClient {
         self.decode(response).await
     }
 
-    async fn send_signed_get(&self, path: &str, params: &[(&str, String)]) -> Result<Value, Error> {
+    pub(crate) async fn send_signed_get(
+        &self,
+        path: &str,
+        params: &[(&str, String)],
+    ) -> Result<Value, Error> {
         let query = build_query_string(params);
         let request = self.signed_request(Method::GET, path, &query, "")?;
         let response = request.send().await.map_err(Error::HttpError)?;
@@ -280,7 +226,7 @@ impl BybitClient {
     }
 }
 
-fn to_params<T: Serialize>(value: &T) -> Result<Vec<(&'static str, String)>, Error> {
+pub(crate) fn to_params<T: Serialize>(value: &T) -> Result<Vec<(&'static str, String)>, Error> {
     let value = serde_json::to_value(value).map_err(Error::JsonError)?;
     let object = value.as_object().ok_or(Error::JsonError(
         serde_json::from_str::<Value>("").unwrap_err(),
@@ -311,6 +257,36 @@ fn build_query_string(params: &[(&str, String)]) -> String {
         .map(|(key, value)| format!("{key}={value}"))
         .collect::<Vec<_>>()
         .join("&")
+}
+
+pub(crate) fn push_optional_str(
+    params: &mut Vec<(&str, String)>,
+    key: &'static str,
+    value: Option<&str>,
+) {
+    if let Some(value) = value {
+        params.push((key, value.to_string()));
+    }
+}
+
+pub(crate) fn push_optional_u64(
+    params: &mut Vec<(&str, String)>,
+    key: &'static str,
+    value: Option<u64>,
+) {
+    if let Some(value) = value {
+        params.push((key, value.to_string()));
+    }
+}
+
+pub(crate) fn push_optional_u32(
+    params: &mut Vec<(&str, String)>,
+    key: &'static str,
+    value: Option<u32>,
+) {
+    if let Some(value) = value {
+        params.push((key, value.to_string()));
+    }
 }
 
 fn sign(

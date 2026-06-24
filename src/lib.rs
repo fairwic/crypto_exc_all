@@ -8,6 +8,7 @@ pub mod instrument;
 pub mod margin;
 pub mod market;
 pub mod order;
+pub mod platform;
 pub mod position;
 pub mod sdk;
 pub mod trade;
@@ -25,6 +26,9 @@ pub mod raw {
     #[cfg(feature = "gate")]
     pub use gate_rs as gate;
 
+    #[cfg(feature = "hyperliquid")]
+    pub use hyperliquid_rs as hyperliquid;
+
     #[cfg(feature = "okx")]
     pub use okx_rs as okx;
 }
@@ -38,7 +42,7 @@ pub use account::{
 };
 pub use config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
-    OkxExchangeConfig, SdkConfig,
+    HyperliquidExchangeConfig, OkxExchangeConfig, SdkConfig,
 };
 pub use error::{Error, Result};
 pub use exchange::ExchangeId;
@@ -51,9 +55,11 @@ pub use market::{
     Ticker,
 };
 pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
+pub use platform::{PlatformEvent, PlatformEventQuery, PlatformFacade};
 pub use position::{Position, PositionFacade, PositionHistory, PositionHistoryQuery};
 pub use sdk::CryptoSdk;
 pub use trade::{
     CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, ProtectiveOrderQuery,
-    ProtectiveOrderRequest, ProtectiveOrderWorkingType, TimeInForce, TradeFacade,
+    ProtectiveOrderRequest, ProtectiveOrderWorkingType, TimeInForce, TradeCapabilities,
+    TradeFacade,
 };

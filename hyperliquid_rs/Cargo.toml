@@ -1,0 +1,17 @@
+[package]
+name = "hyperliquid_rs"
+version = "0.1.0"
+edition = "2024"
+description = "Hyperliquid read-only API SDK"
+license = "MIT"
+
+[dependencies]
+dotenv = "0.15.0"
+reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls", "socks"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+thiserror = "2.0.12"
+
+[dev-dependencies]
+mockito = "1.7.0"
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }

@@ -70,6 +70,12 @@ pub enum ProtectiveOrderWorkingType {
     ContractPrice,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TradeCapabilities {
+    pub attached_stop_loss_on_place_order: bool,
+    pub protective_order: bool,
+}
+
 impl ProtectiveOrderWorkingType {
     pub(crate) fn binance_value(self) -> &'static str {
         match self {
@@ -338,6 +344,10 @@ pub struct TradeFacade<'a> {
 impl<'a> TradeFacade<'a> {
     pub(crate) fn new(client: &'a ExchangeClient) -> Self {
         Self { client }
+    }
+
+    pub fn capabilities(&self) -> TradeCapabilities {
+        self.client.trade_capabilities()
     }
 
     pub async fn place_order(&self, request: PlaceOrderRequest) -> Result<OrderAck> {

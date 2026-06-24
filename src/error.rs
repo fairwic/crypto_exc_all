@@ -147,4 +147,25 @@ impl Error {
             },
         }
     }
+
+    #[cfg(feature = "hyperliquid")]
+    pub(crate) fn from_hyperliquid(error: hyperliquid_rs::Error) -> Self {
+        match error {
+            hyperliquid_rs::Error::HyperliquidApiError {
+                status,
+                code,
+                message,
+            } => Self::Api {
+                exchange: ExchangeId::Hyperliquid,
+                status,
+                code,
+                message,
+            },
+            hyperliquid_rs::Error::ConfigError(message) => Self::Config(message),
+            other => Self::Adapter {
+                exchange: ExchangeId::Hyperliquid,
+                message: other.to_string(),
+            },
+        }
+    }
 }

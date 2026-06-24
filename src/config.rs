@@ -12,6 +12,7 @@ pub struct SdkConfig {
     pub bitget: Option<BitgetExchangeConfig>,
     pub bybit: Option<BybitExchangeConfig>,
     pub gate: Option<GateExchangeConfig>,
+    pub hyperliquid: Option<HyperliquidExchangeConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +70,14 @@ pub struct GateExchangeConfig {
     pub settle: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HyperliquidExchangeConfig {
+    pub api_url: Option<String>,
+    pub api_timeout_ms: Option<u64>,
+    pub proxy_url: Option<String>,
+    pub user_address: Option<String>,
+}
+
 impl SdkConfig {
     pub fn from_env() -> Self {
         init_env();
@@ -85,6 +94,7 @@ impl SdkConfig {
             bitget: read_bitget_config(&lookup),
             bybit: read_bybit_config(&lookup),
             gate: read_gate_config(&lookup),
+            hyperliquid: read_hyperliquid_config(&lookup),
         }
     }
 
@@ -104,6 +114,9 @@ impl SdkConfig {
         }
         if self.gate.is_some() {
             exchanges.push(ExchangeId::Gate);
+        }
+        if self.hyperliquid.is_some() {
+            exchanges.push(ExchangeId::Hyperliquid);
         }
         exchanges
     }
@@ -234,6 +247,35 @@ where
             .and_then(|value| value.parse::<u64>().ok()),
         proxy_url: env_any_with(lookup, &["GATE_PROXY_URL", "gate_proxy_url"]),
         settle: env_any_with(lookup, &["GATE_SETTLE", "gate_settle"]),
+    })
+}
+
+fn read_hyperliquid_config<F>(lookup: &F) -> Option<HyperliquidExchangeConfig>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    let enabled = env_any_with(lookup, &["HYPERLIQUID_ENABLED", "hyperliquid_enabled"])
+        .map(|value| parse_boolish(&value))
+        .unwrap_or(false);
+    let api_url = env_any_with(lookup, &["HYPERLIQUID_API_URL", "hyperliquid_api_url"]);
+    let user_address = env_any_with(
+        lookup,
+        &["HYPERLIQUID_USER_ADDRESS", "hyperliquid_user_address"],
+    );
+
+    if !enabled && api_url.is_none() && user_address.is_none() {
+        return None;
+    }
+
+    Some(HyperliquidExchangeConfig {
+        api_url,
+        api_timeout_ms: env_any_with(
+            lookup,
+            &["HYPERLIQUID_API_TIMEOUT_MS", "hyperliquid_api_timeout_ms"],
+        )
+        .and_then(|value| value.parse::<u64>().ok()),
+        proxy_url: env_any_with(lookup, &["HYPERLIQUID_PROXY_URL", "hyperliquid_proxy_url"]),
+        user_address,
     })
 }
 

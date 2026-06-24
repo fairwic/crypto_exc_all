@@ -32,11 +32,20 @@ use binance_rs::api::trade::{
     OrderListRequest as BinanceOrderListRequest,
 };
 use binance_rs::config::{Config as BinanceConfig, Credentials as BinanceCredentials};
-use binance_rs::{BinanceAccount, BinanceClient, BinanceMarket, BinanceTrade};
+use binance_rs::{
+    BinanceAccount, BinanceAnnouncements, BinanceAsset, BinanceClient, BinanceMarket, BinanceTrade,
+};
 use serde_json::{Value, json};
+
+#[path = "binance/account_bills.rs"]
+mod account_bills;
+#[path = "binance/platform.rs"]
+mod platform;
 
 pub(crate) struct BinanceAdapter {
     account: BinanceAccount,
+    announcements: BinanceAnnouncements,
+    asset: BinanceAsset,
     market: BinanceMarket,
     trade: BinanceTrade,
 }
@@ -66,10 +75,21 @@ impl BinanceAdapter {
             binance_config.proxy_url = Some(proxy_url);
         }
         let credentials = BinanceCredentials::new(config.api_key, config.api_secret);
+        let asset_credentials = credentials.clone();
+        let mut announcements_config = binance_config.clone();
+        announcements_config.api_url = announcements_config.web_api_url.clone();
+        let announcements_client =
+            BinanceClient::with_config(None, announcements_config).map_err(Error::from_binance)?;
+        let mut asset_config = binance_config.clone();
+        asset_config.api_url = asset_config.sapi_api_url.clone();
+        let asset_client = BinanceClient::with_config(Some(asset_credentials), asset_config)
+            .map_err(Error::from_binance)?;
         let client = BinanceClient::with_config(Some(credentials), binance_config)
             .map_err(Error::from_binance)?;
         Ok(Self {
             account: BinanceAccount::new(client.clone()),
+            announcements: BinanceAnnouncements::new(announcements_client),
+            asset: BinanceAsset::new(asset_client),
             market: BinanceMarket::new(client.clone()),
             trade: BinanceTrade::new(client),
         })
@@ -233,6 +253,33 @@ impl BinanceAdapter {
         binance_open_interest_from_value(exchange, instrument.clone(), Some(symbol), item)
     }
 
+    pub(crate) async fn open_interest_history(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<OpenInterest>> {
+        let exchange = ExchangeId::Binance;
+        let symbol = query.instrument.symbol_for(exchange);
+        let request = binance_futures_data_request(&symbol, &query);
+        let instrument = query.instrument;
+        let raw = self
+            .market
+            .get_open_interest_statistics(request)
+            .await
+            .map_err(Error::from_binance)?;
+
+        owned_value_items(raw, exchange, "Binance open interest history response")?
+            .into_iter()
+            .map(|value| {
+                binance_open_interest_from_value(
+                    exchange,
+                    instrument.clone(),
+                    Some(symbol.clone()),
+                    value,
+                )
+            })
+            .collect()
+    }
+
     pub(crate) async fn long_short_ratio(
         &self,
         query: MarketStatsQuery,
@@ -244,11 +291,40 @@ impl BinanceAdapter {
         let period = query.period.clone();
         let raw = self
             .market
-            .get_global_long_short_account_ratio(request)
+            .get_top_long_short_account_ratio(request)
             .await
             .map_err(Error::from_binance)?;
 
-        owned_value_items(raw, exchange, "Binance long-short ratio response")?
+        owned_value_items(raw, exchange, "Binance top long-short ratio response")?
+            .into_iter()
+            .map(|value| {
+                binance_long_short_ratio_from_value(
+                    exchange,
+                    instrument.clone(),
+                    Some(symbol.clone()),
+                    period.clone(),
+                    value,
+                )
+            })
+            .collect()
+    }
+
+    pub(crate) async fn top_trader_position_ratio(
+        &self,
+        query: MarketStatsQuery,
+    ) -> Result<Vec<LongShortRatio>> {
+        let exchange = ExchangeId::Binance;
+        let symbol = query.instrument.symbol_for(exchange);
+        let request = binance_futures_data_request(&symbol, &query);
+        let instrument = query.instrument;
+        let period = query.period.clone();
+        let raw = self
+            .market
+            .get_top_long_short_position_ratio(request)
+            .await
+            .map_err(Error::from_binance)?;
+
+        owned_value_items(raw, exchange, "Binance top trader position ratio response")?
             .into_iter()
             .map(|value| {
                 binance_long_short_ratio_from_value(
@@ -486,6 +562,13 @@ impl BinanceAdapter {
 
     pub(crate) async fn place_order(&self, request: PlaceOrderRequest) -> Result<OrderAck> {
         let exchange = ExchangeId::Binance;
+        if request.attached_stop_loss_price.is_some() {
+            return Err(Error::Unsupported {
+                exchange,
+                capability: "attached stop loss on place_order",
+            });
+        }
+
         let instrument = request.instrument.clone();
         let symbol = instrument.symbol_for(exchange);
         let mut binance_request = match request.order_type {
@@ -1160,7 +1243,7 @@ fn binance_mark_price_from_value(
         index_price: string_field(object, "indexPrice"),
         funding_rate: first_string_field(object, &["lastFundingRate", "fundingRate"]),
         next_funding_time: u64_field(object, "nextFundingTime"),
-        timestamp: first_u64_field(object, &["time", "ts"]),
+        timestamp: first_u64_field(object, &["timestamp", "time", "ts"]),
         raw,
     })
 }
@@ -1183,12 +1266,13 @@ fn binance_open_interest_from_value(
         exchange,
         instrument,
         exchange_symbol,
-        open_interest: first_string_field(object, &["openInterest", "oi"]).unwrap_or_default(),
+        open_interest: first_string_field(object, &["openInterest", "sumOpenInterest", "oi"])
+            .unwrap_or_default(),
         open_interest_value: first_string_field(
             object,
             &["openInterestValue", "sumOpenInterestValue", "oiCcy"],
         ),
-        timestamp: first_u64_field(object, &["time", "ts"]),
+        timestamp: first_u64_field(object, &["timestamp", "time", "ts"]),
         raw,
     })
 }

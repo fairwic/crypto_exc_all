@@ -23,18 +23,22 @@ use bitget_rs::api::trade::{
     OrderQueryRequest as BitgetOrderQueryRequest,
 };
 use bitget_rs::config::{Config as BitgetConfig, Credentials as BitgetCredentials};
-use bitget_rs::{BitgetAccount, BitgetClient, BitgetMarket, BitgetTrade};
+use bitget_rs::{BitgetAccount, BitgetAnnouncements, BitgetClient, BitgetMarket, BitgetTrade};
 use serde_json::Value;
 
+#[path = "bitget/account_bills.rs"]
+mod account_bills;
+#[path = "bitget/platform.rs"]
+mod platform;
 #[path = "bitget/trade_mapping.rs"]
 mod trade_mapping;
-
 use self::trade_mapping::*;
 
 const DEFAULT_PRODUCT_TYPE: &str = "USDT-FUTURES";
 
 pub(crate) struct BitgetAdapter {
     account: BitgetAccount,
+    announcements: BitgetAnnouncements,
     market: BitgetMarket,
     trade: BitgetTrade,
     product_type: String,
@@ -59,6 +63,7 @@ impl BitgetAdapter {
 
         Ok(Self {
             account: BitgetAccount::new(client.clone()),
+            announcements: BitgetAnnouncements::new(client.clone()),
             market: BitgetMarket::new(client.clone()),
             trade: BitgetTrade::new(client),
             product_type,

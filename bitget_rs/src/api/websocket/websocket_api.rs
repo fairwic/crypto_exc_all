@@ -5,7 +5,9 @@ use serde::de::{DeserializeOwned, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+#[path = "connection.rs"]
 mod connection;
+#[path = "reconnect.rs"]
 mod reconnect;
 
 pub use connection::BitgetWebsocketSession;
