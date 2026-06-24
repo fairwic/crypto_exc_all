@@ -356,6 +356,63 @@ async fn okx_adapter_normalizes_candle_interval_for_okx_bar_parameter() {
 }
 
 #[tokio::test]
+async fn binance_adapter_normalizes_candle_interval_for_binance_interval_parameter() {
+    let mut binance_server = Server::new_async().await;
+    let binance_4h_candles = binance_server
+        .mock("GET", "/fapi/v1/klines")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("symbol".into(), "BTCUSDT".into()),
+            Matcher::UrlEncoded("interval".into(), "4h".into()),
+            Matcher::UrlEncoded("limit".into(), "2".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"[[1730000000000,"59000","61000","58000","60000","12.34",1730000059999,"740400","10","6","360000","0"]]"#,
+        )
+        .create_async()
+        .await;
+    let binance_1d_candles = binance_server
+        .mock("GET", "/fapi/v1/klines")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("symbol".into(), "BTCUSDT".into()),
+            Matcher::UrlEncoded("interval".into(), "1d".into()),
+            Matcher::UrlEncoded("limit".into(), "2".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"[[1730000000000,"59000","61000","58000","60000","12.34",1730000059999,"740400","10","6","360000","0"]]"#,
+        )
+        .create_async()
+        .await;
+
+    let sdk = configured_sdk(
+        binance_server.url(),
+        "http://127.0.0.1:1".to_string(),
+        "http://127.0.0.1:1".to_string(),
+    );
+    let btc_perp = Instrument::perp("BTC", "USDT");
+    let candles_4h = sdk
+        .market(ExchangeId::Binance)
+        .unwrap()
+        .candles(CandleQuery::new(btc_perp.clone(), "4H").with_limit(2))
+        .await
+        .unwrap();
+    let candles_1d = sdk
+        .market(ExchangeId::Binance)
+        .unwrap()
+        .candles(CandleQuery::new(btc_perp, "1DUTC").with_limit(2))
+        .await
+        .unwrap();
+
+    assert_eq!(candles_4h[0].exchange_symbol, "BTCUSDT");
+    assert_eq!(candles_1d[0].exchange_symbol, "BTCUSDT");
+    binance_4h_candles.assert_async().await;
+    binance_1d_candles.assert_async().await;
+}
+
+#[tokio::test]
 async fn bybit_adapter_normalizes_candle_interval_for_bybit_kline_parameter() {
     let mut bybit_server = Server::new_async().await;
     let bybit_candles = bybit_server

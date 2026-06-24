@@ -136,7 +136,8 @@ impl BinanceAdapter {
         let exchange = ExchangeId::Binance;
         let instrument = query.instrument;
         let symbol = instrument.symbol_for(exchange);
-        let mut request = BinanceKlineRequest::new(&symbol, &query.interval);
+        let interval = binance_candle_interval(&query.interval);
+        let mut request = BinanceKlineRequest::new(&symbol, &interval);
         if let Some(start_time) = query.start_time {
             request = request.with_start_time(start_time);
         }
@@ -755,6 +756,13 @@ impl BinanceAdapter {
             .map_err(Error::from_binance)?;
 
         binance_fills_from_value(exchange, instrument, symbol, raw, "Binance fills response")
+    }
+}
+
+fn binance_candle_interval(interval: &str) -> String {
+    match interval.trim().to_ascii_lowercase().as_str() {
+        "1dutc" => "1d".to_string(),
+        value => value.to_string(),
     }
 }
 
