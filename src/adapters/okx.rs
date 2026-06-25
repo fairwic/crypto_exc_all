@@ -1,3 +1,7 @@
+use super::value::{
+    map_first_string_field as first_string_field, map_string_field as string_field,
+    map_u64_field as u64_field,
+};
 use crate::account::{
     AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
     EnsureOrderMarginModeResult, LeverageSetting, MarginModeApplyMethod, PositionMode,
@@ -39,6 +43,9 @@ use serde_json::Value;
 
 #[path = "okx/platform.rs"]
 mod platform;
+#[path = "okx/shared.rs"]
+mod shared;
+use self::shared::{non_empty, parse_u64_string};
 
 pub(crate) struct OkxAdapter {
     account: OkxAccount,
@@ -778,10 +785,6 @@ impl OkxAdapter {
     }
 }
 
-fn non_empty(value: String) -> Option<String> {
-    if value.is_empty() { None } else { Some(value) }
-}
-
 fn okx_inst_type_for_instrument(instrument: &Instrument) -> String {
     match instrument.market_type {
         MarketType::Spot => "SPOT",
@@ -952,44 +955,11 @@ fn first_object_value(raw: Value, exchange: ExchangeId, label: &str) -> Result<V
     }
 }
 
-fn string_field(object: &serde_json::Map<String, Value>, field: &str) -> Option<String> {
-    object.get(field).and_then(non_empty_value)
-}
-
-fn first_string_field(object: &serde_json::Map<String, Value>, fields: &[&str]) -> Option<String> {
-    fields.iter().find_map(|field| string_field(object, field))
-}
-
-fn u64_field(object: &serde_json::Map<String, Value>, field: &str) -> Option<u64> {
-    object.get(field).and_then(|value| match value {
-        Value::Number(value) => value.as_u64(),
-        Value::String(value) => value.parse::<u64>().ok(),
-        _ => None,
-    })
-}
-
-fn parse_u64_string(value: &str) -> Option<u64> {
-    if value.is_empty() {
-        None
-    } else {
-        value.parse::<u64>().ok()
-    }
-}
-
 fn parse_i64_filter(exchange: ExchangeId, field: &str, value: &str) -> Result<i64> {
     value.parse::<i64>().map_err(|_| Error::Adapter {
         exchange,
         message: format!("OKX {field} filter must be numeric: {value}"),
     })
-}
-
-fn non_empty_value(value: &Value) -> Option<String> {
-    match value {
-        Value::String(value) if !value.is_empty() => Some(value.clone()),
-        Value::Number(value) => Some(value.to_string()),
-        Value::Bool(value) => Some(value.to_string()),
-        _ => None,
-    }
 }
 
 fn missing_cancel_id(exchange: ExchangeId) -> Error {

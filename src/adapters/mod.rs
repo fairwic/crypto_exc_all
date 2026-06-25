@@ -44,6 +44,7 @@ mod hyperliquid_orders;
 mod hyperliquid_spot;
 #[cfg(feature = "okx")]
 mod okx;
+mod value;
 
 #[cfg(feature = "binance")]
 pub(crate) use binance::BinanceAdapter;

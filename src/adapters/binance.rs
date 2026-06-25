@@ -1,3 +1,7 @@
+use super::value::{
+    map_first_string_field as first_string_field, map_first_u64_field as first_u64_field,
+    map_string_field as string_field, map_u64_field as u64_field, value_string_at, value_u64_at,
+};
 use crate::account::{
     AccountCapabilities, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
     LeverageSetting, PositionMode, PositionModeSetting, SetLeverageRequest, SetPositionModeRequest,
@@ -849,41 +853,8 @@ fn binance_candle_interval(interval: &str) -> String {
     }
 }
 
-fn string_field(object: &serde_json::Map<String, Value>, field: &str) -> Option<String> {
-    object.get(field).and_then(non_empty_value)
-}
-
-fn u64_field(object: &serde_json::Map<String, Value>, field: &str) -> Option<u64> {
-    object.get(field).and_then(|value| match value {
-        Value::Number(value) => value.as_u64(),
-        Value::String(value) => value.parse::<u64>().ok(),
-        _ => None,
-    })
-}
-
 fn non_empty(value: String) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
-}
-
-fn non_empty_value(value: &Value) -> Option<String> {
-    match value {
-        Value::String(value) if !value.is_empty() => Some(value.clone()),
-        Value::Number(value) => Some(value.to_string()),
-        Value::Bool(value) => Some(value.to_string()),
-        _ => None,
-    }
-}
-
-fn value_string_at(values: &[Value], index: usize) -> Option<String> {
-    values.get(index).and_then(non_empty_value)
-}
-
-fn value_u64_at(values: &[Value], index: usize) -> Option<u64> {
-    values.get(index).and_then(|value| match value {
-        Value::Number(value) => value.as_u64(),
-        Value::String(value) => value.parse::<u64>().ok(),
-        _ => None,
-    })
 }
 
 fn value_items<'a>(raw: &'a Value, exchange: ExchangeId, label: &str) -> Result<Vec<&'a Value>> {
@@ -1166,14 +1137,6 @@ fn parse_u64_filter(exchange: ExchangeId, field: &str, value: &str) -> Result<u6
         exchange,
         message: format!("Binance {field} filter must be numeric: {value}"),
     })
-}
-
-fn first_string_field(object: &serde_json::Map<String, Value>, fields: &[&str]) -> Option<String> {
-    fields.iter().find_map(|field| string_field(object, field))
-}
-
-fn first_u64_field(object: &serde_json::Map<String, Value>, fields: &[&str]) -> Option<u64> {
-    fields.iter().find_map(|field| u64_field(object, field))
 }
 
 fn binance_futures_data_request(

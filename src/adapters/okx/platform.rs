@@ -1,4 +1,5 @@
 use super::OkxAdapter;
+use super::shared::{non_empty, parse_u64_string};
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::platform::{PlatformEvent, PlatformEventQuery};
@@ -125,16 +126,4 @@ fn announcement_event(detail: AnnouncementDetail) -> Result<PlatformEvent> {
         published_at: parse_u64_string(&detail.p_time),
         raw,
     })
-}
-
-fn non_empty(value: String) -> Option<String> {
-    if value.is_empty() { None } else { Some(value) }
-}
-
-fn parse_u64_string(value: &str) -> Option<u64> {
-    if value.is_empty() {
-        None
-    } else {
-        value.parse::<u64>().ok()
-    }
 }

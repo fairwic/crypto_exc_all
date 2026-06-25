@@ -1,5 +1,8 @@
 use super::BinanceAdapter;
 use crate::account::{AccountBill, AccountBillQuery};
+use crate::adapters::value::{
+    map_first_string_field as first_string_field, map_first_u64_field as first_u64_field,
+};
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use binance_rs::api::asset::{
@@ -183,33 +186,4 @@ fn binance_account_bill(
         ),
         raw,
     })
-}
-
-fn first_string_field(object: &serde_json::Map<String, Value>, fields: &[&str]) -> Option<String> {
-    fields.iter().find_map(|field| string_field(object, field))
-}
-
-fn string_field(object: &serde_json::Map<String, Value>, field: &str) -> Option<String> {
-    object.get(field).and_then(non_empty_value)
-}
-
-fn first_u64_field(object: &serde_json::Map<String, Value>, fields: &[&str]) -> Option<u64> {
-    fields.iter().find_map(|field| u64_field(object, field))
-}
-
-fn u64_field(object: &serde_json::Map<String, Value>, field: &str) -> Option<u64> {
-    object.get(field).and_then(|value| match value {
-        Value::Number(value) => value.as_u64(),
-        Value::String(value) => value.parse::<u64>().ok(),
-        _ => None,
-    })
-}
-
-fn non_empty_value(value: &Value) -> Option<String> {
-    match value {
-        Value::String(value) if !value.is_empty() => Some(value.clone()),
-        Value::Number(value) => Some(value.to_string()),
-        Value::Bool(value) => Some(value.to_string()),
-        _ => None,
-    }
 }

@@ -1,3 +1,7 @@
+use super::value::{
+    map_first_string_field as first_string_field, map_string_field as string_field,
+    map_u64_field as u64_field,
+};
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::fill::Fill;
@@ -134,29 +138,4 @@ fn object_value<'a>(
         exchange,
         message: format!("{message} is not an object"),
     })
-}
-
-fn first_string_field(object: &Map<String, Value>, keys: &[&str]) -> Option<String> {
-    keys.iter().find_map(|key| string_field(object, key))
-}
-
-fn string_field(object: &Map<String, Value>, key: &str) -> Option<String> {
-    object.get(key).and_then(value_to_string)
-}
-
-fn u64_field(object: &Map<String, Value>, key: &str) -> Option<u64> {
-    object.get(key).and_then(|value| match value {
-        Value::Number(number) => number.as_u64(),
-        Value::String(value) => value.parse::<u64>().ok(),
-        _ => None,
-    })
-}
-
-fn value_to_string(value: &Value) -> Option<String> {
-    match value {
-        Value::String(value) if !value.is_empty() => Some(value.clone()),
-        Value::Number(value) => Some(value.to_string()),
-        Value::Bool(value) => Some(value.to_string()),
-        _ => None,
-    }
 }

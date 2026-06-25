@@ -1,4 +1,8 @@
 use super::BinanceAdapter;
+use crate::adapters::value::{
+    json_first_string_field as first_string_field, json_first_u64_field as first_u64_field,
+    json_string_field as string_field,
+};
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::platform::{PlatformEvent, PlatformEventQuery};
@@ -81,34 +85,5 @@ fn announcement_event(raw: Value) -> PlatformEvent {
         end_time: None,
         published_at: first_u64_field(&raw, &["releaseDate", "publishDate", "publishedAt"]),
         raw,
-    }
-}
-
-fn string_field(value: &Value, field: &str) -> Option<String> {
-    value.get(field).and_then(non_empty_value)
-}
-
-fn first_string_field(value: &Value, fields: &[&str]) -> Option<String> {
-    fields.iter().find_map(|field| string_field(value, field))
-}
-
-fn u64_field(value: &Value, field: &str) -> Option<u64> {
-    value.get(field).and_then(|value| match value {
-        Value::Number(value) => value.as_u64(),
-        Value::String(value) => value.parse::<u64>().ok(),
-        _ => None,
-    })
-}
-
-fn first_u64_field(value: &Value, fields: &[&str]) -> Option<u64> {
-    fields.iter().find_map(|field| u64_field(value, field))
-}
-
-fn non_empty_value(value: &Value) -> Option<String> {
-    match value {
-        Value::String(value) if !value.is_empty() => Some(value.clone()),
-        Value::Number(value) => Some(value.to_string()),
-        Value::Bool(value) => Some(value.to_string()),
-        _ => None,
     }
 }
