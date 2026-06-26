@@ -76,7 +76,7 @@ impl CandleOkxRespDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Depth {
     /// 产品ID
-    #[serde(rename = "instId")]
+    #[serde(rename = "instId", default)]
     pub inst_id: String,
     /// 卖方深度
     pub asks: Vec<Vec<String>>,
@@ -137,4 +137,24 @@ pub struct TradeOkxResDto {
     pub side: String,
     /// 成交时间
     pub ts: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn depth_allows_okx_books_response_without_inst_id() {
+        let depth: Depth = serde_json::from_value(serde_json::json!({
+            "asks": [["0.382", "12", "0", "1"]],
+            "bids": [["0.381", "10", "0", "1"]],
+            "ts": "1782474547000"
+        }))
+        .expect("OKX books data may omit instId");
+
+        assert_eq!(depth.inst_id, "");
+        assert_eq!(depth.asks.len(), 1);
+        assert_eq!(depth.bids.len(), 1);
+        assert_eq!(depth.ts, "1782474547000");
+    }
 }
