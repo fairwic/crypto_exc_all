@@ -1,8 +1,9 @@
 use crate::account::{
     AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageSetting, PositionModeSetting, PrepareOrderSettingsRequest,
-    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    EnsureOrderMarginModeResult, LeverageSetting, MaxOrderSize, MaxOrderSizeRequest,
+    PositionModeSetting, PrepareOrderSettingsRequest, PrepareOrderSettingsResult,
+    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
+    SymbolMarginModeSetting,
 };
 use crate::config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
@@ -625,6 +626,42 @@ impl ExchangeClient {
             margin_mode,
             leverage,
         })
+    }
+
+    /// 读取账户最大可下单数量；当前仅 OKX adapter 暴露等价 signed read-only 能力。
+    pub(crate) async fn max_order_size(
+        &self,
+        request: MaxOrderSizeRequest,
+    ) -> Result<MaxOrderSize> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.max_order_size(request).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Binance,
+                capability: "account max order size",
+            }),
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "account max order size",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account max order size",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "account max order size",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "account max order size",
+            }),
+        }
     }
 
     pub(crate) async fn positions(&self, instrument: Option<&Instrument>) -> Result<Vec<Position>> {

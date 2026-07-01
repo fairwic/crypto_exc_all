@@ -145,6 +145,71 @@ pub struct LeverageSetting {
     pub raw: Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MaxOrderSizeRequest {
+    /// 需要查询最大可下单数量的交易产品。
+    pub instrument: Instrument,
+    /// 交易所下单模式；OKX 使用该值映射到 tdMode。
+    pub margin_mode: MarginMode,
+    /// 保证金币种；逐仓 U 本位合约通常为 USDT。
+    pub margin_coin: Option<String>,
+    /// 参考委托价；市价单用当前参考价帮助交易所计算保证金占用。
+    pub price: Option<String>,
+    /// 已设置或即将使用的杠杆倍数。
+    pub leverage: Option<String>,
+}
+
+impl MaxOrderSizeRequest {
+    /// 创建最大可下单数量查询请求；调用方应先完成对应的账户杠杆/保证金设置。
+    pub fn new(instrument: Instrument, margin_mode: MarginMode) -> Self {
+        Self {
+            instrument,
+            margin_mode,
+            margin_coin: None,
+            price: None,
+            leverage: None,
+        }
+    }
+
+    /// 设置保证金币种，用于逐仓或交易所要求显式传币种的账户查询。
+    pub fn with_margin_coin(mut self, value: impl Into<String>) -> Self {
+        self.margin_coin = Some(value.into());
+        self
+    }
+
+    /// 设置参考价格，便于交易所按当前委托上下文计算最大可开数量。
+    pub fn with_price(mut self, value: impl Into<String>) -> Self {
+        self.price = Some(value.into());
+        self
+    }
+
+    /// 设置杠杆倍数，必须与调用方已应用到账户的策略杠杆保持一致。
+    pub fn with_leverage(mut self, value: impl Into<String>) -> Self {
+        self.leverage = Some(value.into());
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MaxOrderSize {
+    /// 交易所名称。
+    pub exchange: ExchangeId,
+    /// 统一产品模型。
+    pub instrument: Instrument,
+    /// 交易所原始产品 ID。
+    pub exchange_symbol: String,
+    /// 查询使用的保证金模式。
+    pub margin_mode: MarginMode,
+    /// 交易所返回或请求传入的保证金币种。
+    pub margin_coin: Option<String>,
+    /// 最大可买数量，单位保持交易所下单单位。
+    pub max_buy: String,
+    /// 最大可卖数量，单位保持交易所下单单位。
+    pub max_sell: String,
+    /// 原始响应，供审计和排障使用。
+    pub raw: Value,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AccountCapabilities {
     pub set_leverage: bool,
@@ -420,5 +485,10 @@ impl<'a> AccountFacade<'a> {
         request: PrepareOrderSettingsRequest,
     ) -> Result<PrepareOrderSettingsResult> {
         self.client.prepare_order_settings(request).await
+    }
+
+    /// 查询账户当前最大可下单数量；调用方负责保证账户杠杆/保证金设置已完成。
+    pub async fn max_order_size(&self, request: MaxOrderSizeRequest) -> Result<MaxOrderSize> {
+        self.client.max_order_size(request).await
     }
 }

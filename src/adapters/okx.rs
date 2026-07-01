@@ -4,9 +4,9 @@ use super::value::{
 };
 use crate::account::{
     AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageSetting, MarginModeApplyMethod, PositionMode,
-    PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
-    SymbolMarginModeSetting,
+    EnsureOrderMarginModeResult, LeverageSetting, MarginModeApplyMethod, MaxOrderSize,
+    MaxOrderSizeRequest, PositionMode, PositionModeSetting, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SymbolMarginModeSetting,
 };
 use crate::config::OkxExchangeConfig;
 use crate::error::{Error, Result};
@@ -27,7 +27,7 @@ use okx_rs::api::api_trait::OkxApiTrait;
 use okx_rs::config::Credentials as OkxCredentials;
 use okx_rs::dto::account_dto::{
     SetLeverageRequest as OkxSetLeverageRequest,
-    SetPositionModeRequest as OkxSetPositionModeRequest,
+    SetPositionModeRequest as OkxSetPositionModeRequest, TradingSwapNumResponseData,
 };
 use okx_rs::dto::public_data_dto::{FundingRateHistoryOkxRespDto, FundingRateOkxRespDto};
 use okx_rs::dto::trade_dto::{
@@ -416,6 +416,37 @@ impl OkxAdapter {
         .map_err(Error::from_okx)?;
 
         okx_account_bills_from_value(exchange, query.instrument, symbol_hint, raw)
+    }
+
+    /// 调用 OKX account max-size，返回交易所原始下单单位的买/卖最大数量。
+    pub(crate) async fn max_order_size(
+        &self,
+        request: MaxOrderSizeRequest,
+    ) -> Result<MaxOrderSize> {
+        let exchange = ExchangeId::Okx;
+        let instrument = request.instrument.clone();
+        let symbol = instrument.symbol_for(exchange);
+        let td_mode = request.margin_mode.as_okx_td_mode();
+        let response = self
+            .account
+            .get_max_size(
+                &symbol,
+                &td_mode,
+                request.margin_coin.as_deref(),
+                request.price.as_deref(),
+                request.leverage.as_deref(),
+            )
+            .await
+            .map_err(Error::from_okx)?;
+        let item = response
+            .into_iter()
+            .find(|item| item.inst_id.eq_ignore_ascii_case(&symbol))
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: format!("OKX max-size response is empty for {symbol}"),
+            })?;
+
+        okx_max_order_size_from_dto(exchange, instrument, symbol, request, item)
     }
 
     pub(crate) async fn set_leverage(
@@ -1295,6 +1326,31 @@ fn okx_leverage_setting_from_value(
         margin_coin: string_field(object, "ccy").or(request.margin_coin),
         position_side: string_field(object, "posSide").or(request.position_side),
         raw: item,
+    })
+}
+
+/// 将 OKX max-size 响应转成统一账户模型，保留 maxBuy/maxSell 的原始单位。
+fn okx_max_order_size_from_dto(
+    exchange: ExchangeId,
+    instrument: Instrument,
+    symbol_hint: String,
+    request: MaxOrderSizeRequest,
+    item: TradingSwapNumResponseData,
+) -> Result<MaxOrderSize> {
+    let raw = serde_json::to_value(&item)?;
+    Ok(MaxOrderSize {
+        exchange,
+        instrument,
+        exchange_symbol: if item.inst_id.is_empty() {
+            symbol_hint
+        } else {
+            item.inst_id
+        },
+        margin_mode: request.margin_mode,
+        margin_coin: non_empty(item.ccy).or(request.margin_coin),
+        max_buy: item.max_buy,
+        max_sell: item.max_sell,
+        raw,
     })
 }
 

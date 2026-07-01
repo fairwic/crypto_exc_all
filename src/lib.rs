@@ -36,9 +36,9 @@ pub mod raw {
 pub use account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, Balance,
     EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
-    MarginModeApplyMethod, PositionMode, PositionModeSetting, PrepareOrderSettingsRequest,
-    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
+    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SymbolMarginModeSetting,
 };
 pub use config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
