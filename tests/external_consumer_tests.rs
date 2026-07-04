@@ -761,6 +761,13 @@ async fn external_consumer_uses_root_crate_for_unified_set_position_mode() {
         .await;
 
     let mut okx_server = Server::new_async().await;
+    let okx_config = okx_server
+        .mock("GET", "/api/v5/account/config")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":"0","msg":"","data":[{"posMode":"net_mode"}]}"#)
+        .create_async()
+        .await;
     let okx_position_mode = okx_server
         .mock("POST", "/api/v5/account/set-position-mode")
         .match_body(Matcher::JsonString(
@@ -823,6 +830,7 @@ async fn external_consumer_uses_root_crate_for_unified_set_position_mode() {
     assert_eq!(bitget.raw_mode.as_deref(), Some("hedge_mode"));
 
     binance_position_mode.assert_async().await;
+    okx_config.assert_async().await;
     okx_position_mode.assert_async().await;
     bitget_position_mode.assert_async().await;
 }
@@ -1048,6 +1056,13 @@ async fn external_consumer_can_prepare_order_settings_without_exchange_branching
         .await;
 
     let mut okx_server = Server::new_async().await;
+    let okx_config = okx_server
+        .mock("GET", "/api/v5/account/config")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":"0","msg":"","data":[{"posMode":"net_mode"}]}"#)
+        .create_async()
+        .await;
     let okx_position_mode = okx_server
         .mock("POST", "/api/v5/account/set-position-mode")
         .match_body(Matcher::JsonString(
@@ -1188,6 +1203,7 @@ async fn external_consumer_can_prepare_order_settings_without_exchange_branching
     binance_position_mode.assert_async().await;
     binance_margin_mode.assert_async().await;
     binance_leverage.assert_async().await;
+    okx_config.assert_async().await;
     okx_position_mode.assert_async().await;
     okx_leverage.assert_async().await;
     bitget_position_mode.assert_async().await;

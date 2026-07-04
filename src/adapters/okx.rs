@@ -39,7 +39,7 @@ use okx_rs::dto::{
     TickerOkxResDto,
 };
 use okx_rs::{OkxAccount, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 #[path = "okx/platform.rs"]
 mod platform;
@@ -497,6 +497,21 @@ impl OkxAdapter {
     ) -> Result<PositionModeSetting> {
         let exchange = ExchangeId::Okx;
         let raw_mode = okx_position_mode(request.mode);
+        if let Some(current_mode) = self.current_position_mode().await? {
+            if current_mode.eq_ignore_ascii_case(raw_mode) {
+                return Ok(PositionModeSetting {
+                    exchange,
+                    mode: request.mode,
+                    raw_mode: Some(current_mode),
+                    product_type: request.product_type,
+                    raw: json!({
+                        "posMode": raw_mode,
+                        "idempotent": true,
+                        "source": "account/config",
+                    }),
+                });
+            }
+        }
         let raw = self
             .account
             .set_position_mode(OkxSetPositionModeRequest {
@@ -506,6 +521,17 @@ impl OkxAdapter {
             .map_err(Error::from_okx)?;
 
         okx_position_mode_setting_from_value(exchange, request, raw)
+    }
+
+    /// 只读读取 OKX 当前仓位模式，避免对已匹配账户重复调用 set-position-mode mutation。
+    async fn current_position_mode(&self) -> Result<Option<String>> {
+        let exchange = ExchangeId::Okx;
+        let raw = self
+            .account
+            .get_config_raw()
+            .await
+            .map_err(Error::from_okx)?;
+        Ok(okx_position_mode_from_config(raw, exchange)?)
     }
 
     pub(crate) async fn set_symbol_margin_mode(
@@ -1373,6 +1399,16 @@ fn okx_position_mode_setting_from_value(
         product_type: request.product_type,
         raw: item,
     })
+}
+
+fn okx_position_mode_from_config(raw: Value, exchange: ExchangeId) -> Result<Option<String>> {
+    let values = okx_owned_items(raw, exchange, "OKX account config response")?;
+    Ok(values.into_iter().find_map(|value| {
+        value
+            .as_object()
+            .and_then(|object| string_field(object, "posMode"))
+            .filter(|mode| !mode.trim().is_empty())
+    }))
 }
 
 fn okx_owned_items(raw: Value, exchange: ExchangeId, label: &str) -> Result<Vec<Value>> {

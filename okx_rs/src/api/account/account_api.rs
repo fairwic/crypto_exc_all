@@ -8,6 +8,7 @@ use crate::dto::account::account_dto::{
 use crate::dto::trade::trade_dto::PositionRespDto;
 use crate::error::Error;
 use reqwest::Method;
+use serde_json::Value;
 
 /// OKX账户API
 /// 提供账户相关的API访问
@@ -131,6 +132,14 @@ impl OkxAccount {
         let path = format!("{}/config", API_ACCOUNT_PATH);
         self.client
             .send_request::<Vec<AccountConfig>>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 读取账户配置原始 data，用于只关心少数字段且不能被 DTO 演进阻断的调用方。
+    pub async fn get_config_raw(&self) -> Result<Value, Error> {
+        let path = format!("{}/config", API_ACCOUNT_PATH);
+        self.client
+            .send_request::<Value>(Method::GET, &path, "")
             .await
     }
 
