@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::env;
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
@@ -28,6 +29,43 @@ pub enum ConnectionState {
     Connecting,
     Connected,
     Reconnecting,
+}
+
+/// OKX WebSocket 连接、订阅和业务消息的只读健康快照。
+#[derive(Debug, Clone, PartialEq)]
+pub struct WebsocketHealthSnapshot {
+    /// 当前连接状态。
+    pub connection_state: ConnectionState,
+    /// 连接管理任务是否仍在运行。
+    pub manager_task_alive: bool,
+    /// 当前登记的订阅数量。
+    pub subscription_count: usize,
+    /// 已收到 OKX subscribe ACK 的订阅数量。
+    pub acknowledged_subscription_count: usize,
+    /// 是否所有登记订阅都已收到 ACK。
+    pub all_subscriptions_acknowledged: bool,
+    /// 本次客户端生命周期内累计重连次数。
+    pub reconnect_count: u64,
+    /// 最后收到任意 WS 帧距今的毫秒数。
+    pub last_message_elapsed_ms: u64,
+    /// 最后收到带 `data` 业务消息的 Unix 毫秒时间。
+    pub last_business_message_at_ms: Option<i64>,
+}
+
+/// 确保连接管理任务无论正常退出还是 panic 都会关闭应用接收通道。
+struct ConnectionManagerExitGuard {
+    manager_task_alive: Arc<AtomicBool>,
+    message_sender: Arc<Mutex<Option<mpsc::UnboundedSender<Value>>>>,
+}
+
+impl Drop for ConnectionManagerExitGuard {
+    fn drop(&mut self) {
+        self.manager_task_alive.store(false, Ordering::Relaxed);
+        match self.message_sender.lock() {
+            Ok(mut sender) => *sender = None,
+            Err(poisoned) => *poisoned.into_inner() = None,
+        }
+    }
 }
 
 /// 自动重连配置
@@ -88,6 +126,14 @@ pub struct AutoReconnectWebsocketClient {
     is_running: Arc<Mutex<bool>>,
     /// 当前使用的URL索引
     current_url_idx: Arc<Mutex<usize>>,
+    /// 已收到服务端 ACK 的订阅及 ACK 时间。
+    subscription_acks: Arc<Mutex<HashMap<String, i64>>>,
+    /// 累计重连次数。
+    reconnect_count: Arc<AtomicU64>,
+    /// 最后业务消息时间；零表示尚未收到业务消息。
+    last_business_message_at_ms: Arc<AtomicI64>,
+    /// 连接管理任务存活状态。
+    manager_task_alive: Arc<AtomicBool>,
 }
 
 impl AutoReconnectWebsocketClient {
@@ -206,6 +252,10 @@ impl AutoReconnectWebsocketClient {
             ws_sender: Arc::new(Mutex::new(None)),
             is_running: Arc::new(Mutex::new(false)),
             current_url_idx: Arc::new(Mutex::new(0)),
+            subscription_acks: Arc::new(Mutex::new(HashMap::new())),
+            reconnect_count: Arc::new(AtomicU64::new(0)),
+            last_business_message_at_ms: Arc::new(AtomicI64::new(0)),
+            manager_task_alive: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -237,15 +287,15 @@ impl AutoReconnectWebsocketClient {
         *self.message_sender.lock().unwrap() = None;
         *self.ws_sender.lock().unwrap() = None;
         *self.connection_state.lock().unwrap() = ConnectionState::Disconnected;
+        self.manager_task_alive.store(false, Ordering::Relaxed);
         info!("自动重连WebSocket客户端已停止");
     }
 
     /// 订阅频道
     pub async fn subscribe(&self, channel: ChannelType, args: Args) -> Result<(), Error> {
-        let subscription_key = format!(
-            "{:?}_{}",
-            channel,
-            args.inst_id.as_ref().unwrap_or(&"".to_string())
+        let subscription_key = Self::subscription_key(
+            channel.as_str().as_ref(),
+            args.inst_id.as_deref().unwrap_or_default(),
         );
 
         // 记录订阅信息
@@ -266,10 +316,9 @@ impl AutoReconnectWebsocketClient {
 
     /// 取消订阅频道
     pub async fn unsubscribe(&self, channel: ChannelType, args: Args) -> Result<(), Error> {
-        let subscription_key = format!(
-            "{:?}_{}",
-            channel,
-            args.inst_id.as_ref().unwrap_or(&"".to_string())
+        let subscription_key = Self::subscription_key(
+            channel.as_str().as_ref(),
+            args.inst_id.as_deref().unwrap_or_default(),
         );
 
         // 移除订阅记录
@@ -277,6 +326,10 @@ impl AutoReconnectWebsocketClient {
             let mut subscriptions = self.subscriptions.lock().unwrap();
             subscriptions.remove(&subscription_key);
         }
+        self.subscription_acks
+            .lock()
+            .unwrap()
+            .remove(&subscription_key);
 
         // 如果已连接，发送取消订阅请求
         if *self.connection_state.lock().unwrap() == ConnectionState::Connected {
@@ -310,6 +363,107 @@ impl AutoReconnectWebsocketClient {
         self.subscriptions.lock().unwrap().len()
     }
 
+    /// 返回当前连接、订阅 ACK、重连和业务消息健康快照。
+    pub fn health_snapshot(&self) -> WebsocketHealthSnapshot {
+        let subscription_count = self.subscriptions.lock().unwrap().len();
+        let acknowledged_subscription_count = self.subscription_acks.lock().unwrap().len();
+        let last_business_message_at_ms = self.last_business_message_at_ms.load(Ordering::Relaxed);
+        WebsocketHealthSnapshot {
+            connection_state: self.get_connection_state(),
+            manager_task_alive: self.manager_task_alive.load(Ordering::Relaxed),
+            subscription_count,
+            acknowledged_subscription_count,
+            all_subscriptions_acknowledged: subscription_count == acknowledged_subscription_count,
+            reconnect_count: self.reconnect_count.load(Ordering::Relaxed),
+            last_message_elapsed_ms: self
+                .last_message_time
+                .lock()
+                .unwrap()
+                .elapsed()
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX),
+            last_business_message_at_ms: (last_business_message_at_ms > 0)
+                .then_some(last_business_message_at_ms),
+        }
+    }
+
+    /// 生成与 OKX ACK 参数一致的订阅键。
+    fn subscription_key(channel: &str, inst_id: &str) -> String {
+        format!("{}:{}", channel, inst_id)
+    }
+
+    /// 返回当前 Unix 毫秒时间。
+    fn unix_timestamp_ms() -> i64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .try_into()
+            .unwrap_or(i64::MAX)
+    }
+
+    #[cfg(test)]
+    /// 测试辅助：模拟一次重连。
+    fn record_reconnect(&self) {
+        self.reconnect_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    /// 测试辅助：模拟一条服务端消息。
+    fn record_incoming_value(&self, value: &Value) {
+        Self::record_incoming_value_shared(
+            value,
+            &self.subscription_acks,
+            &self.last_business_message_at_ms,
+        );
+    }
+
+    /// 从原始 OKX 消息更新订阅 ACK 与最后业务消息时间。
+    fn record_incoming_value_shared(
+        value: &Value,
+        subscription_acks: &Arc<Mutex<HashMap<String, i64>>>,
+        last_business_message_at_ms: &Arc<AtomicI64>,
+    ) {
+        if value.get("data").is_some_and(Value::is_array) {
+            last_business_message_at_ms.store(Self::unix_timestamp_ms(), Ordering::Relaxed);
+        }
+        let Some(event) = value.get("event").and_then(Value::as_str) else {
+            return;
+        };
+        let successful = value
+            .get("code")
+            .and_then(Value::as_str)
+            .is_none_or(|code| code == "0");
+        if !successful {
+            return;
+        }
+        let Some(arg) = value.get("arg") else {
+            return;
+        };
+        let channel = arg
+            .get("channel")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let inst_id = arg
+            .get("instId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let key = Self::subscription_key(channel, inst_id);
+        match event {
+            "subscribe" => {
+                subscription_acks
+                    .lock()
+                    .unwrap()
+                    .insert(key, Self::unix_timestamp_ms());
+            }
+            "unsubscribe" => {
+                subscription_acks.lock().unwrap().remove(&key);
+            }
+            _ => {}
+        }
+    }
+
     /// 启动连接管理任务
     async fn start_connection_manager(&self, tx: mpsc::UnboundedSender<Value>) {
         let urls = self.urls.clone();
@@ -322,8 +476,18 @@ impl AutoReconnectWebsocketClient {
         let config = self.reconnect_config.clone();
         let ws_sender = self.ws_sender.clone();
         let current_url_idx = self.current_url_idx.clone();
+        let subscription_acks = self.subscription_acks.clone();
+        let reconnect_count = self.reconnect_count.clone();
+        let last_business_message_at_ms = self.last_business_message_at_ms.clone();
+        let manager_task_alive = self.manager_task_alive.clone();
+        let message_sender = self.message_sender.clone();
 
+        self.manager_task_alive.store(true, Ordering::Relaxed);
         tokio::spawn(async move {
+            let _exit_guard = ConnectionManagerExitGuard {
+                manager_task_alive,
+                message_sender,
+            };
             let mut reconnect_attempts = 0;
             let mut backoff_delay = config.interval;
 
@@ -347,6 +511,7 @@ impl AutoReconnectWebsocketClient {
                         *last_message_time.lock().unwrap() = Instant::now();
                         reconnect_attempts = 0;
                         backoff_delay = config.interval;
+                        subscription_acks.lock().unwrap().clear();
 
                         // 分离读写流
                         let (mut ws_sink, ws_stream) = ws_stream.split();
@@ -385,6 +550,8 @@ impl AutoReconnectWebsocketClient {
                             &connection_state,
                             &last_message_time,
                             &is_running,
+                            &subscription_acks,
+                            &last_business_message_at_ms,
                         )
                         .await;
 
@@ -414,6 +581,7 @@ impl AutoReconnectWebsocketClient {
 
                 if config.enabled && reconnect_attempts < config.max_attempts {
                     reconnect_attempts += 1;
+                    reconnect_count.fetch_add(1, Ordering::Relaxed);
                     *connection_state.lock().unwrap() = ConnectionState::Reconnecting;
                     if urls.len() > 1 {
                         let mut idx = current_url_idx.lock().unwrap();
@@ -593,6 +761,8 @@ impl AutoReconnectWebsocketClient {
         connection_state: &Arc<Mutex<ConnectionState>>,
         last_message_time: &Arc<Mutex<Instant>>,
         is_running: &Arc<Mutex<bool>>,
+        subscription_acks: &Arc<Mutex<HashMap<String, i64>>>,
+        last_business_message_at_ms: &Arc<AtomicI64>,
     ) -> Result<(), Error> {
         while *is_running.lock().unwrap() {
             tokio::select! {
@@ -602,6 +772,11 @@ impl AutoReconnectWebsocketClient {
                             *last_message_time.lock().unwrap() = Instant::now();
 
                             if let Ok(value) = serde_json::from_str::<Value>(&text) {
+                                Self::record_incoming_value_shared(
+                                    &value,
+                                    subscription_acks,
+                                    last_business_message_at_ms,
+                                );
                                 if tx.send(value).is_err() {
                                     warn!("消息发送失败，接收器可能已关闭");
                                     break;
@@ -787,6 +962,68 @@ impl Clone for AutoReconnectWebsocketClient {
             ws_sender: self.ws_sender.clone(),
             is_running: self.is_running.clone(),
             current_url_idx: self.current_url_idx.clone(),
+            subscription_acks: self.subscription_acks.clone(),
+            reconnect_count: self.reconnect_count.clone(),
+            last_business_message_at_ms: self.last_business_message_at_ms.clone(),
+            manager_task_alive: self.manager_task_alive.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::{AutoReconnectWebsocketClient, ConnectionManagerExitGuard};
+    use crate::websocket::{Args, ChannelType};
+    use serde_json::json;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    #[tokio::test]
+    async fn health_snapshot_tracks_subscription_ack_reconnect_and_business_message() {
+        let client = AutoReconnectWebsocketClient::new_public();
+        client
+            .subscribe(
+                ChannelType::Tickers,
+                Args::new().with_inst_id("ETH-USDT-SWAP".to_string()),
+            )
+            .await
+            .expect("subscription registration");
+
+        client.record_incoming_value(&json!({
+            "event": "subscribe",
+            "arg": {"channel": "tickers", "instId": "ETH-USDT-SWAP"}
+        }));
+        client.record_reconnect();
+        client.record_incoming_value(&json!({
+            "arg": {"channel": "tickers", "instId": "ETH-USDT-SWAP"},
+            "data": [{"last": "100"}]
+        }));
+
+        let health = client.health_snapshot();
+        assert_eq!(health.subscription_count, 1);
+        assert_eq!(health.acknowledged_subscription_count, 1);
+        assert!(health.all_subscriptions_acknowledged);
+        assert_eq!(health.reconnect_count, 1);
+        assert!(health.last_business_message_at_ms.is_some());
+    }
+
+    #[test]
+    fn manager_exit_guard_marks_task_dead_and_closes_receiver_sender() {
+        let manager_task_alive = Arc::new(AtomicBool::new(true));
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let message_sender = Arc::new(Mutex::new(Some(tx)));
+        {
+            let _guard = ConnectionManagerExitGuard {
+                manager_task_alive: Arc::clone(&manager_task_alive),
+                message_sender: Arc::clone(&message_sender),
+            };
+        }
+
+        assert!(!manager_task_alive.load(Ordering::Relaxed));
+        assert!(message_sender.lock().unwrap().is_none());
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected)
+        ));
     }
 }
