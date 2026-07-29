@@ -18,12 +18,14 @@ resolver = "2"
 
 [features]
 default = ["okx", "binance", "bitget", "bybit", "gate", "hyperliquid"]
-okx = ["dep:okx_rs"]
-binance = ["dep:binance_rs"]
-bitget = ["dep:bitget_rs"]
-bybit = ["dep:bybit_rs"]
-gate = ["dep:gate_rs"]
-hyperliquid = ["dep:hyperliquid_rs"]
+full-sdk = []
+okx-public-market = ["dep:okx_rs"]
+okx = ["full-sdk", "okx-public-market"]
+binance = ["full-sdk", "dep:binance_rs"]
+bitget = ["full-sdk", "dep:bitget_rs"]
+bybit = ["full-sdk", "dep:bybit_rs"]
+gate = ["full-sdk", "dep:gate_rs"]
+hyperliquid = ["full-sdk", "dep:hyperliquid_rs"]
 
 [dependencies]
 binance_rs = { package = "bnb_rs", version = "0.1.0", path = "binance_rs", optional = true }

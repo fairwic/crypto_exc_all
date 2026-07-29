@@ -38,7 +38,7 @@ impl OkxMarket {
         let path = format!("{}/ticker?instId={}", API_MARKET_PATH, inst_id);
         let tickers = self
             .client
-            .send_request::<Vec<TickerOkxResDto>>(Method::GET, &path, "")
+            .send_public_request::<Vec<TickerOkxResDto>>(Method::GET, &path, "")
             .await?;
         Ok(tickers)
         // tickers.into_iter().next()
@@ -49,7 +49,7 @@ impl OkxMarket {
     pub async fn get_tickers(&self, inst_type: &str) -> Result<Vec<TickerOkxResDto>, Error> {
         let path = format!("{}/tickers?instType={}", API_MARKET_PATH, inst_type);
         self.client
-            .send_request::<Vec<TickerOkxResDto>>(Method::GET, &path, "")
+            .send_public_request::<Vec<TickerOkxResDto>>(Method::GET, &path, "")
             .await
     }
 
@@ -75,7 +75,7 @@ impl OkxMarket {
         }
 
         self.client
-            .send_request::<Vec<TickerOkxResDto>>(Method::GET, &path, "")
+            .send_public_request::<Vec<TickerOkxResDto>>(Method::GET, &path, "")
             .await
     }
 
@@ -109,9 +109,9 @@ impl OkxMarket {
 
         let res: Vec<Vec<String>> = self
             .client
-            .send_request::<Vec<Vec<String>>>(Method::GET, &path, "")
+            .send_public_request::<Vec<Vec<String>>>(Method::GET, &path, "")
             .await?;
-        Ok(res.into_iter().map(CandleOkxRespDto::from_vec).collect())
+        parse_candle_rows(res)
     }
 
     // 获取最近几年的历史k线数据(1s k线支持查询最近3个月的数据)
@@ -143,10 +143,9 @@ impl OkxMarket {
         debug!("OKX path: {}", path);
         let res: Vec<Vec<String>> = self
             .client
-            .send_request::<Vec<Vec<String>>>(Method::GET, &path, "")
+            .send_public_request::<Vec<Vec<String>>>(Method::GET, &path, "")
             .await?;
-        let candles = res.into_iter().map(CandleOkxRespDto::from_vec).collect();
-        Ok(candles)
+        parse_candle_rows(res)
     }
 
     /// 获取交易产品深度
@@ -159,7 +158,7 @@ impl OkxMarket {
 
         let depths = self
             .client
-            .send_request::<Vec<Depth>>(Method::GET, &path, "")
+            .send_public_request::<Vec<Depth>>(Method::GET, &path, "")
             .await?;
 
         depths
@@ -186,9 +185,20 @@ impl OkxMarket {
         }
 
         self.client
-            .send_request::<Vec<InstrumentOkxResDto>>(Method::GET, &path, "")
+            .send_public_request::<Vec<InstrumentOkxResDto>>(Method::GET, &path, "")
             .await
     }
+}
+
+/// 将 provider 行逐行转换为 DTO；短行必须返回定位明确的错误，不能索引 panic。
+fn parse_candle_rows(rows: Vec<Vec<String>>) -> Result<Vec<CandleOkxRespDto>, Error> {
+    rows.into_iter()
+        .enumerate()
+        .map(|(index, row)| {
+            CandleOkxRespDto::try_from_vec(row)
+                .map_err(|message| Error::ParseError(format!("K线第 {index} 行无效: {message}")))
+        })
+        .collect()
 }
 #[cfg(test)]
 mod tests {

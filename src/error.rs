@@ -39,7 +39,7 @@ pub enum Error {
 }
 
 impl Error {
-    #[cfg(feature = "okx")]
+    #[cfg(any(feature = "okx", feature = "okx-public-market"))]
     pub(crate) fn from_okx(error: okx_rs::Error) -> Self {
         match error {
             okx_rs::Error::OkxApiError { code, message, smg } => Self::Api {

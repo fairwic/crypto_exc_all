@@ -55,20 +55,27 @@ pub struct CandleOkxRespDto {
 }
 
 impl CandleOkxRespDto {
-    pub fn from_vec(v: Vec<String>) -> Self {
-        // 这里请根据你的结构体字段实际情况进行赋值
-        // 例如：
-        Self {
-            ts: v[0].clone(),
-            o: v[1].clone(),
-            h: v[2].clone(),
-            l: v[3].clone(),
-            c: v[4].clone(),
-            v: v[5].clone(),
-            vol_ccy: v[6].clone(),
-            vol_ccy_quote: v[7].clone(),
-            confirm: v[8].clone(),
-        }
+    /// 从 OKX 固定位置数组构造 DTO；新增尾字段可兼容，缺少必需字段则失败。
+    pub fn try_from_vec(values: Vec<String>) -> Result<Self, String> {
+        let actual_len = values.len();
+        let fields: [String; 9] = values
+            .into_iter()
+            .take(9)
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| format!("期望至少 9 个字段，实际为 {actual_len}"))?;
+        let [ts, o, h, l, c, v, vol_ccy, vol_ccy_quote, confirm] = fields;
+        Ok(Self {
+            ts,
+            o,
+            h,
+            l,
+            c,
+            v,
+            vol_ccy,
+            vol_ccy_quote,
+            confirm,
+        })
     }
 }
 
@@ -142,6 +149,15 @@ pub struct TradeOkxResDto {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// provider 短行必须形成解析错误，而不是数组越界 panic。
+    #[test]
+    fn candle_short_row_is_rejected() {
+        let error = CandleOkxRespDto::try_from_vec(vec!["1700000000000".to_string()])
+            .expect_err("short candle row must fail");
+
+        assert_eq!(error, "期望至少 9 个字段，实际为 1");
+    }
 
     #[test]
     fn depth_allows_okx_books_response_without_inst_id() {

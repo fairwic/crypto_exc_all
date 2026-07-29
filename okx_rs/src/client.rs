@@ -4,7 +4,7 @@ use crate::enums::language_enums::Language;
 use crate::error::Error;
 use crate::utils;
 use log::{debug, error};
-use reqwest::{Client, Method, StatusCode};
+use reqwest::{Client, Method, RequestBuilder, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Deserializer};
 use serde_path_to_error;
@@ -23,7 +23,7 @@ pub struct OkxClient {
     /// HTTP客户端
     client: Client,
     /// API凭证
-    credentials: Credentials,
+    credentials: Option<Credentials>,
     /// 是否使用模拟交易
     is_simulated_trading: String,
     /// API基础URL
@@ -37,6 +37,23 @@ pub struct OkxClient {
 impl OkxClient {
     /// 创建一个新的OKX客户端
     pub fn new(credentials: Credentials) -> Result<Self, Error> {
+        let is_simulated_trading = credentials.is_simulated_trading.clone();
+        Self::build(Some(credentials), is_simulated_trading)
+    }
+
+    /// 创建不持有账户凭证的公共只读客户端。
+    ///
+    /// 该客户端只能通过 `send_public_request` 调用公开 endpoint；若被误用于
+    /// signed request，会在网络 I/O 前返回认证错误。
+    pub fn new_public() -> Result<Self, Error> {
+        Self::build(None, "0".to_string())
+    }
+
+    /// 统一构造底层 HTTP client，避免公共与私有入口产生不同的超时行为。
+    fn build(
+        credentials: Option<Credentials>,
+        is_simulated_trading: String,
+    ) -> Result<Self, Error> {
         // 避免 macOS system-configuration 在沙箱环境下探测系统代理导致 panic
         let client = Client::builder()
             .timeout(Duration::from_millis(CONFIG.api_timeout_ms))
@@ -45,7 +62,7 @@ impl OkxClient {
 
         Ok(Self {
             client,
-            is_simulated_trading: credentials.is_simulated_trading.clone(),
+            is_simulated_trading,
             credentials,
             base_url: CONFIG.api_url.clone(),
             request_expiration_ms: CONFIG.request_expiration_ms,
@@ -93,15 +110,15 @@ impl OkxClient {
         path: &str,
         body: &str,
     ) -> Result<T, Error> {
+        let credentials = self.credentials.as_ref().ok_or_else(|| {
+            Error::AuthenticationError(
+                "公共只读 OKX client 不能调用需要签名的 endpoint".to_string(),
+            )
+        })?;
         let method_str = method.to_string(); // 克隆方法字符串用于错误报告
         let timestamp = utils::generate_timestamp();
-        let signature = utils::generate_signature(
-            &self.credentials.api_secret,
-            &timestamp,
-            &method,
-            path,
-            body,
-        )?;
+        let signature =
+            utils::generate_signature(&credentials.api_secret, &timestamp, &method, path, body)?;
         let exp_time = utils::generate_expiration_timestamp(self.request_expiration_ms);
 
         let url = format!("{}{}", self.base_url, path);
@@ -109,10 +126,10 @@ impl OkxClient {
         let mut request_builder = self
             .client
             .request(method, &url)
-            .header("OK-ACCESS-KEY", &self.credentials.api_key)
+            .header("OK-ACCESS-KEY", &credentials.api_key)
             .header("OK-ACCESS-SIGN", signature)
             .header("OK-ACCESS-TIMESTAMP", timestamp)
-            .header("OK-ACCESS-PASSPHRASE", &self.credentials.passphrase)
+            .header("OK-ACCESS-PASSPHRASE", &credentials.passphrase)
             .header("Content-Type", "application/json")
             .header("expTime", exp_time.to_string());
         if self.is_simulated_trading == "1" {
@@ -124,7 +141,39 @@ impl OkxClient {
         }
         debug!("OKX API请求: {}", url);
         debug!("OKX API请求: {}", body);
-        let request_builder = request_builder.body(body.to_string());
+        self.execute_request(request_builder.body(body.to_string()), &url, &method_str)
+            .await
+    }
+
+    /// 发送不带账户签名、passphrase 或模拟交易头的公共只读请求。
+    pub async fn send_public_request<T: for<'a> Deserialize<'a> + Serialize>(
+        &self,
+        method: Method,
+        path: &str,
+        body: &str,
+    ) -> Result<T, Error> {
+        let method_str = method.to_string();
+        let url = format!("{}{}", self.base_url, path);
+        let mut request_builder = self
+            .client
+            .request(method, &url)
+            .header("Content-Type", "application/json");
+        if let Some(accept_language) = &self.accept_language {
+            request_builder =
+                request_builder.header("Accept-Language", accept_language.to_string());
+        }
+        debug!("OKX public API请求: {}", url);
+        self.execute_request(request_builder.body(body.to_string()), &url, &method_str)
+            .await
+    }
+
+    /// 执行已经按 capability 构造完成的请求，并统一解析 OKX envelope。
+    async fn execute_request<T: for<'a> Deserialize<'a> + Serialize>(
+        &self,
+        request_builder: RequestBuilder,
+        url: &str,
+        method_str: &str,
+    ) -> Result<T, Error> {
         let response = request_builder.send().await.map_err(Error::HttpError)?;
         let status_code = response.status();
         let response_body = response.text().await.map_err(Error::HttpError)?;
@@ -148,7 +197,7 @@ impl OkxClient {
                     serde_json::from_str::<Vec<serde_json::Value>>(&json!(result.data).to_string())
                 {
                     data_array
-                        .get(0)
+                        .first()
                         .and_then(|item| item.get("sMsg"))
                         .and_then(|s| s.as_str())
                         .unwrap_or("未知错误")
@@ -159,11 +208,11 @@ impl OkxClient {
                 };
 
                 error!("OKX API错误响应: {}", response_body);
-                return Err(Error::OkxApiError {
+                Err(Error::OkxApiError {
                     code: result.code,
                     message: result.msg,
                     smg,
-                });
+                })
             }
             StatusCode::NOT_FOUND => {
                 error!("OKX API错误响应: {}", response_body);
