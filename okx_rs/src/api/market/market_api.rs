@@ -22,6 +22,7 @@ impl OkxApiTrait for OkxMarket {
         Self { client }
     }
     /// 从环境变量创建一个新的OkxMarket实例
+    #[cfg(feature = "full")]
     fn from_env() -> Result<Self, Error> {
         let client = OkxClient::from_env()?;
         Ok(Self { client })
@@ -200,7 +201,7 @@ fn parse_candle_rows(rows: Vec<Vec<String>>) -> Result<Vec<CandleOkxRespDto>, Er
         })
         .collect()
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "full"))]
 mod tests {
     use super::*;
 

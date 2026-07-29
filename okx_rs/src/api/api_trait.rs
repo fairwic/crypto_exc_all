@@ -1,6 +1,9 @@
 use crate::client::OkxClient;
+#[cfg(feature = "full")]
 use crate::error::Error;
+#[cfg(feature = "full")]
 use anyhow::Result;
+#[cfg(feature = "full")]
 use std::env;
 
 pub trait OkxApiTrait {
@@ -8,6 +11,7 @@ pub trait OkxApiTrait {
     where
         Self: Sized;
 
+    #[cfg(feature = "full")]
     fn from_env() -> Result<Self, Error>
     where
         Self: Sized,
