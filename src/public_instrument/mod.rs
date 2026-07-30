@@ -20,6 +20,8 @@ pub use okx::{
 };
 
 #[cfg(feature = "binance-public-instrument")]
+pub use binance_rs::Error as BinancePublicInstrumentSdkError;
+#[cfg(feature = "binance-public-instrument")]
 pub use binance_rs::client::{
     BinanceHttpEvidence, BinancePublicFailureKind, BinancePublicRequestFailure,
     BinancePublicResponse,
@@ -29,6 +31,8 @@ pub use binance_rs::dto::market::{
     BinanceExchangeAsset, BinanceExchangeFilter, BinanceExchangeInfo, BinanceExchangeSymbol,
     BinanceRateLimit, BinanceSymbolFilter, BinanceWireDecimal,
 };
+#[cfg(feature = "okx-public-market")]
+pub use okx_rs::Error as OkxPublicInstrumentSdkError;
 #[cfg(feature = "okx-public-market")]
 pub use okx_rs::{
     OkxPublicFailureEvidence, OkxPublicFailureKind, OkxPublicInstrument, OkxPublicResponse,

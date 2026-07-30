@@ -205,6 +205,7 @@ invariants = [
   "价格、数量、tick、lot、notional、multiplier 与合约价值使用 wire string 或任意精度 JSON number；I1 不转 f64。",
   "单个必需字段损坏使整个 response 解码失败；SDK 不 filter_map、不从缺行推断 delisted，也不把空列表解释为完整业务快照。",
   "HTTP status、provider code/message 可回传给 Market；Retry-After 与 provider quota header 仅在 provider 实际返回时原样保留，未返回时保持 absent；SDK 不执行重试、sleep、调度或 business completeness 判断。",
+  "root facade 必须 re-export Binance/OKX public instrument SDK error 类型，使 Market 能对 typed failure kind、HTTP/provider code 与 Retry-After 做结构化匹配；不得要求解析 Display/Debug 字符串。",
   "既有 Binance Value 入口、OKX K 线 capability 和其他 provider module 保持可编译，不因 I1 被删除、禁用或宣称迁移。",
 ]
 current_entrypoints = [
@@ -216,6 +217,8 @@ current_entrypoints = [
 target_entrypoints = [
   "BinanceUsdmPublicInstrumentClient::exchange_info",
   "OkxSwapPublicInstrumentClient::instruments",
+  "BinancePublicInstrumentSdkError",
+  "OkxPublicInstrumentSdkError",
 ]
 allowed_differences = [
   "新增 typed response、保留未知字段的 provider DTO、HTTP evidence、provider 实际返回的 quota evidence 和 root 最小 public feature facade。",
@@ -424,6 +427,7 @@ parity_layers = [
   "provider identity/status/time/assets/rules/unknown field preservation",
   "decimal wire representation before Market mapping",
   "HTTP/provider error and conditionally present quota evidence",
+  "root facade typed failure error access without string parsing",
 ]
 recovery_scenarios = [
   "HTTP 403/418/429/5xx 返回 typed failure；quota/Retry-After 仅在响应实际携带时保留，SDK 不自动重试。",
@@ -505,9 +509,9 @@ required_artifacts = [
   "task_plan.md",
 ]
 contains_sensitive_data = false
-tested_revision = "c17ba15185a337e03df5dfe4ecf08e7fd3e8a380"
-# 仅覆盖 source/test patch，排除自引用的 Manifest/Evidence 文档。
-tested_patch_sha256 = "2beef72f6c2c5d2fb6fe7742cfa0cf854d36d5560ebb09540b313c8d427d79d5"
+tested_revision = "50dc1d6c6a8368ab2c987548adaaa7e3d9ff01e7"
+# 仅覆盖本次 typed failure access 的 source/test patch，排除自引用的 Manifest/Evidence 文档。
+tested_patch_sha256 = "f4160352de874a676b7e0cb237eb9b687cb38c7660ede7a2d07644db00bbd686"
 input_artifact_hashes = [
   { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "0306d68d4f5f21f65d00742381e2a1a33e01530d5cad6310e9e954edaf25adab" },
   { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "b229ef78aa32bcd41da333ec16ba235d1ee18bce02ce6fff786e45ab6d23b887" },
@@ -517,10 +521,10 @@ input_artifact_hashes = [
 output_artifact_hashes = [
   { artifact_ref = "Cargo.toml", sha256 = "6a99b481ae85a439b5a4d2e62fd827ae20e604bc7475499e48125957e6cdee9b" },
   { artifact_ref = "src/lib.rs", sha256 = "5928ef0fcab4af2ad55f7e8a4d1a2f9472c3c528ac0e05816441f52156a684a1" },
-  { artifact_ref = "src/public_instrument/mod.rs", sha256 = "98c934007a0d890efc465e9b6da95b19c8e44460fa837062d5c829ab64af680c" },
+  { artifact_ref = "src/public_instrument/mod.rs", sha256 = "41a0599131bccb4219bc6709c510c68c81a2a60a2489c9fb6bd625f862d238b7" },
   { artifact_ref = "src/public_instrument/binance.rs", sha256 = "7f969990c4efbd42e026626159dce24eb6a1b6305b46653759f990d3136af256" },
   { artifact_ref = "src/public_instrument/okx.rs", sha256 = "3c13117b5b4ebdb50a761d9dd8c9c7ab705ff7d473014ea39afc8a0a2a81e09d" },
-  { artifact_ref = "tests/public_instrument_facade.rs", sha256 = "8278eb1c133f980aeac271113186eb59657f485768a1222ceb18efd8602510df" },
+  { artifact_ref = "tests/public_instrument_facade.rs", sha256 = "b78c86fc5c744fb03e552bfb869596ff165340949551eff71c4c8125beaa12ce" },
   { artifact_ref = "binance_rs/Cargo.toml", sha256 = "56c63cf2626c3b8f99dfda0e147f6e519b46e5b2b9815c18a2efb8b9f3e3b4d1" },
   { artifact_ref = "binance_rs/src/client.rs", sha256 = "9866cae9b861a4894240ace8a10fadc98e4847cebab0655976644dd93db1669c" },
   { artifact_ref = "binance_rs/src/error.rs", sha256 = "f9fcc310dbda32a88a238ad35303c8409b4ca64ba15ddddd452de90d14826bef" },

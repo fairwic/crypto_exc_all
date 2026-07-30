@@ -8,6 +8,7 @@
 | Owner repository | `crypto_exc_all` |
 | Registration revision | `rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289` |
 | SDK base revision | `crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380` |
+| Typed failure access follow-up base | `crypto_exc_all@50dc1d6c6a8368ab2c987548adaaa7e3d9ff01e7` |
 | P2/profile revision | `rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e` |
 | F4B successor boundary revision | `rust_quant_alpha@b36731bed29213739d3c08541c9e0cca6b876d35` |
 | 技术状态 | `implementing` |
@@ -97,7 +98,9 @@ public probe 或 Market readiness。
 - provider endpoint：Binance USDⓈ-M exchangeInfo、OKX SWAP public instruments；
 - Domain/Use Case/Port：不创建；这是 SDK 协议能力，不伪造空 trait 或万能 service；
 - Adapter：`binance_rs`、`okx_rs` HTTP client + provider DTO；
-- 公开面：root 两个具体 public-only client 与 typed response/failure；
+- 公开面：root 两个具体 public-only client、typed response/failure，以及只重导出
+  provider error 类型的结构化 failure access；Market 不需要直接依赖 provider 子 crate，
+  也不解析错误字符串；
 - persistence/transaction/outbox：无；
 - recovery owner：Market；F4C 是已登记的后继实施切片，不是 Owner 名；
 - Release Unit / binary / deploy：无。
@@ -123,7 +126,7 @@ linked worktree，只能用于证明 I1 patch 自身，不能隐藏主工作树 
 | Global Registry | PASS | 2026-07-30 `migration-registry-check`：`errors=0 warnings=0` |
 | Binance contract | PASS | `instrument_api_tests` 4/4：exact path/no query/no auth、DTO/unknown/decimal、provider error 与条件限频证据 |
 | OKX contract | PASS | `public_instrument_tests` 7/7：固定 SWAP query/no auth、envelope/坏行/空集、429/5xx 与安全 header |
-| Minimum public feature surface | PASS | `public_instrument_facade` 2/2；`cargo rustc --print cfg` 只出现 `binance-public-instrument`，未启用 root `full-sdk` |
+| Minimum public feature surface | COMPILE PASS / RUNTIME BLOCKED（沙箱） | `public_instrument_facade` 4 项均编译成功，focused Clippy 通过；本轮运行时因受限环境禁止 mockito 绑定本地监听端口而得到 `Operation not permitted (os error 1)`。此前两个匿名成功 contract 的 2/2 结果保持为历史证据；新增两个 typed failure access 未冒充已运行 |
 | Decimal wire / auth source guard | PASS | 新 facade/API/DTO 中业务 `f64` 类型或转换 0 命中，认证与模拟交易 header 0 命中 |
 | Feature compatibility build | PASS | 最小 `binance-public-instrument + okx-public-market`、legacy root `binance` 与 OKX `public-market` 定向编译成功 |
 | Focused Clippy | PASS | OKX public 子集严格 `-D warnings`；Binance/root 对已定位的 legacy lint 使用显式 `-A` 后，本轮代码无新增 lint |
@@ -140,13 +143,14 @@ linked worktree，只能用于证明 I1 patch 自身，不能隐藏主工作树 
 完整 checker 不再报告 required-artifact 错误，只剩 `README.md` 范围阻塞。两次状态
 不能混写成同一次测试结果。
 
-本轮机器验证冻结在：
+本次 typed failure access follow-up 的机器验证冻结在：
 
-- base revision：`c17ba15185a337e03df5dfe4ecf08e7fd3e8a380`；
+- base revision：`50dc1d6c6a8368ab2c987548adaaa7e3d9ff01e7`；
 - source/test patch SHA-256：
-  `2beef72f6c2c5d2fb6fe7742cfa0cf854d36d5560ebb09540b313c8d427d79d5`；
+  `f4160352de874a676b7e0cb237eb9b687cb38c7660ede7a2d07644db00bbd686`；
 - patch hash 明确排除会自引用的 Manifest/Evidence 文档；
-- 26 个 source/test output artifact 的逐文件 SHA-256 已写入 Manifest。
+- 26 个 source/test output artifact 的逐文件 SHA-256 已写入 Manifest，其中本次变化的
+  root facade 与 facade test hash 已刷新。
 
 严格 workspace test 中被排除后复跑的 6 个 legacy 名称为
 `test_get_balances`、`test_transfer`、`test_get_ticker`、`test_get_candles`、
@@ -156,8 +160,9 @@ endpoint；I1 contract tests 全部使用 disposable local mock，未访问真�
 
 ## 8. 未完成项与 Verdict
 
-- typed DTO、public client、结构化 HTTP/provider evidence、root facade 与 mock contract
-  tests 已实现并通过 focused verification；
+- typed DTO、public client、结构化 HTTP/provider evidence 与 root facade 已实现；本次
+  error re-export 的编译和 focused Clippy 通过，新增 mock runtime 因本机沙箱禁止监听
+  端口而保持显式 blocked，未伪造通过；
 - strict workspace Clippy 的 legacy lint，以及 6 个未正确隔离的 legacy live test，仍是
   仓库级基线阻塞；本轮没有越界修改这些无关旧模块；
 - Market F4C、consumer migration、runtime、数据库、scheduler、readiness、cutover 均不在 I1；
