@@ -19,6 +19,8 @@ pub mod websocket;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use api::market::OkxMarket;
+#[cfg(feature = "public-market")]
+pub use api::public_data::OkxPublicInstruments;
 #[cfg(feature = "full")]
 pub use api::{
     account::OkxAccount, asset::OkxAsset, big_data::OkxBigData, public_data::OkxPublicData,
@@ -26,6 +28,12 @@ pub use api::{
 };
 /// Re-export commonly used modules and functions
 pub use client::OkxClient;
+#[cfg(feature = "public-market")]
+pub use client::{
+    OkxPublicFailureEvidence, OkxPublicFailureKind, OkxPublicResponse, OkxPublicResponseEvidence,
+};
+#[cfg(feature = "public-market")]
+pub use dto::public_data::OkxPublicInstrument;
 pub use error::Error;
 #[cfg(feature = "full")]
 pub use websocket::OkxWebsocketClient;

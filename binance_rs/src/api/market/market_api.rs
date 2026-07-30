@@ -36,6 +36,10 @@ impl BinanceMarket {
             .await
     }
 
+    /// 返回 Binance exchangeInfo 的原始 JSON。
+    ///
+    /// 该入口为既有调用方保留；新迁移代码应使用
+    /// [`Self::get_exchange_info_typed`]，避免在业务层重复解析 provider 字段。
     pub async fn get_exchange_info(&self) -> Result<serde_json::Value, Error> {
         let path = format!("{}/exchangeInfo", API_MARKET_V1_PATH);
         self.client

@@ -21,6 +21,13 @@ pub enum Error {
         message: String,
     },
 
+    /// Typed public endpoint 在 transport、decode 或 provider 阶段返回的证据化错误。
+    #[error("{failure}")]
+    BinancePublicRequestFailed {
+        /// Typed public endpoint 的结构化失败证据。
+        failure: Box<crate::client::BinancePublicRequestFailure>,
+    },
+
     #[error("WebSocket错误: {0}")]
     WebSocketError(String),
 

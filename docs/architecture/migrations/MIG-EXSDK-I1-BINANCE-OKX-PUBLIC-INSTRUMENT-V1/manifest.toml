@@ -1,0 +1,545 @@
+# Binance/OKX 公共 instrument 协议能力的单一 Exchange SDK Owner Manifest。
+# P2 没有 current-revision Verdict，因此本切片最高保持 implementing。
+
+schema_version = 2
+manifest_kind = "owner_child"
+migration_id = "MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1"
+title = "建立 Binance USDⓈ-M 与 OKX SWAP 公共 Instrument SDK 能力"
+state = "implementing"
+promotion_status = "not_applicable"
+cutover_status = "not_required"
+mode = "behavior_change"
+behavior_change = true
+verification_mode = "machine"
+production_mutation_allowed = false
+evidence_scope = "current_migration"
+
+[program]
+migration_program_id = "MP-market-data-foundation-v1"
+registry_ref = "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/migrations/programs/registry.toml"
+parent_plan = "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/migration-plan.md"
+depends_on = ["MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2"]
+predecessor_verdicts = []
+historical_dependency_eligible = false
+
+[authority]
+architecture_baseline_git_sha = "8acc7a42157fd7457ae72ddb2848240d9bbd5289"
+adrs = [
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/adr/0013-user-execution-request-and-public-market-data-credentials.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/adr/0014-greenfield-target-repository-migration.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/adr/0015-capability-first-modules-and-api-spi-boundaries.md",
+]
+normative_documents = [
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/target-architecture.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/dependency-rules.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/ai-coding-guardrails.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/ai-migration-execution-protocol.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/adr/0013-user-execution-request-and-public-market-data-credentials.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/adr/0014-greenfield-target-repository-migration.md",
+  "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/adr/0015-capability-first-modules-and-api-spi-boundaries.md",
+]
+normative_document_hashes = [
+  "41c516e61ea58ec161829dee64327d19b0bdbb54921a0bfbb8b3c491fa84d16f",
+  "e48192f30a88862171be3e9299f6a4791e28be6d870ba11d97b52cf98fc0b8ae",
+  "62b2c5fd5a9001c2ba57554b7c6189b1bc428126ab3fd72c8a4400f8dda38efe",
+  "998670bc7af69653f5c0e3cde719e7295b684fa1bdc83b1c176fa3dab5931260",
+  "1d51685b2e4c11c0595358ce54a5c4e90745333e4a84238dde6cb1e14592462c",
+  "84c198cec06fe6171a4a5656ea516f128a20f7025bc04047e0e4dd76466e1937",
+  "a2582fdfa98a810834bcbed93c37a34d0b4fac455258cdb9a8666858f7b7af9a",
+]
+release_unit_manifest_hashes = []
+contract_snapshots = []
+schema_snapshots = []
+
+[scope]
+owner = "Exchange SDK"
+owner_repository = "crypto_exc_all"
+source_paths = [
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.toml",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:src/lib.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:src/public_market.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/Cargo.toml",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/client.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/error.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/api/market/market_api.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/api/market/mod.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/dto/market/market_dto.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/dto/market/mod.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/examples/live_post_only_order.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/tests/expanded_api_tests.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/Cargo.toml",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/lib.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/client.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/error.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/mod.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/market/market_api.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/public_data/public_data_api.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/public_data/mod.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/dto/mod.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/dto/market/market_dto.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/dto/public_data/mod.rs",
+  "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:bybit_rs/src/api/market/market_api.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/domain/src/entities/exchange_symbol.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/domain/src/entities/exchange_symbol_listing_event.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/domain/src/traits/exchange_symbol_repository.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/infrastructure/src/repositories/exchange_symbol_repository.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/src/market/exchange_symbol_sync_service.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/bootstrap.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/exchange_symbol_sync.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/internal_server.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_worker.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/bin/sync_exchange_symbols.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/binance_eth_micro_live_validation.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/binance_eth_micro_live_validation/binance_futures_http.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_funding.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_klines.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_positioning.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_flow_flip_reversal_research/metrics.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_orderbook_depth_panel/book_depth.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/tests/binance_live_eth_micro_order_smoke_contract.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/all_market_candle_volume_monitor/warmup.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/okx_historical_15m_backfill.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/okx_historical_universe.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_backfill.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_event_backtest/data.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_kline_scanner.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_live_handoff/candidates.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/bin/vegas_cross_asset_portfolio_replay/live_universe.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/bin/vegas_cross_asset_portfolio_replay/universe_coverage.rs",
+  "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/src/rust_quan_web/execution_order_filters.rs",
+]
+target_paths = [
+  "src/lib.rs",
+  "src/public_instrument/mod.rs",
+  "src/public_instrument/binance.rs",
+  "src/public_instrument/okx.rs",
+  "tests/public_instrument_facade.rs",
+  "binance_rs/Cargo.toml",
+  "binance_rs/src/client.rs",
+  "binance_rs/src/error.rs",
+  "binance_rs/src/api/market/market_api.rs",
+  "binance_rs/src/api/market/mod.rs",
+  "binance_rs/src/api/market/instrument_api.rs",
+  "binance_rs/src/dto/market/mod.rs",
+  "binance_rs/src/dto/market/instrument_dto.rs",
+  "binance_rs/tests/instrument_api_tests.rs",
+  "okx_rs/Cargo.toml",
+  "okx_rs/src/lib.rs",
+  "okx_rs/src/client.rs",
+  "okx_rs/src/error.rs",
+  "okx_rs/src/api/mod.rs",
+  "okx_rs/src/api/public_data/mod.rs",
+  "okx_rs/src/api/public_data/instrument_api.rs",
+  "okx_rs/src/dto/mod.rs",
+  "okx_rs/src/dto/public_data/mod.rs",
+  "okx_rs/src/dto/public_data/instrument_dto.rs",
+  "okx_rs/tests/public_instrument_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/evidence.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/verdict.json",
+  "task_plan.md",
+]
+allowed_change_paths = [
+  "src/lib.rs",
+  "src/public_instrument/mod.rs",
+  "src/public_instrument/binance.rs",
+  "src/public_instrument/okx.rs",
+  "tests/public_instrument_facade.rs",
+  "binance_rs/Cargo.toml",
+  "binance_rs/src/client.rs",
+  "binance_rs/src/error.rs",
+  "binance_rs/src/api/market/market_api.rs",
+  "binance_rs/src/api/market/mod.rs",
+  "binance_rs/src/api/market/instrument_api.rs",
+  "binance_rs/src/dto/market/mod.rs",
+  "binance_rs/src/dto/market/instrument_dto.rs",
+  "binance_rs/tests/instrument_api_tests.rs",
+  "okx_rs/Cargo.toml",
+  "okx_rs/src/lib.rs",
+  "okx_rs/src/client.rs",
+  "okx_rs/src/error.rs",
+  "okx_rs/src/api/mod.rs",
+  "okx_rs/src/api/public_data/mod.rs",
+  "okx_rs/src/api/public_data/instrument_api.rs",
+  "okx_rs/src/dto/mod.rs",
+  "okx_rs/src/dto/public_data/mod.rs",
+  "okx_rs/src/dto/public_data/instrument_dto.rs",
+  "okx_rs/tests/public_instrument_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/evidence.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/verdict.json",
+  "task_plan.md",
+]
+forbidden_change_paths = [
+  ".github/",
+  "README.md",
+  "src/account.rs",
+  "src/adapters/",
+  "src/order.rs",
+  "src/trade.rs",
+  "bitget_rs/",
+  "bybit_rs/",
+  "gate_rs/",
+  "hyperliquid_rs/",
+]
+affected_cargo_packages = ["crypto_exc_all", "bnb_rs", "okx"]
+affected_release_units = []
+owned_tables = []
+external_owner_apis = [
+  "Binance USDⓈ-M GET /fapi/v1/exchangeInfo",
+  "OKX GET /api/v5/public/instruments?instType=SWAP",
+]
+
+[behavior]
+business_goal = "为 Market 后继提供只含 Binance USDⓈ-M 与 OKX SWAP 的 typed、无凭证、只读 instrument 协议能力，并保留 provider 错误与限频证据。"
+invariants = [
+  "Binance 请求固定为 GET /fapi/v1/exchangeInfo 且无 query；OKX 请求固定为 GET /api/v5/public/instruments?instType=SWAP。",
+  "两个入口都由无账户凭证 client 发起，不发送交易认证、passphrase、签名或模拟交易 header。",
+  "provider symbol/instId、产品类型、原始状态、listing/expiry time、资产、规则与未知扩展字段均由 typed DTO 保留。",
+  "价格、数量、tick、lot、notional、multiplier 与合约价值使用 wire string 或任意精度 JSON number；I1 不转 f64。",
+  "单个必需字段损坏使整个 response 解码失败；SDK 不 filter_map、不从缺行推断 delisted，也不把空列表解释为完整业务快照。",
+  "HTTP status、provider code/message 可回传给 Market；Retry-After 与 provider quota header 仅在 provider 实际返回时原样保留，未返回时保持 absent；SDK 不执行重试、sleep、调度或 business completeness 判断。",
+  "既有 Binance Value 入口、OKX K 线 capability 和其他 provider module 保持可编译，不因 I1 被删除、禁用或宣称迁移。",
+]
+current_entrypoints = [
+  "BinanceMarket::new_public -> get_exchange_info -> serde_json::Value",
+  "OkxPublicData::get_instruments -> correct public path through signed transport",
+  "OkxMarket::get_instruments -> anonymous transport through incorrect /api/v5/market/instruments path",
+  "legacy rust_quant ExchangeSymbolSyncService -> Binance raw SDK plus OKX direct reqwest",
+]
+target_entrypoints = [
+  "BinanceUsdmPublicInstrumentClient::exchange_info",
+  "OkxSwapPublicInstrumentClient::instruments",
+]
+allowed_differences = [
+  "新增 typed response、保留未知字段的 provider DTO、HTTP evidence、provider 实际返回的 quota evidence 和 root 逻辑 public facade。",
+  "新增独立 typed 方法而保留 Binance legacy Value 方法；旧 OKX 错误入口不再被新 facade 使用。",
+  "JSON decimal number 以 arbitrary-precision Number 保留，不再要求调用方先转 f64。",
+]
+forbidden_differences = [
+  "不得在 SDK 选择 perpetual/quote/settle inventory、映射 canonical status/InstrumentRules 或产生 Decimal 领域对象。",
+  "不得新增数据库、表、scheduler、lease、cursor、run ledger、Outbox、Signal、ExecutionRequest 或用户 credential。",
+  "不得在 SDK 内重试、sleep、静默裁剪 provider rows/fields、猜测 unknown enum 或用调用方过滤集冒充完整 response。",
+  "不得触发下单、撤单、平仓、账户读取或任何 exchange mutation。",
+  "不得迁移、禁用或删除 Bitget、Bybit、Gate、Hyperliquid、KuCoin 等延期 provider。",
+]
+characterization_evidence = [
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/callsite-closure.md",
+  "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-MKT-F4B-INSTRUMENT-LIFECYCLE-FACTS-V1/sdk-successor-discovery.md",
+]
+
+[configuration]
+strategy_runtime_snapshot_refs = []
+portfolio_policy_snapshot_refs = []
+risk_policy_snapshot_refs = []
+execution_planning_policy_snapshot_refs = []
+execution_decision_context_refs = []
+research_run_spec_refs = []
+research_execution_artifact_refs = []
+promotion_receipt_refs = []
+dynamic_input_artifacts = [
+  { artifact_ref = "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/migrations/programs/registry.toml", sha256 = "93ec245b7ab2e103602a4c12154dd22d796269447d7b5baf8f343b3018447d39" },
+  { artifact_ref = "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/migration-plan.md", sha256 = "15c6b8d99a000fb33be0aa4edd24d784423af2c7787107b04e032c96547f9a3f" },
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "4512ebac25b8afec6c73a755df4f833c8bc4151b7b7f29533e9c1aabf18699e8" },
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "e951a6e569c56cc4ca961819f0629a929bcae3d65db7fa91289335a7f1699e27" },
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975" },
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-MKT-F4B-INSTRUMENT-LIFECYCLE-FACTS-V1/sdk-successor-discovery.md", sha256 = "a90133527184bfe4ad9372c81a224a3301d0692f32c5e8cbad14f0ce77c780cc" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.toml", sha256 = "3d2e545308a97c645cdeb106d8676a5dfe02a72557b21af76f04e8778a72891c" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:src/lib.rs", sha256 = "bd9158880e1b44b52bee65c191ad5b464267080704dd45107367f99336d893a1" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:src/public_market.rs", sha256 = "5ae5a52429b9b44c565a9ff70d90d63dfaef88f936f19d44d2be168d37c5e7de" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/Cargo.toml", sha256 = "1d61cb3d3322d25ea1075b420e2fa9e465b8a6d4c81bd606895f6b2073b11688" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/client.rs", sha256 = "f77fc27762ce349259f06257d3eba2be37be6c20125a620eef7f830ef193bfb8" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/error.rs", sha256 = "998d30d88a532b03b3d76214b6a5a7b4ebc01bccbef149aa2ad0048dadf5b0d1" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/api/market/market_api.rs", sha256 = "bbf60c761144f1dcb5c1ebf4e0cf577504585e43368936d3bad95bbf3610e44c" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/api/market/mod.rs", sha256 = "7a740521169d632b2250cb4c0ee857e8b3d02aaed46ac1a98f4d5c9d93717a7b" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/dto/market/market_dto.rs", sha256 = "bbee122e900a21c481bfb23f459f00aad20f520ba3f8b242258ef1374eefeaac" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/src/dto/market/mod.rs", sha256 = "a8743a0286b0534ae589f068a5dbb4f5e0b09b2b59ad997ee2d09a878330aa17" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/examples/live_post_only_order.rs", sha256 = "7abcb7abf9fda1397337657bd9e21f3f50399d72083d86a57433054be8b3fd83" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:binance_rs/tests/expanded_api_tests.rs", sha256 = "32f75e1d685cc1d1cf1139b83ba3b8c49ddbde457e183b945a96e722e6fd49d3" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/Cargo.toml", sha256 = "2c53291b9ad67c2a2e69dd3df3c0bf81831b8920ca96c44b032dc67f2536256f" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/lib.rs", sha256 = "8577a5fe6d9d19c1a2648363ca2d4f0889e5df6bbc771323b592fe477e331ef4" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/client.rs", sha256 = "2bef6547e502c9db66c31adb4cb50621e4ccd65966da925fb3e7f5e4ff8dc9b0" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/error.rs", sha256 = "73126a6c2fd7214cb73fb64ad44193a56d08b76cf821a75e998837c400d1928a" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/mod.rs", sha256 = "97111510e7c90b5abd89d45696f69e735e5d60854a93f2a108a77bf4b0693d93" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/market/market_api.rs", sha256 = "4b6408be40cf4134303157f106ae7ff8327aae97b22d327d8b6f4e610b4e297e" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/public_data/public_data_api.rs", sha256 = "68f24f323ccb5ed40f7ffbc7f2da4b0794e1f5f7ffd226f9186b1b8bf4f88f49" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/api/public_data/mod.rs", sha256 = "236f288e6606e9d9d3cd0efb0eadb1c19859e51293e18018a16563d53f1a4224" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/dto/mod.rs", sha256 = "f99595a012a4aaa568ef6db42b96fe4c95dc0eb9c882e12e0245172696159fcd" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/dto/market/market_dto.rs", sha256 = "b9f26b525e665005a180d4c1a3df32368912a605966d15a89f405311f6e4504d" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:okx_rs/src/dto/public_data/mod.rs", sha256 = "879c5fb0bbcb4379c1b6334f8b65cf624c65f25d11dad31af557c3d3b3e04139" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:bybit_rs/src/api/market/market_api.rs", sha256 = "c41f80cfd1b2ea99ac11679e20d78f64f16fad752742a7d6fe3f96f0556fae8e" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/domain/src/entities/exchange_symbol.rs", sha256 = "a48b632eb2cbbf82fa6f9823c87ab65477ac772d525ee1b7f0e87eb257613605" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/domain/src/entities/exchange_symbol_listing_event.rs", sha256 = "49ae7b97e8a14d974a2c915f4a56888a28eda8595e328d68945ef1ce835e3ae7" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/domain/src/traits/exchange_symbol_repository.rs", sha256 = "a38c36bb5af0521ef8fa0290a02432e0ee4744e46b24cddcb38c558bf7c430f2" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/infrastructure/src/repositories/exchange_symbol_repository.rs", sha256 = "3f83f071703d9d800977eb17214a07980b3063b0018037573b587037addfde3d" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/src/market/exchange_symbol_sync_service.rs", sha256 = "37febccd295ac6896418cbeac97393e2442f8511e879a0e5004bfb618cb4de1e" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/bootstrap.rs", sha256 = "2b81599e7f7ed20c51480532ac33bc1c0ee4c925dc7caa4f5d1f0b75140de521" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/exchange_symbol_sync.rs", sha256 = "2ffa1298a2eadc07e58eca906d589c4e44eae675e96990a114c38a7440af2d06" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/internal_server.rs", sha256 = "ced8bef1755617b6c2f789b70b20cadf764de9ad697983a39f4deef0de15f58a" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_worker.rs", sha256 = "5cd58b576784bdaca38f36f5d5345f5d2600a1deba268e02a03ad5881c55655f" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/bin/sync_exchange_symbols.rs", sha256 = "f4c284cae7c18e2a13bc0cac413a2b2a284e7eb895b4ca28de8a748e9a6289f2" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/binance_eth_micro_live_validation.rs", sha256 = "968acabb80182ba85025e9c37ec9d6aeadd2f59687303ec8a99b50ce9a6cde8d" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/binance_eth_micro_live_validation/binance_futures_http.rs", sha256 = "102443832cc498cdb1971250a50895fdc489d99005586a556da82b1348abf5bf" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_funding.rs", sha256 = "42f973872a5515d8cb1bd074f56a359cd438443c9354122b296b38ee29191c5f" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_klines.rs", sha256 = "8df3910631cde2f0cad33b090358995717dd97345f51a39c5ce919bc5a4b0e79" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_positioning.rs", sha256 = "bffe355d38233caa713eab60ec381476ad9443736e503c748ff5e300e64773c5" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_flow_flip_reversal_research/metrics.rs", sha256 = "d9c821e193e4ba74e955626f16caa7df188024c58d1c28a76f758773aedaaf09" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_orderbook_depth_panel/book_depth.rs", sha256 = "104de1a7da1afbfded4a1eb1777062967fc3454f4a9ab125217d3afb95851581" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/tests/binance_live_eth_micro_order_smoke_contract.rs", sha256 = "392e37c76eac5443f3db346a8f5a26a8e4b850af8df53f7e7e33479bc02852f4" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/all_market_candle_volume_monitor/warmup.rs", sha256 = "08f940df79a65b12dbaa2b84c42a91bfbfba8ead2e8ae2bceab4e8009c7fd262" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/okx_historical_15m_backfill.rs", sha256 = "09b37de6ab4f7588d450102968b5fffa6553e7d18f05cada3768b091f3bda3e8" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/okx_historical_universe.rs", sha256 = "79cf63a91428184697d7c69476bb06553cb3f94f3d63064c3290879f2d802daf" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_backfill.rs", sha256 = "bb0591db738c020ff5d18aedd1caf70251448402cd6fe7ba04b9a8329d5c5d32" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_event_backtest/data.rs", sha256 = "f2f6a54e2c3870eb39164ebc481959a458384401ad4397b4f50f9fa75b3e91bc" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_kline_scanner.rs", sha256 = "afe27a74776e1660a0e169fd779ad1d7cb0197d2f46a275af6a5650ddb0d533c" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/app/market_velocity_live_handoff/candidates.rs", sha256 = "f5fe0707baa45bffc2d12216b1c06c8a92a115255a1b4c4272de4cd87edd0ae7" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/bin/vegas_cross_asset_portfolio_replay/live_universe.rs", sha256 = "f1979797e127e0cd4b258e7f0547a9c93d9540f795640d1d08569e3596ede53b" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/rust-quant-cli/src/bin/vegas_cross_asset_portfolio_replay/universe_coverage.rs", sha256 = "13d3c8600a53c6bc0982339c1ef954efa40f7a935fd58f1ab0de578faeeaf0b3" },
+  { artifact_ref = "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/src/rust_quan_web/execution_order_filters.rs", sha256 = "8d83adc97d5f34effa47579125878b9c0488c5e4f22608834fad02496323466f" },
+]
+environment_inputs_to_remove = []
+
+[repository_profile]
+profile_id = "crypto_exc_all"
+profile_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:architecture/repository-profiles/crypto_exc_all.toml"
+profile_sha256 = "bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975"
+bootstrap_output = false
+bootstrap_profile_ids = []
+
+[contracts]
+changed = true
+current_versions = [
+  "Binance USDⓈ-M exchangeInfo untyped Value",
+  "OKX instruments conflicting path/auth wrappers and partial market DTO",
+]
+target_versions = [
+  "Binance USDⓈ-M Public Instrument Protocol V1",
+  "OKX SWAP Public Instrument Protocol V1",
+]
+compatibility_window = "I1 只新增 typed facade；Binance legacy Value、旧 SDK module 与 legacy Core caller 保留，消费者迁移和删除由 Market F4C/独立 cutover 承接。"
+producer_consumers = [
+  "Binance/OKX public REST endpoint -> crypto_exc_all provider DTO",
+  "crypto_exc_all public-instrument facade -> future Market F4C exchange gateway",
+]
+owner_contract_boundaries = [
+  "Exchange SDK 生产 provider-specific typed response、HTTP/provider error 与 quota evidence。",
+  "Market F4C 消费 typed response并拥有 source profile、业务完整性、Decimal/canonical mapping、重试、调度和恢复。",
+]
+message_contracts = []
+
+[persistence]
+changed = false
+owner = "not_applicable"
+local_write_set = []
+local_transaction_boundary = "not_applicable"
+transaction_invariants = []
+idempotency_identities = []
+outbox_requirements = []
+inbox_requirements = []
+cross_owner_transactions_forbidden = true
+index_and_lock_evidence = []
+database_comment_requirements = []
+
+[side_effects]
+read_only = true
+database_writes = false
+external_network_writes = false
+exchange_mutations = false
+production_writes = false
+recovery_owner = "Market"
+fixed_service_api_key_scope = "not_used"
+fixed_service_api_key_access_evidence = []
+
+[build]
+expected_build_impact = [
+  "只修改 crypto_exc_all、bnb_rs 与 okx 三个 library package；不形成 binary、镜像或 Release Unit。",
+  "不新增 package feature；继续使用冻结 profile 中已存在的 binance 与 okx-public-market feature。",
+  "root binance feature 仍包含 legacy full-sdk；I1 的 public 仅指新增两个具体 client 的逻辑方法面，不声称物理 crate 编译闭包隔离。",
+  "bnb_rs 与 okx 子包显式启用既有 serde_json arbitrary_precision capability，仅用于保留 provider JSON number，不新增第三方 crate。",
+]
+required_release_units = []
+forbidden_packages = ["bitget_rs", "bybit_rs", "gate_rs", "hyperliquid_rs"]
+required_binary_allowlists = []
+deployment_eligibility_requested = false
+package_feature_matrix = [
+  { package = "crypto_exc_all", default_features = false, features = ["binance", "okx-public-market"] },
+  { package = "bnb_rs", default_features = true, features = [] },
+  { package = "okx", default_features = false, features = ["public-market"] },
+]
+test_matrix = [
+  { package = "crypto_exc_all", command = "cargo test --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market --test public_instrument_facade" },
+  { package = "bnb_rs", command = "cargo test --locked -p bnb_rs --test instrument_api_tests" },
+  { package = "okx", command = "cargo test --locked -p okx --no-default-features --features public-market --test public_instrument_tests" },
+]
+
+[verification]
+required_suites = [
+  "format",
+  "clippy",
+  "workspace-tests",
+  "binance-public-instrument-contract",
+  "okx-public-instrument-contract",
+  "logical-public-facade-surface",
+  "declared-existing-feature-build",
+  "cross-repository-migration-check-p2",
+  "global-registry-consistency",
+  "code-file-line-limit",
+  "f64-and-auth-header-guard",
+]
+commands = [
+  "cargo fmt --all -- --check",
+  "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+  "cargo test --locked --workspace --all-targets --all-features",
+  "cargo test --locked --workspace --all-targets --all-features -- --skip test_get_balances --skip test_transfer --skip test_get_ticker --skip test_get_candles --skip test_get_economic_calendar --skip test_get_instruments",
+  "cargo test --locked -p bnb_rs --test instrument_api_tests",
+  "cargo test --locked -p okx --no-default-features --features public-market --test public_instrument_tests",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market --test public_instrument_facade",
+  "cargo clippy --locked -p bnb_rs --lib --tests -- -D warnings -A clippy::new_without_default",
+  "cargo clippy --locked -p okx --no-default-features --features public-market --lib --tests -- -D warnings",
+  "cargo clippy --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market --lib --test public_instrument_facade -- -D warnings -A clippy::new_without_default -A unused_imports -A unused_variables -A dead_code",
+  "cargo check --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market",
+  "cargo check --locked -p okx --no-default-features --features public-market",
+  "cargo xtask migration-registry-check --repository-root rust_quant=<registry-root> --registry rust_quant:docs/architecture/migrations/programs/registry.toml",
+  "cargo xtask migration-check --repository-root rust_quant_alpha=<alpha-root> --repository-root rust_quant=<registry-root> --repository-root crypto_exc_all=<sdk-root> --manifest crypto_exc_all:docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml",
+  "../scripts/dev/check_code_file_line_limit.sh crypto_exc_all/src crypto_exc_all/binance_rs/src crypto_exc_all/okx_rs/src",
+  "if rg -n 'parse::<f64>|as_f64|:\\s*f64|->\\s*f64' src/public_instrument binance_rs/src/api/market/instrument_api.rs binance_rs/src/dto/market/instrument_dto.rs okx_rs/src/api/public_data/instrument_api.rs okx_rs/src/dto/public_data/instrument_dto.rs; then exit 1; fi",
+  "if rg -n 'X-MBX-APIKEY|OK-ACCESS-|x-simulated-trading' src/public_instrument binance_rs/src/api/market/instrument_api.rs binance_rs/src/dto/market/instrument_dto.rs okx_rs/src/api/public_data/instrument_api.rs okx_rs/src/dto/public_data/instrument_dto.rs; then exit 1; fi",
+]
+parity_layers = [
+  "HTTP method/path/query/auth header",
+  "provider envelope and required row decode",
+  "provider identity/status/time/assets/rules/unknown field preservation",
+  "decimal wire representation before Market mapping",
+  "HTTP/provider error and conditionally present quota evidence",
+]
+recovery_scenarios = [
+  "HTTP 403/418/429/5xx 返回 typed failure；quota/Retry-After 仅在响应实际携带时保留，SDK 不自动重试。",
+  "HTTP 200 但 provider code 非成功时返回 provider error，不返回空成功。",
+  "成功 body 缺少必需字段或字段类型损坏时整批失败，不跳过坏 row。",
+  "空 symbols/data 作为 typed 空 response 返回；由 Market 判定业务完整性和恢复动作。",
+]
+deploy_contracts = []
+expected_legacy_ratchet_delta = 0
+live_prerequisite_verdicts_required = false
+live_prerequisite_contracts = []
+test_only_evidence_provider = { required = false, contract_id = "", immutable_inputs_required = false, runtime_wiring_forbidden = true }
+
+[shadow]
+required = false
+dual_side_effects_forbidden = true
+comparison_identity = "provider + exact endpoint + frozen response fixture hash"
+acceptance_thresholds = []
+
+[cutover]
+required = false
+fact_source_before = "legacy Binance raw SDK plus OKX/direct HTTP callers"
+fact_source_after = "not_applicable_in_SDK_I1"
+cutover_identity = "not_applicable"
+rollback_entrypoint = "提交前移除 I1 精确补丁；不触碰既有 README.md 或 legacy caller"
+rollback_window = "before future Market F4C consumer wiring"
+authorization_required = false
+
+[legacy]
+allowlist_entries_before = []
+entries_to_remove = []
+callers_to_migrate = []
+configs_to_remove = []
+table_writes_to_stop = []
+monitors_to_remove = []
+deletion_gates = [
+  "I1 不删除 Binance Value 方法、OKX legacy wrapper、其他 provider module 或 rust_quant caller。",
+  "Market F4C 必须先消费 typed facade并证明 source profile、Decimal/canonical mapping、完整性、quota/retry/lease/cursor/run-ledger parity。",
+  "Research、Execution smoke 与数据库消费者必须分别通过 Owner successor 迁移，不能由 SDK I1 顺便改写。",
+  "Bitget、Bybit、Gate、KuCoin 与 Hyperliquid 只有各自独立 Manifest、consumer parity 和 cutover 后才有删除资格。",
+]
+
+[evidence]
+evidence_file = "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/evidence.md"
+verdict_file = "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/verdict.json"
+verdict_schema_version = 1
+required_artifacts = [
+  "src/lib.rs",
+  "src/public_instrument/mod.rs",
+  "src/public_instrument/binance.rs",
+  "src/public_instrument/okx.rs",
+  "tests/public_instrument_facade.rs",
+  "binance_rs/Cargo.toml",
+  "binance_rs/src/client.rs",
+  "binance_rs/src/error.rs",
+  "binance_rs/src/api/market/market_api.rs",
+  "binance_rs/src/api/market/mod.rs",
+  "binance_rs/src/api/market/instrument_api.rs",
+  "binance_rs/src/dto/market/mod.rs",
+  "binance_rs/src/dto/market/instrument_dto.rs",
+  "binance_rs/tests/instrument_api_tests.rs",
+  "okx_rs/Cargo.toml",
+  "okx_rs/src/lib.rs",
+  "okx_rs/src/client.rs",
+  "okx_rs/src/error.rs",
+  "okx_rs/src/api/mod.rs",
+  "okx_rs/src/api/public_data/mod.rs",
+  "okx_rs/src/api/public_data/instrument_api.rs",
+  "okx_rs/src/dto/mod.rs",
+  "okx_rs/src/dto/public_data/mod.rs",
+  "okx_rs/src/dto/public_data/instrument_dto.rs",
+  "okx_rs/tests/public_instrument_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/evidence.md",
+  "task_plan.md",
+]
+contains_sensitive_data = false
+tested_revision = "c17ba15185a337e03df5dfe4ecf08e7fd3e8a380"
+# 仅覆盖 source/test patch，排除自引用的 Manifest/Evidence 文档。
+tested_patch_sha256 = "04d3d727591f36e45990eb59be68e0cbbdd09f85b48e0711cee4dfdbf8f1c505"
+input_artifact_hashes = [
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "4512ebac25b8afec6c73a755df4f833c8bc4151b7b7f29533e9c1aabf18699e8" },
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "e951a6e569c56cc4ca961819f0629a929bcae3d65db7fa91289335a7f1699e27" },
+  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975" },
+  { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
+]
+output_artifact_hashes = [
+  { artifact_ref = "src/lib.rs", sha256 = "d8c2068f6a55d0283c7d1bb28aa0bca0dc6c443e26fab60712941a02c0c66dcc" },
+  { artifact_ref = "src/public_instrument/mod.rs", sha256 = "58a877c127d75f7de49d2a11e8eae961d648470c5cd46d8daa841c2a72f2dd8c" },
+  { artifact_ref = "src/public_instrument/binance.rs", sha256 = "7f969990c4efbd42e026626159dce24eb6a1b6305b46653759f990d3136af256" },
+  { artifact_ref = "src/public_instrument/okx.rs", sha256 = "3c13117b5b4ebdb50a761d9dd8c9c7ab705ff7d473014ea39afc8a0a2a81e09d" },
+  { artifact_ref = "tests/public_instrument_facade.rs", sha256 = "ec77b118b42672ea94d0e4d2330440d7828981ce77a707bd6f735af8d29278c7" },
+  { artifact_ref = "binance_rs/Cargo.toml", sha256 = "56c63cf2626c3b8f99dfda0e147f6e519b46e5b2b9815c18a2efb8b9f3e3b4d1" },
+  { artifact_ref = "binance_rs/src/client.rs", sha256 = "9866cae9b861a4894240ace8a10fadc98e4847cebab0655976644dd93db1669c" },
+  { artifact_ref = "binance_rs/src/error.rs", sha256 = "f9fcc310dbda32a88a238ad35303c8409b4ca64ba15ddddd452de90d14826bef" },
+  { artifact_ref = "binance_rs/src/api/market/market_api.rs", sha256 = "4f1ec9fb72ec02861ec404f143c8a1cad3f4310961ac37f0557f3a3b2cd253cc" },
+  { artifact_ref = "binance_rs/src/api/market/mod.rs", sha256 = "c8dd97afab87e44c9c0ba5bf6db746a71d842e169bc6f1526a8506cdb1e903ac" },
+  { artifact_ref = "binance_rs/src/api/market/instrument_api.rs", sha256 = "0b5223668a946b13edffe5c81019bbd771aed36e7abbb81dac759adf7e3d1416" },
+  { artifact_ref = "binance_rs/src/dto/market/mod.rs", sha256 = "4f12cfd00979fc0ab31453ad96aa1499e33b4a80c9f7d7eea594362b3bde9aed" },
+  { artifact_ref = "binance_rs/src/dto/market/instrument_dto.rs", sha256 = "651281b44fde3760760a66a84dc8adced5b16e4ed6872408de8685ebc0c26c04" },
+  { artifact_ref = "binance_rs/tests/instrument_api_tests.rs", sha256 = "d6e8e1d7a863d2b954fb59c1252da8009e1aab92dd233fd344bc9c3674f72ed1" },
+  { artifact_ref = "okx_rs/Cargo.toml", sha256 = "8e82b6243f312952fed788f72f32b014733e38a735b66068bb1da27749f1516f" },
+  { artifact_ref = "okx_rs/src/lib.rs", sha256 = "a0d269ffd9a74ff58ac57fd920bede1802e40cb67fec78eb7027a625b7f87bdd" },
+  { artifact_ref = "okx_rs/src/client.rs", sha256 = "56b68b0c64bfb0445f193324d2ab5aa9579b05a15b605e3014ae0587305d5d97" },
+  { artifact_ref = "okx_rs/src/error.rs", sha256 = "87601b8c1a96ea9713e29116e8b8b226229db12f3150cd447700a904c040a247" },
+  { artifact_ref = "okx_rs/src/api/mod.rs", sha256 = "ebc2bc8760239562eadbc5b406140ed11b13a6cac19d44e8ac2c65af0a0914dd" },
+  { artifact_ref = "okx_rs/src/api/public_data/mod.rs", sha256 = "d9d30a0d88d3de2a8a475708ce912918a17beb9ff7a34635ed3bbcdf41e7122e" },
+  { artifact_ref = "okx_rs/src/api/public_data/instrument_api.rs", sha256 = "0a6427189a97bce9b6f6e6e8204a782903c008d3bc03bf7838845b08ecc55772" },
+  { artifact_ref = "okx_rs/src/dto/mod.rs", sha256 = "f9ab5b5931779e86285e571e4998d2dbb09c9ac0959ab7e8823fc58000a4069e" },
+  { artifact_ref = "okx_rs/src/dto/public_data/mod.rs", sha256 = "7e72f733db3993dd958a5eea07f880ef248aff85331a00cd114e3f2d5b0926a0" },
+  { artifact_ref = "okx_rs/src/dto/public_data/instrument_dto.rs", sha256 = "0f7587a446f4df4db6dcc0cc110ef360133691a65e085e4654afe86a7da1162a" },
+  { artifact_ref = "okx_rs/tests/public_instrument_tests.rs", sha256 = "a66b1b1d4418fd3082ddbfafb2b37c0646f8fb77b4ba40f0049cff577c170311" },
+]
+
+[approval]
+required = false
+reason = ""
+approved_by = ""
+approved_at = ""
+reference = ""
+
+[blocking]
+reasons = []
+required_decisions = []

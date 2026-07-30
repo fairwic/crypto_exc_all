@@ -72,6 +72,11 @@ pub enum Error {
     #[error("限流错误: {0}")]
     RateLimitError(String),
 
+    /// 公共只读 API 已返回 HTTP 响应，但状态、envelope 或 typed data 不满足协议。
+    #[cfg(feature = "public-market")]
+    #[error("OKX 公共 API 错误: {0}")]
+    PublicApiError(Box<crate::client::OkxPublicFailureEvidence>),
+
     /// 未知错误
     #[error("未知错误: {0}")]
     Unknown(String),

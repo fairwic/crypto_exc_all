@@ -1,5 +1,19 @@
 # Task Plan: Exchange SDK Aggregation
 
+## Current Turn Update - 2026-07-30
+
+- 完成 `MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1`：新增 Binance USDⓈ-M
+  `exchangeInfo` 与 OKX `SWAP instruments` typed、无凭证、只读协议能力，以及根层两个
+  具体 public instrument client。
+- 新 DTO 保留 provider 原始状态、规则、未知字段和任意精度 JSON number；SDK 不负责
+  Market 的币种筛选、Decimal/canonical 映射、完整性、重试、调度或恢复。
+- focused contract tests 共 13 项通过；排除 6 个既有 OKX live-credential tests 后的
+  workspace/all-targets/all-features 回归通过。严格 workspace Clippy 仍被历史 lint 阻塞，
+  本轮相关代码的 focused Clippy 已通过。
+- 精确 I1 patch 的跨仓库 P2 checker 为 `errors=0 warnings=0`；主工作树仅因本轮开始前
+  已存在的 `README.md` 修改命中 forbidden path。P2 predecessor 尚无 current Verdict，
+  因此迁移状态保持 `implementing`，不执行 cutover 或 legacy 删除。
+
 ## Current Turn Update - 2026-06-19
 
 - 按当前维护策略，本地删除 `.github/workflows/cicd.yml`；SDK 不再保留 GitHub Actions CI/CD 构建入口。

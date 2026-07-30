@@ -7,7 +7,7 @@ pub mod big_data;
 #[cfg(feature = "full")]
 pub mod common;
 pub mod market;
-#[cfg(feature = "full")]
+#[cfg(feature = "public-market")]
 pub mod public_data;
 #[cfg(feature = "full")]
 pub mod trade;
@@ -23,7 +23,7 @@ pub use big_data::*;
 #[cfg(feature = "full")]
 pub use common::*;
 pub use market::*;
-#[cfg(feature = "full")]
+#[cfg(feature = "public-market")]
 pub use public_data::*;
 #[cfg(feature = "full")]
 pub use trade::*;

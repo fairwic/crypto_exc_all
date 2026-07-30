@@ -19,6 +19,8 @@ pub mod order;
 pub mod platform;
 #[cfg(feature = "full-sdk")]
 pub mod position;
+#[cfg(any(feature = "binance", feature = "okx-public-market"))]
+pub mod public_instrument;
 #[cfg(feature = "okx-public-market")]
 pub mod public_market;
 #[cfg(feature = "full-sdk")]
@@ -79,6 +81,8 @@ pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
 pub use platform::{PlatformEvent, PlatformEventQuery, PlatformFacade};
 #[cfg(feature = "full-sdk")]
 pub use position::{Position, PositionFacade, PositionHistory, PositionHistoryQuery};
+#[cfg(any(feature = "binance", feature = "okx-public-market"))]
+pub use public_instrument::*;
 #[cfg(feature = "okx-public-market")]
 pub use public_market::{
     OKX_MAX_CANDLE_PAGE_SIZE, OkxCandleDataset, OkxPublicCandle, OkxPublicCandleQuery,

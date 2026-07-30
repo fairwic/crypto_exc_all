@@ -8,7 +8,7 @@ pub mod asset;
 #[cfg(feature = "full")]
 pub mod big_data;
 pub mod market;
-#[cfg(feature = "full")]
+#[cfg(feature = "public-market")]
 pub mod public_data;
 #[cfg(feature = "full")]
 pub mod trade;
@@ -24,7 +24,7 @@ pub const API_ACCOUNT_PATH: &str = "/api/v5/account";
 #[cfg(feature = "full")]
 pub const API_TRADE_PATH: &str = "/api/v5/trade";
 pub const API_MARKET_PATH: &str = "/api/v5/market";
-#[cfg(feature = "full")]
+#[cfg(feature = "public-market")]
 pub const API_PUBLIC_PATH: &str = "/api/v5/public";
 #[cfg(feature = "full")]
 pub const API_ASSET_PATH: &str = "/api/v5/asset";
