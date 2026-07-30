@@ -6,7 +6,11 @@
   `exchangeInfo` 与 OKX `SWAP instruments` typed、无凭证、只读协议能力，以及根层两个
   具体 public instrument client。
 - 新 DTO 保留 provider 原始状态、规则、未知字段和任意精度 JSON number；SDK 不负责
-  Market 的币种筛选、Decimal/canonical 映射、完整性、重试、调度或恢复。
+  Market 的币种筛选、canonical lifecycle、InstrumentRules Decimal 映射、完整性、重试、
+  调度或恢复。
+- 新增 `binance-public-instrument` 最小根 feature；旧 `binance` 继续包含 `full-sdk`。
+  Market 公共网关因此只获得 typed 公共产品门面，不获得 root `CryptoSdk`、raw、账户或
+  交易入口。
 - focused contract tests 共 13 项通过；排除 6 个既有 OKX live-credential tests 后的
   workspace/all-targets/all-features 回归通过。严格 workspace Clippy 仍被历史 lint 阻塞，
   本轮相关代码的 focused Clippy 已通过。

@@ -22,7 +22,9 @@
 - legacy Core committed baseline：
   `rust_quant@30789257dfea817cbde91d38fe91fd60f638c478`；
 - Architecture Governance/profile：
-  `rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3`。
+  `rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e`；
+- F4B SDK successor 责任校正：
+  `rust_quant_alpha@b36731bed29213739d3c08541c9e0cca6b876d35`。
 
 ## 2. SDK 语义
 
@@ -34,7 +36,7 @@
 | `EXSDK-LEG-004` | `okx_rs/src/api/market/market_api.rs`：anonymous transport 调用错误 `/api/v5/market/instruments`；冻结代码无生产调用方 | 废弃入口、暂不删除 | I1 facade 永不调用该入口；未来有版本和外部调用证据后再删除 | 全仓新 facade path guard 只允许 `/api/v5/public/instruments` |
 | `EXSDK-LEG-005` | `InstrumentOkxResDto` 只含 instType/instId/uly/base/quote/tick/lot/min/state | 优化 | 新 public-data DTO 保留 family/category/settle/contract value/type/listing/expiry/max-size/rule 以及未知扩展 | 完整 fixture、未知字段/status 与 decimal wire round-trip |
 | `EXSDK-LEG-006` | `okx_rs/src/client.rs`：公共 transport 可用，但 429/5xx 退化为普通 `OkxApiError` 且 headers 丢失；`RateLimitError` 未与 HTTP 建立 | 优化 | new public response/failure 保留 HTTP status、OKX code/msg；安全 quota headers 与 `Retry-After` 仅在响应实际携带时保留；不做 sleep/retry | HTTP 200/code!=0、429、5xx、malformed success 以及 header present/absent contract test |
-| `EXSDK-LEG-007` | root `public_market` 只有 OKX K 线；`CryptoSdk` 需要 credential；`Instrument` 是调用方 canonical symbol，不是 provider metadata | 保留并优化 | 原 K 线能力和 canonical `Instrument` 不变；新增两个具体 public-instrument client，不造 provider trait、不暴露 mutation 方法 | root logical-public-facade test 只通过新 client 获得 typed provider response；不声称 root `binance` feature 已物理隔离 full-sdk |
+| `EXSDK-LEG-007` | root `public_market` 只有 OKX K 线；`CryptoSdk` 需要 credential；`Instrument` 是调用方 canonical symbol，不是 provider metadata | 保留并优化 | 原 K 线能力和 canonical `Instrument` 不变；新增两个具体 public-instrument client 和独立 `binance-public-instrument` feature，不造 provider trait、不暴露 mutation 方法 | root facade test 通过最小 feature 获得 typed provider response；编译 cfg 证明未启用 root `full-sdk`，旧 `binance` feature 继续兼容 |
 | `EXSDK-LEG-008` | `binance_rs/examples/live_post_only_order.rs` 依赖 Value，并用 f64 构造 live post-only plan；现有 test 只验 path/timezone | 保留 example、优化测试、延期 caller | I1 不修改或运行 live example；新增 deterministic mock contract test | 新测试覆盖字段、精度、unknown、auth、error/quota；example 不作完成证据 |
 
 ## 3. legacy Core/App/Research 语义
@@ -42,7 +44,7 @@
 | ID | 冻结位置与当前行为 | 决策 | 后继 Owner 与必须承接语义 | I1 约束 |
 | --- | --- | --- | --- | --- |
 | `RQ-LEG-001` | `ExchangeSymbolSyncService`：Binance 用 raw SDK；OKX 用 20s direct reqwest；source 失败上抛，六家串行 | 延期 | Market F4C 通过 I1 获取两家 typed response，拥有 source profile、失败汇总和持续 ingest | I1 只提供 wire response；Bitget/Bybit/Gate/KuCoin 不删除 |
-| `RQ-LEG-002` | 同 service：Binance 只选 PERPETUAL，形成 canonical `BASE-QUOTE-SWAP`；OKX 只选 SWAP，并提取 precision/rules/status/raw payload | 延期并优化 | Market F4C Adapter 冻结 perpetual/quote/settle 选择、canonical identity、Decimal 与 InstrumentRules | I1 必须无损提供 selection 所需字段，不执行筛选和映射 |
+| `RQ-LEG-002` | 同 service：Binance 只选 PERPETUAL，形成 canonical `BASE-QUOTE-SWAP`；OKX 只选 SWAP，并提取 precision/rules/status/raw payload | 延期并优化 | Market F4C 冻结 perpetual/quote/settle 选择与 canonical lifecycle；独立 InstrumentRules successor 拥有 Decimal rules、有效时间和历史查询 | I1 必须无损提供 selection/rules 所需 wire 字段，不执行筛选和领域映射 |
 | `RQ-LEG-003` | sync 先逐行 first-seen insert 再 current upsert，随后可发 major-listing signal/icon；非单事务 | 保留业务证据、延期/废弃跨层副作用 | Market F4C 承接 lease/cursor/run ledger；Strategy/Web 各自承接信号与图标，metadata ingest 不直接下单 | I1 无 DB、Signal、ExecutionRequest、Outbox |
 | `RQ-LEG-004` | CLI/worker/manual HTTP 共用 sync；run ID 含 wall-clock；source request/env/code 默认互相不同；worker 周期失败后等下一轮 | 延期 | Market F4C 统一 typed source profile、唯一 lease、cursor、bounded retry 和 run ledger | SDK 不读 runtime inventory/env，不拥有 scheduler/retry |
 | `RQ-LEG-005` | all-market monitor 启动时 direct OKX SWAP，和 DB active 集合求交；空集合 fail closed | 延期 | Market readiness/caller migration 保留一次性 warmup、stale audit、empty blocker | I1 空 data 只作为 typed response，不替 Market 判定 outage |
@@ -82,7 +84,8 @@ provider HTTP response
   -> provider envelope/error
   -> provider-specific typed DTO              I1 到此为止
   -> Market source profile/completeness
-  -> Decimal/canonical lifecycle/rules
+  -> canonical lifecycle                      Market F4C
+  -> Decimal InstrumentRules                  独立 Market successor
   -> scheduler/lease/cursor/run ledger
   -> persistence/readiness/consumer
 ```
@@ -92,7 +95,8 @@ provider HTTP response
 - Binance 从 raw `Value` 增加 typed response，同时保留 legacy 方法；
 - OKX 从“正确 path + 错误 signed transport”和“错误 path + anonymous transport”收敛到
   唯一正确的 anonymous public-data capability；
-- 数字在 SDK 保持 wire String/任意精度 Number，第一次 Decimal 解析属于 Market F4C。
+- 数字在 SDK 保持 wire String/任意精度 Number；规则值第一次转为 Decimal 属于独立
+  InstrumentRules successor，不进入 F4C lifecycle Aggregate。
 
 ## 6. 删除门与未完成项
 
@@ -100,10 +104,11 @@ provider HTTP response
 - OKX 错误 path wrapper只有在外部调用/版本兼容证据关闭后才能删除；本轮只保证新 facade
   不使用；
 - Binance legacy Value 方法等 Market F4C 与剩余 caller 完成 parity 后再单独移除；
-- root 现有 `binance` feature 仍包含 legacy full-sdk 编译闭包。P2 profile 冻结了现有 feature
-  集合，本 I1 不跨 Owner 修改 profile或偷偷新增 feature；本轮“public-only”只证明新 client
-  无凭证且方法面无 private/mutation。若后续要求物理依赖闭包隔离，必须先登记
-  Architecture Governance profile successor，再新增独立 public feature；
+- root 现有 `binance` feature 继续包含 legacy `full-sdk`，保持既有调用方语义；
+  Architecture Governance 已在 `rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e`
+  更新 repository profile，I1 新增 `binance-public-instrument` 最小 feature。Market
+  public gateway 只启用该 feature 与 `okx-public-market`，不能获得 root `CryptoSdk`、
+  `raw`、账户或交易门面；
 - `README.md` 是开始 I1 前已经存在的用户改动，不属于矩阵、allowlist 或提交范围。
 
 Market F4C 未引用本矩阵并逐项承接 `RQ-LEG-*` 前，不得宣称 instrument metadata 业务链路

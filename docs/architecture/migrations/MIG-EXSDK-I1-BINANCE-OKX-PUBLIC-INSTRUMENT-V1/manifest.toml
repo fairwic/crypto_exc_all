@@ -109,6 +109,7 @@ source_paths = [
   "rust_quant@30789257dfea817cbde91d38fe91fd60f638c478:crates/services/src/rust_quan_web/execution_order_filters.rs",
 ]
 target_paths = [
+  "Cargo.toml",
   "src/lib.rs",
   "src/public_instrument/mod.rs",
   "src/public_instrument/binance.rs",
@@ -142,6 +143,7 @@ target_paths = [
   "task_plan.md",
 ]
 allowed_change_paths = [
+  "Cargo.toml",
   "src/lib.rs",
   "src/public_instrument/mod.rs",
   "src/public_instrument/binance.rs",
@@ -216,7 +218,7 @@ target_entrypoints = [
   "OkxSwapPublicInstrumentClient::instruments",
 ]
 allowed_differences = [
-  "新增 typed response、保留未知字段的 provider DTO、HTTP evidence、provider 实际返回的 quota evidence 和 root 逻辑 public facade。",
+  "新增 typed response、保留未知字段的 provider DTO、HTTP evidence、provider 实际返回的 quota evidence 和 root 最小 public feature facade。",
   "新增独立 typed 方法而保留 Binance legacy Value 方法；旧 OKX 错误入口不再被新 facade 使用。",
   "JSON decimal number 以 arbitrary-precision Number 保留，不再要求调用方先转 f64。",
 ]
@@ -230,7 +232,7 @@ forbidden_differences = [
 characterization_evidence = [
   "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/business-semantics-matrix.md",
   "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/callsite-closure.md",
-  "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-MKT-F4B-INSTRUMENT-LIFECYCLE-FACTS-V1/sdk-successor-discovery.md",
+  "rust_quant_alpha@b36731bed29213739d3c08541c9e0cca6b876d35:docs/architecture/migrations/MIG-MKT-F4B-INSTRUMENT-LIFECYCLE-FACTS-V1/sdk-successor-discovery.md",
 ]
 
 [configuration]
@@ -245,10 +247,10 @@ promotion_receipt_refs = []
 dynamic_input_artifacts = [
   { artifact_ref = "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/migrations/programs/registry.toml", sha256 = "93ec245b7ab2e103602a4c12154dd22d796269447d7b5baf8f343b3018447d39" },
   { artifact_ref = "rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289:docs/architecture/migration-plan.md", sha256 = "15c6b8d99a000fb33be0aa4edd24d784423af2c7787107b04e032c96547f9a3f" },
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "4512ebac25b8afec6c73a755df4f833c8bc4151b7b7f29533e9c1aabf18699e8" },
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "e951a6e569c56cc4ca961819f0629a929bcae3d65db7fa91289335a7f1699e27" },
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975" },
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-MKT-F4B-INSTRUMENT-LIFECYCLE-FACTS-V1/sdk-successor-discovery.md", sha256 = "a90133527184bfe4ad9372c81a224a3301d0692f32c5e8cbad14f0ce77c780cc" },
+  { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "0306d68d4f5f21f65d00742381e2a1a33e01530d5cad6310e9e954edaf25adab" },
+  { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "b229ef78aa32bcd41da333ec16ba235d1ee18bce02ce6fff786e45ab6d23b887" },
+  { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "6eba3b44802468bdc2c99e3dad76bd62b29ea7ee79afeec6e21d56114b15fcf1" },
+  { artifact_ref = "rust_quant_alpha@b36731bed29213739d3c08541c9e0cca6b876d35:docs/architecture/migrations/MIG-MKT-F4B-INSTRUMENT-LIFECYCLE-FACTS-V1/sdk-successor-discovery.md", sha256 = "474331cf1cc1aff0d07ba85075fc1499152fdb64eb9dd3008cc00ffb55a817ad" },
   { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
   { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.toml", sha256 = "3d2e545308a97c645cdeb106d8676a5dfe02a72557b21af76f04e8778a72891c" },
   { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:src/lib.rs", sha256 = "bd9158880e1b44b52bee65c191ad5b464267080704dd45107367f99336d893a1" },
@@ -307,8 +309,8 @@ environment_inputs_to_remove = []
 
 [repository_profile]
 profile_id = "crypto_exc_all"
-profile_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:architecture/repository-profiles/crypto_exc_all.toml"
-profile_sha256 = "bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975"
+profile_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:architecture/repository-profiles/crypto_exc_all.toml"
+profile_sha256 = "6eba3b44802468bdc2c99e3dad76bd62b29ea7ee79afeec6e21d56114b15fcf1"
 bootstrap_output = false
 bootstrap_profile_ids = []
 
@@ -329,7 +331,8 @@ producer_consumers = [
 ]
 owner_contract_boundaries = [
   "Exchange SDK 生产 provider-specific typed response、HTTP/provider error 与 quota evidence。",
-  "Market F4C 消费 typed response并拥有 source profile、业务完整性、Decimal/canonical mapping、重试、调度和恢复。",
+  "Market F4C 消费 typed response并拥有 source profile、业务完整性、canonical lifecycle、重试、调度和恢复。",
+  "独立 Market InstrumentRules successor 拥有规则 Decimal 映射、有效时间、revision 与 point-in-time query；F4C 不把 filters 塞入 lifecycle Aggregate。",
 ]
 message_contracts = []
 
@@ -359,8 +362,9 @@ fixed_service_api_key_access_evidence = []
 [build]
 expected_build_impact = [
   "只修改 crypto_exc_all、bnb_rs 与 okx 三个 library package；不形成 binary、镜像或 Release Unit。",
-  "不新增 package feature；继续使用冻结 profile 中已存在的 binance 与 okx-public-market feature。",
-  "root binance feature 仍包含 legacy full-sdk；I1 的 public 仅指新增两个具体 client 的逻辑方法面，不声称物理 crate 编译闭包隔离。",
+  "新增 binance-public-instrument 最小 feature，只启用 Binance provider dependency；与 okx-public-market 共同形成公共产品编译面。",
+  "root binance feature 继续包含 legacy full-sdk 并依赖 binance-public-instrument，既有调用方语义不变。",
+  "最小公共 feature 不启用 root full-sdk，因此下游无法导入 CryptoSdk、raw、账户或交易门面。",
   "bnb_rs 与 okx 子包显式启用既有 serde_json arbitrary_precision capability，仅用于保留 provider JSON number，不新增第三方 crate。",
 ]
 required_release_units = []
@@ -368,12 +372,12 @@ forbidden_packages = ["bitget_rs", "bybit_rs", "gate_rs", "hyperliquid_rs"]
 required_binary_allowlists = []
 deployment_eligibility_requested = false
 package_feature_matrix = [
-  { package = "crypto_exc_all", default_features = false, features = ["binance", "okx-public-market"] },
+  { package = "crypto_exc_all", default_features = false, features = ["binance-public-instrument", "okx-public-market"] },
   { package = "bnb_rs", default_features = true, features = [] },
   { package = "okx", default_features = false, features = ["public-market"] },
 ]
 test_matrix = [
-  { package = "crypto_exc_all", command = "cargo test --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market --test public_instrument_facade" },
+  { package = "crypto_exc_all", command = "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,okx-public-market --test public_instrument_facade" },
   { package = "bnb_rs", command = "cargo test --locked -p bnb_rs --test instrument_api_tests" },
   { package = "okx", command = "cargo test --locked -p okx --no-default-features --features public-market --test public_instrument_tests" },
 ]
@@ -385,8 +389,8 @@ required_suites = [
   "workspace-tests",
   "binance-public-instrument-contract",
   "okx-public-instrument-contract",
-  "logical-public-facade-surface",
-  "declared-existing-feature-build",
+  "minimum-public-feature-surface",
+  "legacy-binance-feature-compatibility",
   "cross-repository-migration-check-p2",
   "global-registry-consistency",
   "code-file-line-limit",
@@ -399,11 +403,14 @@ commands = [
   "cargo test --locked --workspace --all-targets --all-features -- --skip test_get_balances --skip test_transfer --skip test_get_ticker --skip test_get_candles --skip test_get_economic_calendar --skip test_get_instruments",
   "cargo test --locked -p bnb_rs --test instrument_api_tests",
   "cargo test --locked -p okx --no-default-features --features public-market --test public_instrument_tests",
-  "cargo test --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market --test public_instrument_facade",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,okx-public-market --test public_instrument_facade",
   "cargo clippy --locked -p bnb_rs --lib --tests -- -D warnings -A clippy::new_without_default",
   "cargo clippy --locked -p okx --no-default-features --features public-market --lib --tests -- -D warnings",
-  "cargo clippy --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market --lib --test public_instrument_facade -- -D warnings -A clippy::new_without_default -A unused_imports -A unused_variables -A dead_code",
-  "cargo check --locked -p crypto_exc_all --no-default-features --features binance,okx-public-market",
+  "cargo clippy --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,okx-public-market --lib --test public_instrument_facade -- -D warnings -A clippy::new_without_default -A unused_imports -A unused_variables -A dead_code",
+  "cargo check --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,okx-public-market",
+  "cargo check --locked -p crypto_exc_all --no-default-features --features binance",
+  "cargo rustc --locked -p crypto_exc_all --no-default-features --features binance-public-instrument --lib -- --print cfg | rg 'feature=\"binance-public-instrument\"'",
+  "if cargo rustc --locked -p crypto_exc_all --no-default-features --features binance-public-instrument --lib -- --print cfg | rg 'feature=\"full-sdk\"'; then exit 1; fi",
   "cargo check --locked -p okx --no-default-features --features public-market",
   "cargo xtask migration-registry-check --repository-root rust_quant=<registry-root> --registry rust_quant:docs/architecture/migrations/programs/registry.toml",
   "cargo xtask migration-check --repository-root rust_quant_alpha=<alpha-root> --repository-root rust_quant=<registry-root> --repository-root crypto_exc_all=<sdk-root> --manifest crypto_exc_all:docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml",
@@ -454,7 +461,8 @@ table_writes_to_stop = []
 monitors_to_remove = []
 deletion_gates = [
   "I1 不删除 Binance Value 方法、OKX legacy wrapper、其他 provider module 或 rust_quant caller。",
-  "Market F4C 必须先消费 typed facade并证明 source profile、Decimal/canonical mapping、完整性、quota/retry/lease/cursor/run-ledger parity。",
+  "Market F4C 必须先消费 typed facade并证明 source profile、canonical lifecycle、完整性、quota/retry/lease/cursor/run-ledger parity。",
+  "InstrumentRules successor 必须独立证明 filters/precision/limits 的 Decimal、有效时间、revision 与 current/point-in-time query；不得经 F4B raw JSON 旁路发布。",
   "Research、Execution smoke 与数据库消费者必须分别通过 Owner successor 迁移，不能由 SDK I1 顺便改写。",
   "Bitget、Bybit、Gate、KuCoin 与 Hyperliquid 只有各自独立 Manifest、consumer parity 和 cutover 后才有删除资格。",
 ]
@@ -464,6 +472,7 @@ evidence_file = "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-IN
 verdict_file = "docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/verdict.json"
 verdict_schema_version = 1
 required_artifacts = [
+  "Cargo.toml",
   "src/lib.rs",
   "src/public_instrument/mod.rs",
   "src/public_instrument/binance.rs",
@@ -498,19 +507,20 @@ required_artifacts = [
 contains_sensitive_data = false
 tested_revision = "c17ba15185a337e03df5dfe4ecf08e7fd3e8a380"
 # 仅覆盖 source/test patch，排除自引用的 Manifest/Evidence 文档。
-tested_patch_sha256 = "04d3d727591f36e45990eb59be68e0cbbdd09f85b48e0711cee4dfdbf8f1c505"
+tested_patch_sha256 = "2beef72f6c2c5d2fb6fe7742cfa0cf854d36d5560ebb09540b313c8d427d79d5"
 input_artifact_hashes = [
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "4512ebac25b8afec6c73a755df4f833c8bc4151b7b7f29533e9c1aabf18699e8" },
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "e951a6e569c56cc4ca961819f0629a929bcae3d65db7fa91289335a7f1699e27" },
-  { artifact_ref = "rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975" },
+  { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/manifest.toml", sha256 = "0306d68d4f5f21f65d00742381e2a1a33e01530d5cad6310e9e954edaf25adab" },
+  { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:docs/architecture/migrations/MIG-20260730-CROSS-REPOSITORY-MIGRATION-CHECK-P2/evidence.md", sha256 = "b229ef78aa32bcd41da333ec16ba235d1ee18bce02ce6fff786e45ab6d23b887" },
+  { artifact_ref = "rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "6eba3b44802468bdc2c99e3dad76bd62b29ea7ee79afeec6e21d56114b15fcf1" },
   { artifact_ref = "crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
 ]
 output_artifact_hashes = [
-  { artifact_ref = "src/lib.rs", sha256 = "d8c2068f6a55d0283c7d1bb28aa0bca0dc6c443e26fab60712941a02c0c66dcc" },
-  { artifact_ref = "src/public_instrument/mod.rs", sha256 = "58a877c127d75f7de49d2a11e8eae961d648470c5cd46d8daa841c2a72f2dd8c" },
+  { artifact_ref = "Cargo.toml", sha256 = "6a99b481ae85a439b5a4d2e62fd827ae20e604bc7475499e48125957e6cdee9b" },
+  { artifact_ref = "src/lib.rs", sha256 = "5928ef0fcab4af2ad55f7e8a4d1a2f9472c3c528ac0e05816441f52156a684a1" },
+  { artifact_ref = "src/public_instrument/mod.rs", sha256 = "98c934007a0d890efc465e9b6da95b19c8e44460fa837062d5c829ab64af680c" },
   { artifact_ref = "src/public_instrument/binance.rs", sha256 = "7f969990c4efbd42e026626159dce24eb6a1b6305b46653759f990d3136af256" },
   { artifact_ref = "src/public_instrument/okx.rs", sha256 = "3c13117b5b4ebdb50a761d9dd8c9c7ab705ff7d473014ea39afc8a0a2a81e09d" },
-  { artifact_ref = "tests/public_instrument_facade.rs", sha256 = "ec77b118b42672ea94d0e4d2330440d7828981ce77a707bd6f735af8d29278c7" },
+  { artifact_ref = "tests/public_instrument_facade.rs", sha256 = "8278eb1c133f980aeac271113186eb59657f485768a1222ceb18efd8602510df" },
   { artifact_ref = "binance_rs/Cargo.toml", sha256 = "56c63cf2626c3b8f99dfda0e147f6e519b46e5b2b9815c18a2efb8b9f3e3b4d1" },
   { artifact_ref = "binance_rs/src/client.rs", sha256 = "9866cae9b861a4894240ace8a10fadc98e4847cebab0655976644dd93db1669c" },
   { artifact_ref = "binance_rs/src/error.rs", sha256 = "f9fcc310dbda32a88a238ad35303c8409b4ca64ba15ddddd452de90d14826bef" },

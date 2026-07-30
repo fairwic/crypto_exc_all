@@ -1,4 +1,4 @@
-#![cfg(all(feature = "binance", feature = "okx-public-market"))]
+#![cfg(all(feature = "binance-public-instrument", feature = "okx-public-market"))]
 
 use crypto_exc_all::{
     BinanceUsdmPublicInstrumentClient, BinanceUsdmPublicInstrumentConfig,

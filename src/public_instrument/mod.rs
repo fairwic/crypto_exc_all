@@ -3,12 +3,12 @@
 //! 本模块只组合 provider SDK 已经解码的 wire DTO 和响应证据。币种池选择、
 //! canonical identity、Decimal 量化、完整性判断、重试与恢复仍由 Market owner 负责。
 
-#[cfg(feature = "binance")]
+#[cfg(feature = "binance-public-instrument")]
 mod binance;
 #[cfg(feature = "okx-public-market")]
 mod okx;
 
-#[cfg(feature = "binance")]
+#[cfg(feature = "binance-public-instrument")]
 pub use binance::{
     BINANCE_USDM_EXCHANGE_INFO_IP_WEIGHT, BinanceUsdmPublicInstrumentClient,
     BinanceUsdmPublicInstrumentConfig,
@@ -19,12 +19,12 @@ pub use okx::{
     OkxSwapPublicInstrumentClient, OkxSwapPublicInstrumentConfig,
 };
 
-#[cfg(feature = "binance")]
+#[cfg(feature = "binance-public-instrument")]
 pub use binance_rs::client::{
     BinanceHttpEvidence, BinancePublicFailureKind, BinancePublicRequestFailure,
     BinancePublicResponse,
 };
-#[cfg(feature = "binance")]
+#[cfg(feature = "binance-public-instrument")]
 pub use binance_rs::dto::market::{
     BinanceExchangeAsset, BinanceExchangeFilter, BinanceExchangeInfo, BinanceExchangeSymbol,
     BinanceRateLimit, BinanceSymbolFilter, BinanceWireDecimal,
@@ -42,7 +42,7 @@ pub use okx_rs::{
 #[derive(Debug, thiserror::Error)]
 pub enum PublicInstrumentError {
     /// Binance USDⓈ-M 公共 instrument 请求失败。
-    #[cfg(feature = "binance")]
+    #[cfg(feature = "binance-public-instrument")]
     #[error(transparent)]
     Binance(#[from] binance_rs::Error),
     /// OKX SWAP 公共 instrument 请求失败。

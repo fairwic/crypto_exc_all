@@ -108,8 +108,9 @@ git grep -n -E '^full-sdk|^okx-public-market|^okx =|^binance =' c17ba15185a337e0
 ```
 
 结果为 `Cargo.toml:21,22,23,24` 共 4 行，全部绑定
-`EXSDK-LEG-007`。它证明 root `binance` 仍含 `full-sdk`，因此 I1 只能声明新增
-facade 的逻辑 public 方法面，不能声明物理依赖闭包隔离。
+`EXSDK-LEG-007`。它证明 legacy root `binance` 含 `full-sdk`。I1 保留该 feature
+语义，并新增只启用 `dep:binance_rs` 的 `binance-public-instrument`；后续 cfg 验证必须
+证明最小 feature 未同时启用 root `full-sdk`。
 
 ### 4.2 认证/公共 transport
 

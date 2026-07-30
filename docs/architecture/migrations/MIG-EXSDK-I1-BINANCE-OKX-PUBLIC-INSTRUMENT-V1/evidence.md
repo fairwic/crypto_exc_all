@@ -8,7 +8,8 @@
 | Owner repository | `crypto_exc_all` |
 | Registration revision | `rust_quant@8acc7a42157fd7457ae72ddb2848240d9bbd5289` |
 | SDK base revision | `crypto_exc_all@c17ba15185a337e03df5dfe4ecf08e7fd3e8a380` |
-| P2/profile revision | `rust_quant_alpha@fe5e8e9d9c6b4462efda9ef00fd6bba64a9e73c3` |
+| P2/profile revision | `rust_quant_alpha@9b755b9fa2e24bc5c0a103a836978df1504c070e` |
+| F4B successor boundary revision | `rust_quant_alpha@b36731bed29213739d3c08541c9e0cca6b876d35` |
 | 技术状态 | `implementing` |
 | 模式 | `behavior_change` |
 | Cutover | `not_required` |
@@ -16,10 +17,10 @@
 | Machine Verdict | 不创建；P2 predecessor 没有 current-revision Verdict |
 
 P2 Manifest/Evidence 内容 hash 分别为
-`4512ebac25b8afec6c73a755df4f833c8bc4151b7b7f29533e9c1aabf18699e8` /
-`e951a6e569c56cc4ca961819f0629a929bcae3d65db7fa91289335a7f1699e27`；
+`0306d68d4f5f21f65d00742381e2a1a33e01530d5cad6310e9e954edaf25adab` /
+`b229ef78aa32bcd41da333ec16ba235d1ee18bce02ce6fff786e45ab6d23b887`；
 SDK repository profile hash 为
-`bffb9fcd50781ca91c16796d27fe6ec069d2eb9ea142cce08999c7edf945e975`。
+`6eba3b44802468bdc2c99e3dad76bd62b29ea7ee79afeec6e21d56114b15fcf1`。
 P2 已形成 `crypto_exc_all` 实施输入，但其 `verdict.json` 不存在，因此 I1 不能进入
 `verified/completed`。
 
@@ -37,7 +38,8 @@ P2 已形成 `crypto_exc_all` 实施输入，但其 `verdict.json` 不存在，�
 
 - provider 会继续增加未知字段/enum/filter，typed DTO 必须前向保留；
 - 真实 quota header 受出口 IP、地区和 provider 策略影响，SDK只能回传观测证据；
-- root `binance` feature 当前仍编译 full-sdk，物理依赖闭包隔离需要独立治理后继。
+- legacy `binance` feature 继续编译 full-sdk；公共 Market 调用方必须改用
+  `binance-public-instrument`，不能把兼容 feature 当作公共能力入口。
 
 ### 未知的已知
 
@@ -121,16 +123,16 @@ linked worktree，只能用于证明 I1 patch 自身，不能隐藏主工作树 
 | Global Registry | PASS | 2026-07-30 `migration-registry-check`：`errors=0 warnings=0` |
 | Binance contract | PASS | `instrument_api_tests` 4/4：exact path/no query/no auth、DTO/unknown/decimal、provider error 与条件限频证据 |
 | OKX contract | PASS | `public_instrument_tests` 7/7：固定 SWAP query/no auth、envelope/坏行/空集、429/5xx 与安全 header |
-| Logical public facade | PASS | `public_instrument_facade` 2/2；只证明两个具体 client 的逻辑方法面，不声称物理 crate 隔离 |
+| Minimum public feature surface | PASS | `public_instrument_facade` 2/2；`cargo rustc --print cfg` 只出现 `binance-public-instrument`，未启用 root `full-sdk` |
 | Decimal wire / auth source guard | PASS | 新 facade/API/DTO 中业务 `f64` 类型或转换 0 命中，认证与模拟交易 header 0 命中 |
-| Existing-feature build | PASS | root `binance`、`okx-public-market`、两者组合及 OKX `public-market` 定向 `cargo check` 均成功 |
+| Feature compatibility build | PASS | 最小 `binance-public-instrument + okx-public-market`、legacy root `binance` 与 OKX `public-market` 定向编译成功 |
 | Focused Clippy | PASS | OKX public 子集严格 `-D warnings`；Binance/root 对已定位的 legacy lint 使用显式 `-A` 后，本轮代码无新增 lint |
 | Strict workspace test | BLOCKED（legacy） | 原命令仅 6 个既有 OKX live test 因缺 `OKX_API_KEY` 失败；明确 skip 这 6 项后，全 workspace/all-targets/all-features PASS |
 | Strict workspace Clippy | BLOCKED（legacy） | 原命令在既有 OKX/Bybit/Binance 文件失败；OKX full 当前报告 143 个 legacy lint，本轮未扩大范围清理 |
 | Format / diff check | PASS | `cargo fmt --all -- --check` 与 I1 范围 `git diff --check` 通过 |
 | File budget | PASS（有 baseline warning） | 新生产文件最大 176 行，修改后的 provider client 为 362/595 行；脚本只报告 4 个既有 1000 行目标 warning，均低于 2000 硬上限 |
 | Required-artifact / target closure | PASS | 实际测试文件名已精确登记；当前 checker 未报告缺失工件或 target closure 错误 |
-| Clean I1 patch P2 migration-check | PASS | 从 `c17ba151...` 建立临时干净 clone，仅应用 30 个 I1 path（含迭代记录）；所有阶段 `errors=0 warnings=0` |
+| Clean I1 follow-up P2 migration-check | PASS | 从 `3de3d77...` 建立临时干净 clone，仅应用 9 个 feature/文档 path；所有阶段 `errors=0 warnings=0` |
 | 主工作树完整 P2 migration-check | FAIL（预期） | 唯一错误为既有 `README.md` 命中 forbidden path；`errors=1 warnings=0` |
 
 初始文档预检时，源码工件尚未全部落入工作树，因此“required artifacts + README”
@@ -142,9 +144,9 @@ linked worktree，只能用于证明 I1 patch 自身，不能隐藏主工作树 
 
 - base revision：`c17ba15185a337e03df5dfe4ecf08e7fd3e8a380`；
 - source/test patch SHA-256：
-  `04d3d727591f36e45990eb59be68e0cbbdd09f85b48e0711cee4dfdbf8f1c505`；
+  `2beef72f6c2c5d2fb6fe7742cfa0cf854d36d5560ebb09540b313c8d427d79d5`；
 - patch hash 明确排除会自引用的 Manifest/Evidence 文档；
-- 25 个 source/test output artifact 的逐文件 SHA-256 已写入 Manifest。
+- 26 个 source/test output artifact 的逐文件 SHA-256 已写入 Manifest。
 
 严格 workspace test 中被排除后复跑的 6 个 legacy 名称为
 `test_get_balances`、`test_transfer`、`test_get_ticker`、`test_get_candles`、
