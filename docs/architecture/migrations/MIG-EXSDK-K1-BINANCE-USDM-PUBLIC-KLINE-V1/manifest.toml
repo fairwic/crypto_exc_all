@@ -1,0 +1,407 @@
+# Binance USD-M 公共 K 线协议能力的单一 Exchange SDK Owner Manifest。
+# 前置 I1 尚无 current-revision Verdict，因此本切片最高保持 implementing。
+
+schema_version = 2
+manifest_kind = "owner_child"
+migration_id = "MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1"
+title = "建立 Binance USD-M typed 公共 K 线 SDK 能力"
+state = "implementing"
+promotion_status = "not_applicable"
+cutover_status = "not_required"
+mode = "behavior_change"
+behavior_change = true
+verification_mode = "machine"
+production_mutation_allowed = false
+evidence_scope = "current_migration"
+
+[program]
+migration_program_id = "MP-market-data-foundation-v1"
+registry_ref = "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/migrations/programs/registry.toml"
+parent_plan = "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/migration-plan.md"
+depends_on = ["MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1"]
+predecessor_verdicts = []
+historical_dependency_eligible = false
+
+[authority]
+architecture_baseline_git_sha = "f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82"
+adrs = [
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/adr/0013-user-execution-request-and-public-market-data-credentials.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/adr/0014-greenfield-target-repository-migration.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/adr/0015-capability-first-modules-and-api-spi-boundaries.md",
+]
+normative_documents = [
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/target-architecture.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/dependency-rules.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/ai-coding-guardrails.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/ai-migration-execution-protocol.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/adr/0013-user-execution-request-and-public-market-data-credentials.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/adr/0014-greenfield-target-repository-migration.md",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/adr/0015-capability-first-modules-and-api-spi-boundaries.md",
+]
+normative_document_hashes = [
+  "41c516e61ea58ec161829dee64327d19b0bdbb54921a0bfbb8b3c491fa84d16f",
+  "e48192f30a88862171be3e9299f6a4791e28be6d870ba11d97b52cf98fc0b8ae",
+  "62b2c5fd5a9001c2ba57554b7c6189b1bc428126ab3fd72c8a4400f8dda38efe",
+  "998670bc7af69653f5c0e3cde719e7295b684fa1bdc83b1c176fa3dab5931260",
+  "1d51685b2e4c11c0595358ce54a5c4e90745333e4a84238dde6cb1e14592462c",
+  "84c198cec06fe6171a4a5656ea516f128a20f7025bc04047e0e4dd76466e1937",
+  "a2582fdfa98a810834bcbed93c37a34d0b4fac455258cdb9a8666858f7b7af9a",
+]
+release_unit_manifest_hashes = []
+contract_snapshots = []
+schema_snapshots = []
+
+[scope]
+owner = "Exchange SDK"
+owner_repository = "crypto_exc_all"
+source_paths = [
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:Cargo.toml",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:src/lib.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:src/market.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:src/public_market.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:src/adapters/binance.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:tests/external_consumer_tests.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/Cargo.toml",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/client.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/error.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/api/market/market_api.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/api/market/mod.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/dto/market/instrument_dto.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/dto/market/mod.rs",
+  "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/tests/expanded_api_tests.rs",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:crates/services/src/market/mod.rs",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:crates/services/src/market/data_sync_service.rs",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:crates/services/src/market/binance_websocket.rs",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:crates/rust-quant-cli/src/app/internal_server/kline_sync_section.rs",
+  "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:crates/rust-quant-cli/src/app/market_cross_exchange_basis_panel/binance_klines.rs",
+]
+target_paths = [
+  "Cargo.toml",
+  "src/lib.rs",
+  "src/public_market.rs",
+  "src/public_market/binance.rs",
+  "tests/binance_public_market_tests.rs",
+  "binance_rs/src/error.rs",
+  "binance_rs/src/api/market/market_api.rs",
+  "binance_rs/src/api/market/mod.rs",
+  "binance_rs/src/api/market/kline_api.rs",
+  "binance_rs/src/dto/market/mod.rs",
+  "binance_rs/src/dto/market/kline_dto.rs",
+  "binance_rs/tests/kline_api_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/evidence.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/verdict.json",
+  "task_plan.md",
+]
+allowed_change_paths = [
+  "Cargo.toml",
+  "src/lib.rs",
+  "src/public_market.rs",
+  "src/public_market/binance.rs",
+  "tests/binance_public_market_tests.rs",
+  "binance_rs/src/error.rs",
+  "binance_rs/src/api/market/market_api.rs",
+  "binance_rs/src/api/market/mod.rs",
+  "binance_rs/src/api/market/kline_api.rs",
+  "binance_rs/src/dto/market/mod.rs",
+  "binance_rs/src/dto/market/kline_dto.rs",
+  "binance_rs/tests/kline_api_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/evidence.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/verdict.json",
+  "task_plan.md",
+]
+forbidden_change_paths = [
+  ".github/",
+  "README.md",
+  "src/account.rs",
+  "src/adapters/",
+  "src/order.rs",
+  "src/trade.rs",
+  "binance_rs/src/api/account/",
+  "binance_rs/src/api/trade/",
+  "bitget_rs/",
+  "bybit_rs/",
+  "gate_rs/",
+  "hyperliquid_rs/",
+  "okx_rs/",
+]
+affected_cargo_packages = ["crypto_exc_all", "bnb_rs"]
+affected_release_units = []
+owned_tables = []
+external_owner_apis = ["Binance USD-M GET /fapi/v1/klines"]
+
+[behavior]
+business_goal = "为 Market 后继提供 Binance USD-M typed、无凭证、只读 K 线协议能力，完整保留 12 个标准 wire 字段、后续扩展字段以及同次 HTTP/provider 失败证据。"
+invariants = [
+  "请求固定为匿名 GET /fapi/v1/klines，只忠实传递 symbol、interval、startTime、endTime、limit，不发送 API Key、Secret、签名或账户 header。",
+  "symbol 与 interval 必须是非空、无空白的可打印 ASCII；limit 若存在必须大于零。当前官方 request schema 未给稳定最大值，SDK 不硬编码、裁剪或改写调用方 limit。",
+  "标准 12 个数组位置全部必需；任一位置缺失或类型损坏时整批 response fail-closed，不再使用空字符串或 None 掩盖坏行。",
+  "OHLC、base/quote volume 与 taker-buy volume 使用 wire string 或 arbitrary-precision JSON number，SDK 不转 f64、不量化为领域 Decimal。",
+  "open_time 与 close_time 保留 Unix 毫秒；SDK 不依据本机时钟推断 final/confirmed，也不把 REST row 与 WebSocket x 字段混为同一协议。",
+  "trade_count 保留整数；ignore 字段及第 12 位之后的新增字段原样保留，不赋予业务含义。",
+  "HTTP status、provider code/message、Retry-After 与 provider quota header 继续通过 I1 建立的 typed evidence 暴露；SDK 不执行 retry、sleep、pagination、quota accounting 或 completeness 判断。",
+  "legacy get_klines -> serde_json::Value、root full-sdk Candle facade、研究月包和 WebSocket K 线链路保持可编译且不宣称已迁移。",
+]
+current_entrypoints = [
+  "BinanceMarket::get_klines(KlineRequest) -> serde_json::Value",
+  "root MarketFacade::candles -> binance_candles_from_value -> Candle(closed=None)",
+  "legacy Core CandleService::fetch_candles_from_crypto_exc_all -> root full-sdk facade",
+]
+target_entrypoints = [
+  "BinanceMarket::get_klines_typed",
+  "BinanceUsdmPublicKlineClient::klines",
+  "BinanceUsdmKline",
+  "BinancePublicMarketSdkError",
+]
+allowed_differences = [
+  "新增 typed response 和最小 binance-public-kline feature；legacy raw Value 方法保留。",
+  "新入口对非法 symbol/interval/limit fail-fast，并对损坏 row fail-closed。",
+  "第 12 位之后的 provider 字段作为 extra 保留，而不是静默丢弃。",
+]
+forbidden_differences = [
+  "不得在 SDK 内生成 ConfirmedCandle、判定 finality、按时钟丢弃当前棒或映射领域 Decimal。",
+  "不得在 SDK 内实现分页循环、增量 cursor、重试、sleep、quota bucket、scheduler、lease、run ledger 或恢复。",
+  "不得新增或改写 K 线分表、market_candles、repository、数据库角色或 schema tool。",
+  "不得读取用户 credential、固定 service API key，或触发账户读取、下单、撤单、平仓与任何 exchange mutation。",
+  "不得迁移或删除 research Binance Vision、Binance WebSocket、OKX 或其他 provider 路径。",
+]
+characterization_evidence = [
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/callsite-closure.md",
+]
+
+[configuration]
+strategy_runtime_snapshot_refs = []
+portfolio_policy_snapshot_refs = []
+risk_policy_snapshot_refs = []
+execution_planning_policy_snapshot_refs = []
+execution_decision_context_refs = []
+research_run_spec_refs = []
+research_execution_artifact_refs = []
+promotion_receipt_refs = []
+dynamic_input_artifacts = [
+  { artifact_ref = "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/migrations/programs/registry.toml", sha256 = "4259087e84ed43dd17301fa562ef0dc700b71037e406ff0131008eb1e189cebd" },
+  { artifact_ref = "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/migration-plan.md", sha256 = "d2c4abfab9a09ab29d62bc271fe7accd8bda4d323a3cf601f052a31b6fe82163" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml", sha256 = "05a12af1a61f6735de0df4404bd11be20e5e8cc0b562f547085cb8190c64d4e2" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/evidence.md", sha256 = "48a0cf9e07bb8340051f792b8cfa9797bc198839b91724359687d3b90183a5d3" },
+  { artifact_ref = "rust_quant_alpha@92401760f9eed593c17bc30c4ce6ef0a1d4d9684:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "37b448c591c3c0096fe59e233ec0e171bbc14d5c41ecea51943cf885e0213d91" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:Cargo.toml", sha256 = "6a99b481ae85a439b5a4d2e62fd827ae20e604bc7475499e48125957e6cdee9b" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:src/lib.rs", sha256 = "5928ef0fcab4af2ad55f7e8a4d1a2f9472c3c528ac0e05816441f52156a684a1" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:src/public_market.rs", sha256 = "5ae5a52429b9b44c565a9ff70d90d63dfaef88f936f19d44d2be168d37c5e7de" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/client.rs", sha256 = "9866cae9b861a4894240ace8a10fadc98e4847cebab0655976644dd93db1669c" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/error.rs", sha256 = "f9fcc310dbda32a88a238ad35303c8409b4ca64ba15ddddd452de90d14826bef" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/api/market/market_api.rs", sha256 = "4f1ec9fb72ec02861ec404f143c8a1cad3f4310961ac37f0557f3a3b2cd253cc" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/api/market/mod.rs", sha256 = "c8dd97afab87e44c9c0ba5bf6db746a71d842e169bc6f1526a8506cdb1e903ac" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/dto/market/mod.rs", sha256 = "4f12cfd00979fc0ab31453ad96aa1499e33b4a80c9f7d7eea594362b3bde9aed" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:binance_rs/src/dto/market/instrument_dto.rs", sha256 = "651281b44fde3760760a66a84dc8adced5b16e4ed6872408de8685ebc0c26c04" },
+]
+environment_inputs_to_remove = []
+
+[repository_profile]
+profile_id = "crypto_exc_all"
+profile_ref = "rust_quant_alpha@92401760f9eed593c17bc30c4ce6ef0a1d4d9684:architecture/repository-profiles/crypto_exc_all.toml"
+profile_sha256 = "37b448c591c3c0096fe59e233ec0e171bbc14d5c41ecea51943cf885e0213d91"
+bootstrap_output = false
+bootstrap_profile_ids = []
+
+[contracts]
+changed = true
+current_versions = ["Binance USD-M kline raw Value plus root lossy Candle mapping"]
+target_versions = ["Binance USD-M Public Kline Protocol V1"]
+compatibility_window = "K1 只新增 typed facade；legacy Value、root full-sdk Candle、Core caller、WebSocket 与 research 月包继续保留，消费者迁移由 Market F2B 承接。"
+producer_consumers = [
+  "Binance USD-M GET /fapi/v1/klines -> bnb_rs BinanceUsdmKline",
+  "crypto_exc_all public-market facade -> future Market F2B gateway",
+]
+owner_contract_boundaries = [
+  "Exchange SDK 只生产 provider request/response DTO 和 HTTP/provider failure evidence。",
+  "Market F2B 消费 typed response并拥有 pagination、finality、Decimal mapping、completeness、retry、quota、cursor、scheduler 与恢复。",
+  "Storage successor 消费 Market canonical candle 并写既有 K 线分表；SDK 不知道表名或 schema。",
+]
+message_contracts = []
+
+[persistence]
+changed = false
+owner = "not_applicable"
+local_write_set = []
+local_transaction_boundary = "not_applicable"
+transaction_invariants = []
+idempotency_identities = []
+outbox_requirements = []
+inbox_requirements = []
+cross_owner_transactions_forbidden = true
+index_and_lock_evidence = []
+database_comment_requirements = []
+
+[side_effects]
+read_only = true
+database_writes = false
+external_network_writes = false
+exchange_mutations = false
+production_writes = false
+recovery_owner = "Market"
+fixed_service_api_key_scope = "not_used"
+fixed_service_api_key_access_evidence = []
+
+[build]
+expected_build_impact = [
+  "只修改 crypto_exc_all 与 bnb_rs 两个 library package；不形成 binary、镜像或 Release Unit。",
+  "新增 binance-public-kline 最小 root feature，只启用 Binance provider dependency，不启用 full-sdk、账户或交易门面。",
+  "legacy binance feature 继续包含 full-sdk、public instrument 与 public kline，既有默认构建语义保持。",
+  "复用 I1 的 serde_json arbitrary_precision 与 typed HTTP evidence，不新增第三方依赖。",
+]
+required_release_units = []
+forbidden_packages = ["okx", "bitget_rs", "bybit_rs", "gate_rs", "hyperliquid_rs"]
+required_binary_allowlists = []
+deployment_eligibility_requested = false
+package_feature_matrix = [
+  { package = "crypto_exc_all", default_features = false, features = ["binance-public-kline"] },
+  { package = "bnb_rs", default_features = true, features = [] },
+]
+test_matrix = [
+  { package = "bnb_rs", command = "cargo test --locked -p bnb_rs --test kline_api_tests" },
+  { package = "crypto_exc_all", command = "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-kline --test binance_public_market_tests" },
+]
+
+[verification]
+required_suites = [
+  "format",
+  "focused-clippy",
+  "binance-kline-contract",
+  "minimum-public-feature-surface",
+  "legacy-binance-kline-compatibility",
+  "cross-repository-migration-check-p2",
+  "global-registry-consistency",
+  "code-file-line-limit",
+  "f64-and-auth-header-guard",
+]
+commands = [
+  "cargo fmt --all -- --check",
+  "cargo test --locked -p bnb_rs --test kline_api_tests",
+  "cargo test --locked -p bnb_rs --test expanded_api_tests market_wrappers_map_core_public_endpoints",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-kline --test binance_public_market_tests",
+  "cargo clippy --locked -p bnb_rs --lib --test kline_api_tests -- -D warnings -A clippy::new_without_default",
+  "cargo clippy --locked -p crypto_exc_all --no-default-features --features binance-public-kline --lib --test binance_public_market_tests -- -D warnings -A clippy::new_without_default",
+  "cargo check --locked -p crypto_exc_all --no-default-features --features binance-public-kline",
+  "cargo check --locked -p crypto_exc_all --no-default-features --features binance",
+  "cargo rustc --locked -p crypto_exc_all --no-default-features --features binance-public-kline --lib -- --print cfg | rg 'feature=\"binance-public-kline\"'",
+  "if cargo rustc --locked -p crypto_exc_all --no-default-features --features binance-public-kline --lib -- --print cfg | rg 'feature=\"full-sdk\"'; then exit 1; fi",
+  "cargo xtask migration-registry-check --repository-root rust_quant=<registry-root> --registry rust_quant:docs/architecture/migrations/programs/registry.toml",
+  "cargo xtask migration-check --repository-root rust_quant_alpha=<alpha-root> --repository-root rust_quant=<registry-root> --repository-root crypto_exc_all=<sdk-root> --manifest crypto_exc_all:docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/manifest.toml",
+  "../scripts/dev/check_code_file_line_limit.sh crypto_exc_all/src crypto_exc_all/binance_rs/src",
+  "if rg -n 'parse::<f64>|as_f64|:\\s*f64|->\\s*f64' src/public_market/binance.rs binance_rs/src/api/market/kline_api.rs binance_rs/src/dto/market/kline_dto.rs; then exit 1; fi",
+  "if rg -n 'X-MBX-APIKEY|api_secret|signature' src/public_market/binance.rs binance_rs/src/api/market/kline_api.rs binance_rs/src/dto/market/kline_dto.rs; then exit 1; fi",
+]
+parity_layers = [
+  "HTTP method/path/query/auth header",
+  "12-field provider row and trailing extension preservation",
+  "wire decimal representation before Market mapping",
+  "HTTP/provider error and conditionally present quota evidence",
+  "legacy raw KlineRequest and root binance feature compatibility",
+]
+recovery_scenarios = [
+  "HTTP 403/418/429/5xx 返回 typed failure；SDK 不自动重试或等待。",
+  "HTTP 200 但任一标准数组位置缺失或类型损坏时整批 Decode 失败。",
+  "空数组作为 typed 空 response 返回，由 Market 判定完整性和恢复。",
+  "未知 interval 或 provider limit 拒绝由 provider typed failure返回；SDK不静默改写请求。",
+]
+deploy_contracts = []
+expected_legacy_ratchet_delta = 0
+live_prerequisite_verdicts_required = false
+live_prerequisite_contracts = []
+test_only_evidence_provider = { required = false, contract_id = "", immutable_inputs_required = false, runtime_wiring_forbidden = true }
+
+[shadow]
+required = false
+dual_side_effects_forbidden = true
+comparison_identity = "provider + symbol + interval + exact query + frozen response fixture hash"
+acceptance_thresholds = []
+
+[cutover]
+required = false
+fact_source_before = "legacy Binance raw Value and root full-sdk Candle facade"
+fact_source_after = "not_applicable_in_SDK_K1"
+cutover_identity = "not_applicable"
+rollback_entrypoint = "提交前移除 K1 精确补丁；不触碰 README.md 或 legacy caller"
+rollback_window = "before future Market F2B consumer wiring"
+authorization_required = false
+
+[legacy]
+allowlist_entries_before = []
+entries_to_remove = []
+callers_to_migrate = []
+configs_to_remove = []
+table_writes_to_stop = []
+monitors_to_remove = []
+deletion_gates = [
+  "K1 不删除 Binance raw Value 方法、root full-sdk Candle facade、legacy Core caller、WebSocket 或 research 月包。",
+  "Market F2B 必须先消费 typed facade并证明 pagination、boundary、finality、Decimal、completeness、quota/retry/cursor/run-ledger parity。",
+  "Storage successor 必须继续复用受治理的既有 K 线分表；本切片不得创建 market_candles 或新命名表。",
+  "后续 consumer cutover 必须分别处理 REST、WebSocket、research archive 与 backtest DB source，不能因 K1 存在就宣称全部迁移。",
+]
+
+[evidence]
+evidence_file = "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/evidence.md"
+verdict_file = "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/verdict.json"
+verdict_schema_version = 1
+required_artifacts = [
+  "Cargo.toml",
+  "src/lib.rs",
+  "src/public_market.rs",
+  "src/public_market/binance.rs",
+  "tests/binance_public_market_tests.rs",
+  "binance_rs/src/error.rs",
+  "binance_rs/src/api/market/market_api.rs",
+  "binance_rs/src/api/market/mod.rs",
+  "binance_rs/src/api/market/kline_api.rs",
+  "binance_rs/src/dto/market/mod.rs",
+  "binance_rs/src/dto/market/kline_dto.rs",
+  "binance_rs/tests/kline_api_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/evidence.md",
+  "task_plan.md",
+]
+contains_sensitive_data = false
+tested_revision = "db467416bb4c3d5f895e7f16a61b32768e79a61b"
+tested_patch_sha256 = "d41792c946a69208c319d00b8952aa2a7ddd066c4a08a489f69ca44cfcfab83c"
+input_artifact_hashes = [
+  { artifact_ref = "rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82:docs/architecture/migrations/programs/registry.toml", sha256 = "4259087e84ed43dd17301fa562ef0dc700b71037e406ff0131008eb1e189cebd" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/manifest.toml", sha256 = "05a12af1a61f6735de0df4404bd11be20e5e8cc0b562f547085cb8190c64d4e2" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:docs/architecture/migrations/MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1/evidence.md", sha256 = "48a0cf9e07bb8340051f792b8cfa9797bc198839b91724359687d3b90183a5d3" },
+  { artifact_ref = "rust_quant_alpha@92401760f9eed593c17bc30c4ce6ef0a1d4d9684:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "37b448c591c3c0096fe59e233ec0e171bbc14d5c41ecea51943cf885e0213d91" },
+  { artifact_ref = "crypto_exc_all@db467416bb4c3d5f895e7f16a61b32768e79a61b:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
+]
+output_artifact_hashes = [
+  { artifact_ref = "Cargo.toml", sha256 = "cce1d9b39bab480f37252ac6fd9610ac91c519af4661ca70b0534764b0a51367" },
+  { artifact_ref = "src/lib.rs", sha256 = "952c8b8b010eb4e9cb672ea33eee37ed2b16e0d5c3b572d06fd20689248e5c54" },
+  { artifact_ref = "src/public_market.rs", sha256 = "dad8d7cf077d96b6742c581e0bb76abeed9e8a8b11b28623d2a95d3b046a2591" },
+  { artifact_ref = "src/public_market/binance.rs", sha256 = "b38ffbf38e422b07d2987845389d9db108e18bc59bfbcfc3608d1edbcec5d375" },
+  { artifact_ref = "tests/binance_public_market_tests.rs", sha256 = "c56fc96ee23939820e1f34a7bf5eccde0a00003a22aed73b1f6dbfa580650db0" },
+  { artifact_ref = "binance_rs/src/error.rs", sha256 = "fde1487856934a7cf889edccc880cf734ead7e89b2db61770ca79a0ac47a104b" },
+  { artifact_ref = "binance_rs/src/api/market/market_api.rs", sha256 = "04ad054b35bd21dd4cd71ddab77c71c3802678bd01136745b93a9583d1790bc5" },
+  { artifact_ref = "binance_rs/src/api/market/mod.rs", sha256 = "d20cbf1afc09badcfccf80979331a307be0c39e3eca344cbf96d68d90212903b" },
+  { artifact_ref = "binance_rs/src/api/market/kline_api.rs", sha256 = "c188a6c713aa29d7708385e75857af7ee7f2d4c5650f2aec4a2b38e30841c434" },
+  { artifact_ref = "binance_rs/src/dto/market/mod.rs", sha256 = "2ab7d568eb0b00af9c433c56555c7be6d26b31a13040b01decee639ee0f3a4c4" },
+  { artifact_ref = "binance_rs/src/dto/market/kline_dto.rs", sha256 = "bcff9e4cb3a059276e278e2bfeab6440ef6d4f46e9332a9203eca0cc4bba89c5" },
+  { artifact_ref = "binance_rs/tests/kline_api_tests.rs", sha256 = "d0d3ec15160bcfa7fd77aa5ea37dcebe991a5a739d59f48494df54de704db84d" },
+  { artifact_ref = "task_plan.md", sha256 = "3d7977481b92a6c15971b2346a8cfd31e817b65e7bded2f47a9e1f61129018bf" },
+]
+
+[approval]
+required = false
+reason = ""
+approved_by = ""
+approved_at = ""
+reference = ""
+
+[blocking]
+reasons = []
+required_decisions = []

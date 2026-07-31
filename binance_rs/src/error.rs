@@ -5,6 +5,10 @@ pub enum Error {
     #[error("配置错误: {0}")]
     ConfigError(String),
 
+    /// 调用方提供的请求无法由目标 Binance endpoint 合法表达。
+    #[error("请求参数错误: {0}")]
+    InvalidRequest(String),
+
     #[error("HTTP错误: {0}")]
     HttpError(#[from] reqwest::Error),
 

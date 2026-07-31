@@ -1,14 +1,43 @@
+#[cfg(feature = "binance-public-kline")]
+mod binance;
+
+#[cfg(feature = "binance-public-kline")]
+pub use binance::{BinanceUsdmPublicKlineClient, BinanceUsdmPublicKlineConfig};
+#[cfg(feature = "binance-public-kline")]
+pub use binance_rs::Error as BinancePublicMarketSdkError;
+#[cfg(feature = "binance-public-kline")]
+pub use binance_rs::api::market::KlineRequest as BinanceUsdmPublicKlineQuery;
+#[cfg(feature = "binance-public-kline")]
+pub use binance_rs::client::{
+    BinanceHttpEvidence, BinancePublicFailureKind, BinancePublicRequestFailure,
+    BinancePublicResponse,
+};
+#[cfg(feature = "binance-public-kline")]
+pub use binance_rs::dto::market::{BinanceUsdmKline, BinanceWireDecimal};
+
+/// Binance 公共 Market 门面的返回类型。
+#[cfg(feature = "binance-public-kline")]
+pub type BinancePublicMarketResult<T> = std::result::Result<T, BinancePublicMarketSdkError>;
+
+#[cfg(feature = "okx-public-market")]
 use crate::error::{Error, Result};
+#[cfg(feature = "okx-public-market")]
 use crate::exchange::ExchangeId;
+#[cfg(feature = "okx-public-market")]
 use okx_rs::api::api_trait::OkxApiTrait;
+#[cfg(feature = "okx-public-market")]
 use okx_rs::dto::CandleOkxRespDto;
+#[cfg(feature = "okx-public-market")]
 use okx_rs::{OkxClient, OkxMarket};
+#[cfg(feature = "okx-public-market")]
 use serde::{Deserialize, Serialize};
 
 /// OKX 公共 K 线 endpoint 的单页上限。
+#[cfg(feature = "okx-public-market")]
 pub const OKX_MAX_CANDLE_PAGE_SIZE: u32 = 300;
 
 /// OKX 公共 K 线数据集。
+#[cfg(feature = "okx-public-market")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OkxCandleDataset {
     /// 最近最多 1,440 根 K 线的数据集。
@@ -18,6 +47,7 @@ pub enum OkxCandleDataset {
 }
 
 /// 不包含账户凭证的 OKX 公共行情客户端配置。
+#[cfg(feature = "okx-public-market")]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OkxPublicMarketConfig {
     /// 可选 API 基地址，主要用于部署路由或 contract test。
@@ -25,6 +55,7 @@ pub struct OkxPublicMarketConfig {
 }
 
 /// 由调用方显式选择时间边界的 OKX 公共 K 线查询。
+#[cfg(feature = "okx-public-market")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OkxPublicCandleQuery {
     instrument_id: String,
@@ -34,6 +65,7 @@ pub struct OkxPublicCandleQuery {
     before: Option<String>,
 }
 
+#[cfg(feature = "okx-public-market")]
 impl OkxPublicCandleQuery {
     /// 使用 OKX canonical `instId` 创建不含隐式时间边界的查询。
     ///
@@ -71,6 +103,7 @@ impl OkxPublicCandleQuery {
 ///
 /// 三个成交量字段保留交易所原始单位语义，由 Core exchange-gateway 按产品类型
 /// 映射为领域 contracts/base/quote volume，避免 SDK 在缺少业务上下文时猜测。
+#[cfg(feature = "okx-public-market")]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OkxPublicCandle {
     /// K 线开始时间，Unix 毫秒文本。
@@ -96,11 +129,13 @@ pub struct OkxPublicCandle {
 /// 仅暴露 OKX 公共 Market API 的 SDK capability。
 ///
 /// 该类型内部使用无 credential client，且没有账户、私有读取或 mutation 方法。
+#[cfg(feature = "okx-public-market")]
 #[derive(Debug)]
 pub struct OkxPublicMarketClient {
     market: OkxMarket,
 }
 
+#[cfg(feature = "okx-public-market")]
 impl OkxPublicMarketClient {
     /// 创建无账户凭证的公共行情客户端。
     pub fn new(config: OkxPublicMarketConfig) -> Result<Self> {
@@ -156,6 +191,7 @@ impl OkxPublicMarketClient {
 }
 
 /// 拒绝 SDK 当前无法无歧义表达的查询，避免字段存在但被静默忽略。
+#[cfg(feature = "okx-public-market")]
 fn validate_query(query: &OkxPublicCandleQuery) -> Result<()> {
     if query.instrument_id.is_empty()
         || !query
@@ -186,6 +222,7 @@ fn validate_query(query: &OkxPublicCandleQuery) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "okx-public-market")]
 impl From<CandleOkxRespDto> for OkxPublicCandle {
     /// 保留全部九个 provider 字段，不在 SDK facade 中压平成交量单位。
     fn from(value: CandleOkxRespDto) -> Self {
@@ -203,7 +240,7 @@ impl From<CandleOkxRespDto> for OkxPublicCandle {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "okx-public-market"))]
 mod tests {
     use super::*;
 

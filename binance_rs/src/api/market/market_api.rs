@@ -156,16 +156,26 @@ impl BinanceMarket {
     }
 }
 
+/// Binance USD-M K 线单页查询参数。
+///
+/// 时间边界使用 Unix 毫秒；`None` 表示不向 provider 发送对应参数，而不是由 SDK
+/// 补当前时间。分页方向、页长上限与完整性由上层 Market owner 决定。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KlineRequest {
+    /// Binance 行情接口使用的 canonical symbol，例如 `BTCUSDT`。
     pub symbol: String,
+    /// Binance 原生 K 线周期，例如 `1m`、`15m` 或 `4h`。
     pub interval: String,
+    /// 可选查询起点，Unix 毫秒；`None` 表示省略 `startTime`。
     pub start_time: Option<u64>,
+    /// 可选查询终点，Unix 毫秒；`None` 表示省略 `endTime`。
     pub end_time: Option<u64>,
+    /// 可选 provider 单页条数；`None` 表示让 provider 使用其默认值。
     pub limit: Option<u32>,
 }
 
 impl KlineRequest {
+    /// 创建不带隐式时间窗口或页长的 provider 查询。
     pub fn new(symbol: impl Into<String>, interval: impl Into<String>) -> Self {
         Self {
             symbol: symbol.into(),
@@ -176,22 +186,26 @@ impl KlineRequest {
         }
     }
 
+    /// 设置查询起点，单位为 Unix 毫秒。
     pub fn with_start_time(mut self, start_time: u64) -> Self {
         self.start_time = Some(start_time);
         self
     }
 
+    /// 设置查询终点，单位为 Unix 毫秒。
     pub fn with_end_time(mut self, end_time: u64) -> Self {
         self.end_time = Some(end_time);
         self
     }
 
+    /// 设置 provider 单页条数；SDK 仅拒绝零值，不自行裁剪正数。
     pub fn with_limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self
     }
 
-    fn to_params(&self) -> Vec<(&'static str, String)> {
+    /// 仅序列化调用方显式设置的窗口，避免公共请求被本机时钟或默认 cursor 改写。
+    pub(crate) fn to_params(&self) -> Vec<(&'static str, String)> {
         let mut params = vec![
             ("symbol", self.symbol.clone()),
             ("interval", self.interval.clone()),

@@ -1,5 +1,31 @@
 # Task Plan: Exchange SDK Aggregation
 
+## Current Turn Update - 2026-07-31 (K1 Binance USD-M Public Kline)
+
+- `rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82` 已独立登记
+  `MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1` 与后继 Market F2B；登记提交未混入
+  Manifest 或源码。
+- K1 已冻结 Manifest、19 项 legacy 语义处置与 committed callsite closure；旧
+  `get_klines -> Value`、Core REST 同步、WebSocket finality、既有 K 线分表和 Binance
+  Vision research archive 均被明确归属，没有因 typed SDK 存在而宣称已迁移。
+- `bnb_rs` 新增 Binance USD-M typed Kline DTO/API，完整保留 12 个标准位置、尾部未知
+  字段与 HTTP/provider failure evidence；root 新增只读、无凭证
+  `binance-public-kline` 最小 feature。SDK 不做 `f64`、finality、pagination、retry、
+  quota accounting、数据库或交易 mutation。
+- TDD RED 已确认缺少 typed API/feature；GREEN 当前为 bnb Kline contract 6/6、root
+  facade 2/2、legacy raw Kline 1/1、既有 OKX public-market 2/2。两个 focused Clippy、
+  最小 feature/legacy feature 编译、无 `f64`/认证 source guard 与 format 均通过。
+- Architecture Governance 的 `crypto_exc_all` repository profile 已作为独立提交
+  `rust_quant_alpha@92401760f9eed593c17bc30c4ce6ef0a1d4d9684` 登记新 feature；
+  K1 Manifest 已固定该 immutable revision 与内容 hash。主工作树
+  migration-check 的 profile 两阶段均为 0 错误，仅用户既有 `README.md` 修改继续
+  命中 forbidden path，未被覆盖或纳入 K1。
+- 使用正式 profile commit、Registry registration commit 与 SDK base commit 建立
+  disposable clean clones，只应用 K1 allowlist patch；跨仓库 P2 检查为
+  `errors=0 warnings=0`。
+- 下一道门：提交 K1 工件，再用已提交 Manifest/Evidence hash 把 Registry 更新为
+  `created`；在此之前不得创建或消费 Market F2B Manifest。
+
 ## Current Turn Update - 2026-07-30
 
 - 完成 `MIG-EXSDK-I1-BINANCE-OKX-PUBLIC-INSTRUMENT-V1`：新增 Binance USDⓈ-M

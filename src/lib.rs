@@ -21,7 +21,7 @@ pub mod platform;
 pub mod position;
 #[cfg(any(feature = "binance-public-instrument", feature = "okx-public-market"))]
 pub mod public_instrument;
-#[cfg(feature = "okx-public-market")]
+#[cfg(any(feature = "binance-public-kline", feature = "okx-public-market"))]
 pub mod public_market;
 #[cfg(feature = "full-sdk")]
 pub mod sdk;
@@ -83,6 +83,13 @@ pub use platform::{PlatformEvent, PlatformEventQuery, PlatformFacade};
 pub use position::{Position, PositionFacade, PositionHistory, PositionHistoryQuery};
 #[cfg(any(feature = "binance-public-instrument", feature = "okx-public-market"))]
 pub use public_instrument::*;
+#[cfg(feature = "binance-public-kline")]
+pub use public_market::{
+    BinanceHttpEvidence, BinancePublicFailureKind, BinancePublicMarketResult,
+    BinancePublicMarketSdkError, BinancePublicRequestFailure, BinancePublicResponse,
+    BinanceUsdmKline, BinanceUsdmPublicKlineClient, BinanceUsdmPublicKlineConfig,
+    BinanceUsdmPublicKlineQuery, BinanceWireDecimal,
+};
 #[cfg(feature = "okx-public-market")]
 pub use public_market::{
     OKX_MAX_CANDLE_PAGE_SIZE, OkxCandleDataset, OkxPublicCandle, OkxPublicCandleQuery,
