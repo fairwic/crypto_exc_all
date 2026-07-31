@@ -1,5 +1,5 @@
 use super::{OkxPublicInstrument, OkxPublicResponse, PublicInstrumentResult};
-use okx_rs::OkxPublicInstruments;
+use okx_rs::{OkxPublicInstruments, OkxPublicTransportConfig};
 
 /// OKX public instruments endpoint 每个限频窗口允许的请求数。
 pub const OKX_SWAP_INSTRUMENT_RATE_LIMIT: u32 = 20;
@@ -25,10 +25,19 @@ pub struct OkxSwapPublicInstrumentClient {
 impl OkxSwapPublicInstrumentClient {
     /// 创建不持有 API Key、passphrase 或签名能力的 OKX 公共客户端。
     pub fn new(config: OkxSwapPublicInstrumentConfig) -> PublicInstrumentResult<Self> {
-        let instruments = match config.api_url {
-            Some(api_url) => OkxPublicInstruments::with_base_url(api_url)?,
-            None => OkxPublicInstruments::new()?,
+        let transport = match config.api_url {
+            Some(api_url) => OkxPublicTransportConfig {
+                api_url,
+                ..OkxPublicTransportConfig::default()
+            },
+            None => OkxPublicTransportConfig::default(),
         };
+        Self::with_transport(transport)
+    }
+
+    /// 使用显式 endpoint、超时和代理创建无凭证公共客户端。
+    pub fn with_transport(transport: OkxPublicTransportConfig) -> PublicInstrumentResult<Self> {
+        let instruments = OkxPublicInstruments::with_transport(transport)?;
         Ok(Self { instruments })
     }
 

@@ -28,7 +28,7 @@ use okx_rs::api::api_trait::OkxApiTrait;
 #[cfg(feature = "okx-public-market")]
 use okx_rs::dto::CandleOkxRespDto;
 #[cfg(feature = "okx-public-market")]
-use okx_rs::{OkxClient, OkxMarket};
+use okx_rs::{OkxClient, OkxMarket, OkxPublicTransportConfig};
 #[cfg(feature = "okx-public-market")]
 use serde::{Deserialize, Serialize};
 
@@ -139,11 +139,19 @@ pub struct OkxPublicMarketClient {
 impl OkxPublicMarketClient {
     /// 创建无账户凭证的公共行情客户端。
     pub fn new(config: OkxPublicMarketConfig) -> Result<Self> {
-        let mut client = OkxClient::new_public().map_err(Error::from_okx)?;
-        if let Some(api_url) = config.api_url {
-            client.set_base_url(api_url);
-        }
+        let transport = match config.api_url {
+            Some(api_url) => OkxPublicTransportConfig {
+                api_url,
+                ..OkxPublicTransportConfig::default()
+            },
+            None => OkxPublicTransportConfig::default(),
+        };
+        Self::with_transport(transport)
+    }
 
+    /// 使用显式 endpoint、超时和代理创建无凭证公共客户端。
+    pub fn with_transport(transport: OkxPublicTransportConfig) -> Result<Self> {
+        let client = OkxClient::new_public_with_transport(transport).map_err(Error::from_okx)?;
         Ok(Self {
             market: <OkxMarket as OkxApiTrait>::new(client),
         })

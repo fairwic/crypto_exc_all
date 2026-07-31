@@ -1,5 +1,29 @@
 # Task Plan: Exchange SDK Aggregation
 
+## Current Turn Update - 2026-07-31 (K2 Explicit Public Transport)
+
+- `rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1` 已登记
+  `MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1`，唯一 Owner 为
+  Exchange SDK，前置为 K1。
+- K2 已冻结 committed callsite closure：底层环境型 constructor 有真实
+  library/WebSocket/example/test 调用方，继续保留；目标 root Kline/instrument facade
+  将停止继承 ambient env，并新增 provider-specific 显式 endpoint/timeout/proxy 配置。
+- Market 的 `source_profile_id + egress_identity + PublicQuotaKey` 绑定、scheduler、
+  retry、固定平台 Key 与 runtime cutover 均不进入 K2，由后继 Market Gate 承接。
+- 已新增两个 provider-specific public transport config，以及 provider/root
+  `with_transport` 入口；旧 `api_url` config shape 和底层环境型 constructor 保留。
+  OKX client 的传输构造已抽入独立模块，原大文件从 595 行降到 579 行。
+- TDD 已观察缺少 config/constructor 的 RED；GREEN 为 provider transport 4/4、root
+  显式配置 1/1、既有 Kline 4/4、instrument 4/4。显式 timeout、非法 endpoint/zero
+  timeout/非法 proxy、错误脱敏和 ambient Binance env 隔离均有 contract test。
+- K2 精确 Clippy、API docs、format、source guard、diff-check 与文件预算通过；全 workspace
+  tests 完整编译后只被 6 个既有 OKX live-credential test 的缺失 `OKX_API_KEY` 阻塞，
+  workspace Clippy 被未修改的 OKX full-sdk、Bybit 与 Binance 历史 lint 阻塞。
+- Registry 全局 shape/identity/graph 为 0 错误。主工作树 P2 唯一错误仍是 K2 开始前的
+  用户 `README.md` 修改命中 forbidden path；K2 精确补丁使用 disposable clean clone
+  独立验证。前置 K1 无 current Verdict，因此技术状态保持 `implementing`，不创建
+  Verdict、不执行 runtime cutover。
+
 ## Current Turn Update - 2026-07-31 (K1 Binance USD-M Public Kline)
 
 - `rust_quant@f4acef65caca988b8ee9cd5ef9f1f4dd9d3e1c82` 已独立登记

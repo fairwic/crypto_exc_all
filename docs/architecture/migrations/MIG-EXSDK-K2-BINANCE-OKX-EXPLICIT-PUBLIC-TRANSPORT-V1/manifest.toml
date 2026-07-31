@@ -1,0 +1,471 @@
+# Binance/OKX 公共只读 transport 显式配置的单一 Exchange SDK Owner Manifest。
+# 前置 K1 尚无 current-revision Verdict，因此本切片最高保持 implementing。
+
+schema_version = 2
+manifest_kind = "owner_child"
+migration_id = "MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1"
+title = "建立 Binance 与 OKX 显式公共只读 transport 配置"
+state = "implementing"
+promotion_status = "not_applicable"
+cutover_status = "not_required"
+mode = "behavior_change"
+behavior_change = true
+verification_mode = "machine"
+production_mutation_allowed = false
+evidence_scope = "current_migration"
+
+[program]
+migration_program_id = "MP-market-data-foundation-v1"
+registry_ref = "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/migrations/programs/registry.toml"
+parent_plan = "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/migration-plan.md"
+depends_on = ["MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1"]
+predecessor_verdicts = []
+historical_dependency_eligible = false
+
+[authority]
+architecture_baseline_git_sha = "8cbae84e109cf36869947e74b1ec77889ec63fb1"
+adrs = [
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0012-multi-tenant-private-stream-management.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0013-user-execution-request-and-public-market-data-credentials.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0014-greenfield-target-repository-migration.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0015-capability-first-modules-and-api-spi-boundaries.md",
+]
+normative_documents = [
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/target-architecture.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/dependency-rules.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/production-runtime.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/ai-coding-guardrails.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/ai-migration-execution-protocol.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/migration-plan.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0012-multi-tenant-private-stream-management.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0013-user-execution-request-and-public-market-data-credentials.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0014-greenfield-target-repository-migration.md",
+  "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/adr/0015-capability-first-modules-and-api-spi-boundaries.md",
+]
+normative_document_hashes = [
+  "41c516e61ea58ec161829dee64327d19b0bdbb54921a0bfbb8b3c491fa84d16f",
+  "e48192f30a88862171be3e9299f6a4791e28be6d870ba11d97b52cf98fc0b8ae",
+  "f3289295aaba8edb0cb6a16a78f2d3110485bd4277be5c95e0aedd500e990394",
+  "62b2c5fd5a9001c2ba57554b7c6189b1bc428126ab3fd72c8a4400f8dda38efe",
+  "998670bc7af69653f5c0e3cde719e7295b684fa1bdc83b1c176fa3dab5931260",
+  "d2c4abfab9a09ab29d62bc271fe7accd8bda4d323a3cf601f052a31b6fe82163",
+  "0012f34c5546903c1fcae12a01240ec75897bb0100fb1297ff60238a21698691",
+  "1d51685b2e4c11c0595358ce54a5c4e90745333e4a84238dde6cb1e14592462c",
+  "84c198cec06fe6171a4a5656ea516f128a20f7025bc04047e0e4dd76466e1937",
+  "a2582fdfa98a810834bcbed93c37a34d0b4fac455258cdb9a8666858f7b7af9a",
+]
+release_unit_manifest_hashes = []
+contract_snapshots = []
+schema_snapshots = []
+
+[scope]
+owner = "Exchange SDK"
+owner_repository = "crypto_exc_all"
+source_paths = [
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:Cargo.toml",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:Cargo.lock",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/lib.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_market.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_market/binance.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_instrument/binance.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_instrument/okx.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:binance_rs/src/config.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:binance_rs/src/client.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:okx_rs/src/client.rs",
+  "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:okx_rs/src/api/public_data/instrument_api.rs",
+  "rust_quant_alpha@d9cc91a983f80abd8ae95d11cf1b6d6ff07e335f:apps/market-worker/src/wiring.rs",
+  "rust_quant_alpha@d9cc91a983f80abd8ae95d11cf1b6d6ff07e335f:crates/adapters/exchange-gateway/src/public_market/",
+]
+target_paths = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "src/lib.rs",
+  "src/public_transport.rs",
+  "src/public_market.rs",
+  "src/public_market/binance.rs",
+  "src/public_instrument/binance.rs",
+  "src/public_instrument/okx.rs",
+  "tests/public_transport_config.rs",
+  "binance_rs/src/lib.rs",
+  "binance_rs/src/public_transport.rs",
+  "binance_rs/tests/public_transport_tests.rs",
+  "okx_rs/Cargo.toml",
+  "okx_rs/src/lib.rs",
+  "okx_rs/src/client.rs",
+  "okx_rs/src/public_transport.rs",
+  "okx_rs/src/api/public_data/instrument_api.rs",
+  "okx_rs/tests/public_transport_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/evidence.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/verdict.json",
+  "task_plan.md",
+]
+allowed_change_paths = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "src/lib.rs",
+  "src/public_transport.rs",
+  "src/public_market.rs",
+  "src/public_market/binance.rs",
+  "src/public_instrument/binance.rs",
+  "src/public_instrument/okx.rs",
+  "tests/public_transport_config.rs",
+  "binance_rs/src/lib.rs",
+  "binance_rs/src/public_transport.rs",
+  "binance_rs/tests/public_transport_tests.rs",
+  "okx_rs/Cargo.toml",
+  "okx_rs/src/lib.rs",
+  "okx_rs/src/client.rs",
+  "okx_rs/src/public_transport.rs",
+  "okx_rs/src/api/public_data/instrument_api.rs",
+  "okx_rs/tests/public_transport_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/evidence.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/verdict.json",
+  "task_plan.md",
+]
+forbidden_change_paths = [
+  ".github/",
+  "README.md",
+  "src/config.rs",
+  "src/sdk.rs",
+  "src/account.rs",
+  "src/adapters/",
+  "src/order.rs",
+  "src/trade.rs",
+  "binance_rs/src/config.rs",
+  "binance_rs/src/api/account/",
+  "binance_rs/src/api/trade/",
+  "binance_rs/src/api/websocket/",
+  "okx_rs/src/config.rs",
+  "okx_rs/src/api/account/",
+  "okx_rs/src/api/trade/",
+  "okx_rs/src/websocket/",
+  "bitget_rs/",
+  "bybit_rs/",
+  "gate_rs/",
+  "hyperliquid_rs/",
+]
+affected_cargo_packages = ["crypto_exc_all", "bnb_rs", "okx"]
+affected_release_units = []
+owned_tables = []
+external_owner_apis = [
+  "Binance USD-M anonymous public REST transport",
+  "OKX anonymous public REST transport",
+]
+
+[behavior]
+business_goal = "让 Binance USD-M 与 OKX 公共 K 线/instrument facade 从调用方显式接收 endpoint、请求超时和可选代理，使未来 Market source profile 能审计真实 transport，同时保留 legacy 环境构造器的既有调用方。"
+invariants = [
+  "Binance 与 OKX 使用各自独立的 public transport config，不建立抹平 provider 差异的跨交易所万能配置。",
+  "显式配置只包含非业务 endpoint、毫秒超时和可选代理；不包含 API Key、Secret、passphrase、账户、用户、source_profile_id、quota 或 mutation capability。",
+  "两个 provider 的默认公共 endpoint 分别为 https://fapi.binance.com 与 https://www.okx.com，默认请求超时均为 5000 毫秒，默认不使用代理。",
+  "目标 root public Kline/instrument facade 不读取 std::env、dotenv 或进程全局配置；现有 api_url-only config struct shape 保持，new(config) 映射到显式默认 transport。",
+  "新增 with_transport 入口完整应用 endpoint、timeout 与 proxy；timeout=0、非法 endpoint 或非法 proxy 在网络 I/O 前失败。",
+  "endpoint 只允许 http/https，且不得携带 userinfo、query 或 fragment；错误和 Debug 不回显可能含凭证的 proxy URL。",
+  "请求 endpoint、query、wire DTO、Decimal 文本、HTTP/provider evidence 与匿名认证语义保持不变。",
+  "SDK 不实现 retry、sleep、quota accounting、source profile 绑定、egress identity、scheduler、lease、cursor、run ledger、数据库或完整性判断。",
+  "BinanceClient::new_public 等已有环境型 legacy 构造器继续保留；其生产/测试/example 调用方不在 K2 静默改写。",
+  "OKX public transport 支持与 Binance 对照的 HTTP(S)/SOCKS proxy 构造能力，但两家的 config 类型和错误仍保持 provider 可见。",
+]
+current_entrypoints = [
+  "BinanceClient::new_public -> Config::from_env -> api_url/api_timeout_ms/proxy_url",
+  "BinanceUsdmPublicKlineClient::new -> BinanceClient::new_public + optional set_base_url",
+  "BinanceUsdmPublicInstrumentClient::new -> BinanceClient::new_public + optional set_base_url",
+  "OkxClient::new_public -> hard-coded endpoint/5000ms/no proxy",
+  "OkxPublicMarketClient::new and OkxPublicInstruments::new/with_base_url",
+  "rust_quant_alpha market-worker wiring -> root Kline clients with default config",
+]
+target_entrypoints = [
+  "BinanceClient::new_public_with_transport(BinancePublicTransportConfig)",
+  "OkxClient::new_public_with_transport(OkxPublicTransportConfig)",
+  "BinanceUsdmPublicKlineClient::with_transport",
+  "BinanceUsdmPublicInstrumentClient::with_transport",
+  "OkxPublicMarketClient::with_transport",
+  "OkxSwapPublicInstrumentClient::with_transport",
+  "existing root new(config) -> explicit provider default transport without ambient env",
+]
+allowed_differences = [
+  "目标 root Binance public facade 不再继承 BINANCE_API_URL/BINANCE_API_TIMEOUT_MS/BINANCE_PROXY_URL 或 dotenv；调用方必须使用显式 transport 入口。",
+  "非法 endpoint、timeout=0 与非法 proxy 从请求期错误提前为构造期 ConfigError。",
+  "OKX public-only dependency 增加 SOCKS proxy transport feature；不增加账户或签名 capability。",
+  "新增公共 config 的 Debug 只显示 proxy_configured，不显示 proxy URL。",
+]
+forbidden_differences = [
+  "不得删除或改变 BinanceClient::new_public、BinanceMarket::new_default、WebSocket/example/test 的 legacy 环境配置语义。",
+  "不得把 source_profile_id、egress_identity 或 PublicQuotaKey 放进 SDK transport config；它们归 Market/App 绑定。",
+  "不得新增固定 service API Key、用户 credential fallback、签名 header、账户读取或交易 mutation。",
+  "不得修改 K 线/instrument endpoint、query、DTO、Decimal/f64、finality、排序、分页、响应 evidence 或 provider error 语义。",
+  "不得实现 retry、sleep、scheduler、quota coordinator、lease、source failover、数据库写入或 runtime wiring。",
+  "不得修改 rust_quant_alpha caller；Market 的 source-profile/egress 装配必须由后继 Owner Manifest 承接。",
+]
+characterization_evidence = [
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/callsite-closure.md",
+]
+
+[configuration]
+strategy_runtime_snapshot_refs = []
+portfolio_policy_snapshot_refs = []
+risk_policy_snapshot_refs = []
+execution_planning_policy_snapshot_refs = []
+execution_decision_context_refs = []
+research_run_spec_refs = []
+research_execution_artifact_refs = []
+promotion_receipt_refs = []
+dynamic_input_artifacts = [
+  { artifact_ref = "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/migrations/programs/registry.toml", sha256 = "0b27e43eecf945b8aa0569e87051dfa3b5eb1f242c809ef7bbe5d889e78e8d5c" },
+  { artifact_ref = "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/migration-plan.md", sha256 = "d2c4abfab9a09ab29d62bc271fe7accd8bda4d323a3cf601f052a31b6fe82163" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/manifest.toml", sha256 = "1634ea7ab908bef6e1d70517f4e6095b5650c1d0a937548c4f33191b8984f1ae" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/evidence.md", sha256 = "8d309d2f1679a59677453558ebf6c0a4d8ba7b4fb6b415c7595b40d194ff45ca" },
+  { artifact_ref = "rust_quant_alpha@d9cc91a983f80abd8ae95d11cf1b6d6ff07e335f:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "37b448c591c3c0096fe59e233ec0e171bbc14d5c41ecea51943cf885e0213d91" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_market.rs", sha256 = "dad8d7cf077d96b6742c581e0bb76abeed9e8a8b11b28623d2a95d3b046a2591" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_market/binance.rs", sha256 = "b38ffbf38e422b07d2987845389d9db108e18bc59bfbcfc3608d1edbcec5d375" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_instrument/binance.rs", sha256 = "7f969990c4efbd42e026626159dce24eb6a1b6305b46653759f990d3136af256" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:src/public_instrument/okx.rs", sha256 = "3c13117b5b4ebdb50a761d9dd8c9c7ab705ff7d473014ea39afc8a0a2a81e09d" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:binance_rs/src/config.rs", sha256 = "8046e9ba4fb579cae302be2f4a3d27305d498d6060c929463232ac7a284746ed" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:binance_rs/src/client.rs", sha256 = "9866cae9b861a4894240ace8a10fadc98e4847cebab0655976644dd93db1669c" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:okx_rs/src/client.rs", sha256 = "56b68b0c64bfb0445f193324d2ab5aa9579b05a15b605e3014ae0587305d5d97" },
+]
+environment_inputs_to_remove = [
+  "BINANCE_API_URL from target root public Kline/instrument facade",
+  "BINANCE_API_TIMEOUT_MS from target root public Kline/instrument facade",
+  "BINANCE_PROXY_URL from target root public Kline/instrument facade",
+  "dotenv discovery from target root public Kline/instrument facade",
+]
+
+[repository_profile]
+profile_id = "crypto_exc_all"
+profile_ref = "rust_quant_alpha@d9cc91a983f80abd8ae95d11cf1b6d6ff07e335f:architecture/repository-profiles/crypto_exc_all.toml"
+profile_sha256 = "37b448c591c3c0096fe59e233ec0e171bbc14d5c41ecea51943cf885e0213d91"
+bootstrap_output = false
+bootstrap_profile_ids = []
+
+[contracts]
+changed = true
+current_versions = [
+  "Binance root public facade with ambient Config::from_env transport",
+  "OKX root public facade with fixed endpoint/5000ms/no proxy transport",
+]
+target_versions = [
+  "Binance Public Transport Config V1",
+  "OKX Public Transport Config V1",
+]
+compatibility_window = "现有 root api_url-only config 与底层 legacy public constructors 保留；新增显式 transport 入口供后继 Market source-profile 装配，调用方迁移后再独立删除环境型入口。"
+producer_consumers = [
+  "Exchange SDK explicit public transport config -> root public Kline/instrument facade",
+  "future Market source-profile wiring -> Exchange SDK with_transport constructor",
+]
+owner_contract_boundaries = [
+  "Exchange SDK 拥有 endpoint/timeout/proxy 的 transport 构造、校验、脱敏错误和 provider HTTP 执行。",
+  "Market/App 拥有 source_profile_id、egress_identity、PublicQuotaKey、Secret ref 解析、调度、重试和运行 readiness。",
+  "固定 MarketDataAccessCredential 只有 endpoint 确实需要时另立 capability；K2 的匿名 transport 不接受 credential。",
+]
+message_contracts = []
+
+[persistence]
+changed = false
+owner = "not_applicable"
+local_write_set = []
+local_transaction_boundary = "not_applicable"
+transaction_invariants = []
+idempotency_identities = []
+outbox_requirements = []
+inbox_requirements = []
+cross_owner_transactions_forbidden = true
+index_and_lock_evidence = []
+database_comment_requirements = []
+
+[side_effects]
+read_only = true
+database_writes = false
+external_network_writes = false
+exchange_mutations = false
+production_writes = false
+recovery_owner = "Market"
+fixed_service_api_key_scope = "not_used"
+fixed_service_api_key_access_evidence = []
+
+[build]
+expected_build_impact = [
+  "只修改 crypto_exc_all、bnb_rs 与 okx 三个 library package；不形成 binary、镜像或 Release Unit。",
+  "root 只通过既有最小 public features 暴露 transport config，不启用 full-sdk、账户或交易门面。",
+  "OKX reqwest 增加 socks transport feature；允许 Cargo.lock 出现该 feature 所需依赖，不新增业务库。",
+  "其他 provider package、生产 App 和 rust_quant_alpha 工作树不修改。",
+]
+required_release_units = []
+forbidden_packages = ["bitget_rs", "bybit_rs", "gate_rs", "hyperliquid_rs"]
+required_binary_allowlists = []
+deployment_eligibility_requested = false
+package_feature_matrix = [
+  { package = "crypto_exc_all", default_features = false, features = ["binance-public-instrument", "binance-public-kline", "okx-public-market"] },
+  { package = "bnb_rs", default_features = true, features = [] },
+  { package = "okx", default_features = false, features = ["public-market"] },
+]
+test_matrix = [
+  { package = "bnb_rs", command = "cargo test --locked -p bnb_rs --test public_transport_tests" },
+  { package = "okx", command = "cargo test --locked -p okx --no-default-features --features public-market --test public_transport_tests" },
+  { package = "crypto_exc_all", command = "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,binance-public-kline,okx-public-market --test public_transport_config" },
+]
+
+[verification]
+required_suites = [
+  "format",
+  "workspace-clippy",
+  "workspace-tests",
+  "provider-public-transport-contract",
+  "root-public-facade-contract",
+  "legacy-public-constructor-compatibility",
+  "ambient-env-isolation",
+  "timeout-and-proxy-contract",
+  "cross-repository-migration-check-p2",
+  "global-registry-consistency",
+  "code-file-line-limit",
+  "credential-and-runtime-guard",
+]
+commands = [
+  "cargo fmt --all -- --check",
+  "cargo test --locked -p bnb_rs --test public_transport_tests",
+  "cargo test --locked -p okx --no-default-features --features public-market --test public_transport_tests",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,binance-public-kline,okx-public-market --test public_transport_config",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-kline --test binance_public_market_tests",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features okx-public-market --test okx_public_market_tests",
+  "cargo test --locked -p crypto_exc_all --no-default-features --features binance-public-instrument,okx-public-market --test public_instrument_facade",
+  "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+  "cargo test --locked --workspace --all-targets --all-features",
+  "cargo doc --locked -p crypto_exc_all -p bnb_rs -p okx --no-deps --all-features",
+  "cargo xtask migration-registry-check --repository-root rust_quant=<registry-root> --registry rust_quant:docs/architecture/migrations/programs/registry.toml",
+  "cargo xtask migration-check --repository-root rust_quant_alpha=<alpha-root> --repository-root rust_quant=<registry-root> --repository-root crypto_exc_all=<sdk-root> --manifest crypto_exc_all:docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/manifest.toml",
+  "../scripts/dev/check_code_file_line_limit.sh src binance_rs/src okx_rs/src",
+  "if rg -n 'std::env|dotenv|API_KEY|SECRET|PASSPHRASE' src/public_transport.rs binance_rs/src/public_transport.rs okx_rs/src/public_transport.rs; then exit 1; fi",
+  "if rg -n 'retry|sleep|spawn|quota|lease|scheduler' src/public_transport.rs binance_rs/src/public_transport.rs okx_rs/src/public_transport.rs; then exit 1; fi",
+  "if rg -n 'BinanceClient::new_public\\(\\)|OkxClient::new_public\\(\\)|OkxPublicInstruments::new\\(\\)' src/public_market.rs src/public_market/binance.rs src/public_instrument/binance.rs src/public_instrument/okx.rs; then exit 1; fi",
+]
+parity_layers = [
+  "provider endpoint and request query",
+  "anonymous auth header absence",
+  "wire DTO and Decimal text",
+  "HTTP/provider response evidence",
+  "existing api_url-only root config source compatibility",
+  "legacy environment constructor availability",
+]
+recovery_scenarios = [
+  "显式 timeout 到期时单次请求返回 provider transport error，不自动重试。",
+  "非法 endpoint、timeout=0 或非法 proxy 在网络 I/O 前返回脱敏 ConfigError。",
+  "环境中的非法 BINANCE_PROXY_URL 不影响显式 root public facade。",
+  "代理配置只形成 transport；Market scheduler/quota owner 决定未来唤醒和恢复。",
+]
+deploy_contracts = []
+expected_legacy_ratchet_delta = 0
+live_prerequisite_verdicts_required = false
+live_prerequisite_contracts = []
+test_only_evidence_provider = { required = false, contract_id = "", immutable_inputs_required = false, runtime_wiring_forbidden = true }
+
+[shadow]
+required = false
+dual_side_effects_forbidden = true
+comparison_identity = "provider + endpoint + timeout_ms + proxy_configured + exact request fixture"
+acceptance_thresholds = []
+
+[cutover]
+required = false
+fact_source_before = "ambient or hard-coded SDK public transport construction"
+fact_source_after = "not_applicable_in_SDK_K2"
+cutover_identity = "not_applicable"
+rollback_entrypoint = "提交前移除 K2 精确补丁；保留 legacy constructor 与 README.md 用户修改"
+rollback_window = "before future Market source-profile wiring"
+authorization_required = false
+
+[legacy]
+allowlist_entries_before = []
+entries_to_remove = []
+callers_to_migrate = [
+  "future rust_quant_alpha market-worker source-profile/egress wiring",
+]
+configs_to_remove = []
+table_writes_to_stop = []
+monitors_to_remove = []
+deletion_gates = [
+  "K2 不删除 BinanceClient::new_public、BinanceMarket::new_default、WebSocket/example/test 或 full-sdk 环境配置入口。",
+  "Market source-profile successor 必须先登记并把 source_profile_id、endpoint、egress identity、timeout 与 PublicQuotaKey 绑定到显式 with_transport。",
+  "所有 committed direct legacy constructor 调用点归零或获得独立保留理由后，才可另建 legacy_delete Manifest。",
+  "固定 API Key 只在目标 endpoint 确实需要且只读权限/evidence 完整时另建 MarketDataAccessCredential capability；不得回填 K2。",
+]
+
+[evidence]
+evidence_file = "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/evidence.md"
+verdict_file = "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/verdict.json"
+verdict_schema_version = 1
+required_artifacts = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "src/lib.rs",
+  "src/public_transport.rs",
+  "src/public_market.rs",
+  "src/public_market/binance.rs",
+  "src/public_instrument/binance.rs",
+  "src/public_instrument/okx.rs",
+  "tests/public_transport_config.rs",
+  "binance_rs/src/lib.rs",
+  "binance_rs/src/config.rs",
+  "binance_rs/src/client.rs",
+  "binance_rs/src/public_transport.rs",
+  "binance_rs/tests/public_transport_tests.rs",
+  "okx_rs/Cargo.toml",
+  "okx_rs/src/lib.rs",
+  "okx_rs/src/client.rs",
+  "okx_rs/src/public_transport.rs",
+  "okx_rs/src/api/public_data/instrument_api.rs",
+  "okx_rs/tests/public_transport_tests.rs",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/manifest.toml",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/business-semantics-matrix.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/callsite-closure.md",
+  "docs/architecture/migrations/MIG-EXSDK-K2-BINANCE-OKX-EXPLICIT-PUBLIC-TRANSPORT-V1/evidence.md",
+  "task_plan.md",
+]
+contains_sensitive_data = false
+tested_revision = "a7369ff9a032038c9f74c10a23b482bfa127b0f9"
+tested_patch_sha256 = "529c4561b1548defd644fd3ba108a33f24c433a4f4c643e9dffd98d137d38b3a"
+input_artifact_hashes = [
+  { artifact_ref = "rust_quant@8cbae84e109cf36869947e74b1ec77889ec63fb1:docs/architecture/migrations/programs/registry.toml", sha256 = "0b27e43eecf945b8aa0569e87051dfa3b5eb1f242c809ef7bbe5d889e78e8d5c" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/manifest.toml", sha256 = "1634ea7ab908bef6e1d70517f4e6095b5650c1d0a937548c4f33191b8984f1ae" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:docs/architecture/migrations/MIG-EXSDK-K1-BINANCE-USDM-PUBLIC-KLINE-V1/evidence.md", sha256 = "8d309d2f1679a59677453558ebf6c0a4d8ba7b4fb6b415c7595b40d194ff45ca" },
+  { artifact_ref = "rust_quant_alpha@d9cc91a983f80abd8ae95d11cf1b6d6ff07e335f:architecture/repository-profiles/crypto_exc_all.toml", sha256 = "37b448c591c3c0096fe59e233ec0e171bbc14d5c41ecea51943cf885e0213d91" },
+  { artifact_ref = "crypto_exc_all@a7369ff9a032038c9f74c10a23b482bfa127b0f9:Cargo.lock", sha256 = "1c7ecba2b843a10a7131c3ab94bcb547a3791b2c27fc0b642e0db668d87c7ce7" },
+]
+output_artifact_hashes = [
+  { artifact_ref = "Cargo.lock", sha256 = "f8be2867ff6ed248389394652c25ad15f6b72638b49dc6506ec540c4a83f9a03" },
+  { artifact_ref = "binance_rs/src/lib.rs", sha256 = "6ffcd7947d8ddcd7391dd9b5cde3d4e5698d4ad48d96b73a9ef5e75d550d84c0" },
+  { artifact_ref = "binance_rs/src/public_transport.rs", sha256 = "28ca34d1fa5fa8f0e82e349e6aa3a8d55a868f219d965167487a39bee18345fd" },
+  { artifact_ref = "binance_rs/tests/public_transport_tests.rs", sha256 = "c622ac55cbff53636a857cc27837c8020f279f170d12174fc377b0d2a46f65af" },
+  { artifact_ref = "okx_rs/Cargo.toml", sha256 = "c026dbfdc8ac3c11261571bbe1f673c716cd00a913e9321e74cc6bb2cbfcbe14" },
+  { artifact_ref = "okx_rs/src/lib.rs", sha256 = "e3934156aaa6525e3c0ece07f16fcb4086b3ce97d51ffc3102962d4218c54953" },
+  { artifact_ref = "okx_rs/src/client.rs", sha256 = "efbe4166904a7e9d41ea4e51b229818fde8cf7bfa77c2b8a4b8e5f64617ea7bf" },
+  { artifact_ref = "okx_rs/src/public_transport.rs", sha256 = "2cbc17d9d0713fb95752b4dadb22719b3ce0b954428fe9ed9c184582b8a2fb31" },
+  { artifact_ref = "okx_rs/src/api/public_data/instrument_api.rs", sha256 = "154708b00328c54c8580f08e866848a63023c3352107bd557a472922717e89e3" },
+  { artifact_ref = "okx_rs/tests/public_transport_tests.rs", sha256 = "d27538974c9bc384052fc71da1353b4ec3f7880f5d76fd27d24a204847de101b" },
+  { artifact_ref = "src/lib.rs", sha256 = "7924a2f4d7db0daea20192d3be8fa6ff9772a94890c3fcd43933a3dcec4ff9a0" },
+  { artifact_ref = "src/public_transport.rs", sha256 = "efed51668134fb0b5141bdcdbe310d5f7c8a2567ef4cb6696f5a5333f720efec" },
+  { artifact_ref = "src/public_market.rs", sha256 = "13005322ed6d87d2cd1f24b56d3483c5b6f856da870574f44868b70e8fe021cf" },
+  { artifact_ref = "src/public_market/binance.rs", sha256 = "299dc1ddc69320a36e5b57db8d8189de36dbf92b30c693fd36c7638eadc8329d" },
+  { artifact_ref = "src/public_instrument/binance.rs", sha256 = "bb1a7bd81c32dd64ab9ac254ca6a71bb93d1c7e635a3a9a118ae1062f49de9b4" },
+  { artifact_ref = "src/public_instrument/okx.rs", sha256 = "97332b980bd6f2d06aba19947740ef45068a0d928cdd210ad93133e7d26730e7" },
+  { artifact_ref = "tests/public_transport_config.rs", sha256 = "facd96b60ecce1460e02df10afcedd42152e29d7f7d3548c7af9f45bb572de86" },
+  { artifact_ref = "task_plan.md", sha256 = "2ed2eba9152b0620908b7686a1fc3b55163f62fcf434d40ad18094bbc76091fa" },
+]
+
+[approval]
+required = false
+reason = ""
+approved_by = ""
+approved_at = ""
+reference = ""
+
+[blocking]
+reasons = []
+required_decisions = []

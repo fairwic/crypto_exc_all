@@ -1,6 +1,7 @@
 use crate::client::{OkxClient, OkxPublicResponse};
 use crate::dto::public_data::OkxPublicInstrument;
 use crate::error::Error;
+use crate::public_transport::OkxPublicTransportConfig;
 use reqwest::Method;
 
 const OKX_SWAP_INSTRUMENTS_PATH: &str = "/api/v5/public/instruments?instType=SWAP";
@@ -17,18 +18,25 @@ pub struct OkxPublicInstruments {
 impl OkxPublicInstruments {
     /// 使用 `OkxClient::new_public` 创建不持有 API Key、签名或 passphrase 的客户端。
     pub fn new() -> Result<Self, Error> {
-        Ok(Self {
-            client: OkxClient::new_public()?,
-        })
+        Self::with_transport(OkxPublicTransportConfig::default())
     }
 
     /// 创建仍然无凭证、但使用指定基地址的客户端。
     ///
     /// 该入口用于受控代理与 contract test；它只替换 origin，不允许改变固定的 SWAP query。
     pub fn with_base_url(base_url: impl Into<String>) -> Result<Self, Error> {
-        let mut client = OkxClient::new_public()?;
-        client.set_base_url(base_url);
-        Ok(Self { client })
+        let transport = OkxPublicTransportConfig {
+            api_url: base_url.into(),
+            ..OkxPublicTransportConfig::default()
+        };
+        Self::with_transport(transport)
+    }
+
+    /// 使用显式 endpoint、超时和代理创建无凭证客户端。
+    pub fn with_transport(transport: OkxPublicTransportConfig) -> Result<Self, Error> {
+        Ok(Self {
+            client: OkxClient::new_public_with_transport(transport)?,
+        })
     }
 
     /// 获取完整 OKX `SWAP` 产品规格响应及本次 HTTP/provider 限频证据。

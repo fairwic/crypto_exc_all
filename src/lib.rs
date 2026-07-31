@@ -23,6 +23,12 @@ pub mod position;
 pub mod public_instrument;
 #[cfg(any(feature = "binance-public-kline", feature = "okx-public-market"))]
 pub mod public_market;
+#[cfg(any(
+    feature = "binance-public-instrument",
+    feature = "binance-public-kline",
+    feature = "okx-public-market"
+))]
+pub mod public_transport;
 #[cfg(feature = "full-sdk")]
 pub mod sdk;
 #[cfg(feature = "full-sdk")]
@@ -95,6 +101,12 @@ pub use public_market::{
     OKX_MAX_CANDLE_PAGE_SIZE, OkxCandleDataset, OkxPublicCandle, OkxPublicCandleQuery,
     OkxPublicMarketClient, OkxPublicMarketConfig,
 };
+#[cfg(any(
+    feature = "binance-public-instrument",
+    feature = "binance-public-kline",
+    feature = "okx-public-market"
+))]
+pub use public_transport::*;
 #[cfg(feature = "full-sdk")]
 pub use sdk::CryptoSdk;
 #[cfg(feature = "full-sdk")]

@@ -20,10 +20,6 @@ use serde_path_to_error;
 use std::collections::BTreeMap;
 #[cfg(feature = "public-market")]
 use std::fmt;
-use std::time::Duration;
-
-const DEFAULT_PUBLIC_API_URL: &str = "https://www.okx.com";
-const DEFAULT_PUBLIC_API_TIMEOUT_MS: u64 = 5000;
 
 /// 通用的OKX API响应结构
 #[derive(Serialize, Deserialize, Debug)]
@@ -150,32 +146,13 @@ impl OkxClient {
         Self::build(Some(credentials), is_simulated_trading)
     }
 
-    /// 创建不持有账户凭证的公共只读客户端。
-    ///
-    /// 该客户端只能通过 `send_public_request` 调用公开 endpoint；受限 feature
-    /// 不编译 signed API，full feature 下误用 signed request 会在 I/O 前失败。
-    pub fn new_public() -> Result<Self, Error> {
-        let client = Self::build_http_client(DEFAULT_PUBLIC_API_TIMEOUT_MS)?;
-        Ok(Self {
-            client,
-            #[cfg(feature = "full")]
-            credentials: None,
-            #[cfg(feature = "full")]
-            is_simulated_trading: "0".to_string(),
-            base_url: DEFAULT_PUBLIC_API_URL.to_string(),
-            #[cfg(feature = "full")]
-            request_expiration_ms: 1000,
-            accept_language: None,
-        })
-    }
-
     /// 统一构造底层 HTTP client，避免公共与私有入口产生不同的超时行为。
     #[cfg(feature = "full")]
     fn build(
         credentials: Option<Credentials>,
         is_simulated_trading: String,
     ) -> Result<Self, Error> {
-        let client = Self::build_http_client(CONFIG.api_timeout_ms)?;
+        let client = crate::public_transport::build_http_client(CONFIG.api_timeout_ms, None)?;
 
         Ok(Self {
             client,
@@ -187,12 +164,19 @@ impl OkxClient {
         })
     }
 
-    /// 创建使用统一超时策略的 reqwest client。
-    fn build_http_client(timeout_ms: u64) -> Result<Client, Error> {
-        Client::builder()
-            .timeout(Duration::from_millis(timeout_ms))
-            .build()
-            .map_err(Error::HttpError)
+    /// 只允许 public transport 模块组装无凭证客户端，避免复制字段默认值。
+    pub(crate) fn from_public_transport(client: Client, base_url: String) -> Self {
+        Self {
+            client,
+            #[cfg(feature = "full")]
+            credentials: None,
+            #[cfg(feature = "full")]
+            is_simulated_trading: "0".to_string(),
+            base_url,
+            #[cfg(feature = "full")]
+            request_expiration_ms: 1_000,
+            accept_language: None,
+        }
     }
 
     /// 从环境变量创建OKX客户端

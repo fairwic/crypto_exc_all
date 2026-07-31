@@ -1,5 +1,5 @@
 use super::{BinanceExchangeInfo, BinancePublicResponse, PublicInstrumentResult};
-use binance_rs::{BinanceClient, BinanceMarket};
+use binance_rs::{BinanceClient, BinanceMarket, BinancePublicTransportConfig};
 
 /// Binance USDⓈ-M `exchangeInfo` 官方声明的单次 IP 权重。
 ///
@@ -24,11 +24,19 @@ pub struct BinanceUsdmPublicInstrumentClient {
 impl BinanceUsdmPublicInstrumentClient {
     /// 创建不持有 API Key/Secret 的 Binance USDⓈ-M 公共客户端。
     pub fn new(config: BinanceUsdmPublicInstrumentConfig) -> PublicInstrumentResult<Self> {
-        let mut client = BinanceClient::new_public()?;
-        if let Some(api_url) = config.api_url {
-            client.set_base_url(api_url);
-        }
+        let transport = match config.api_url {
+            Some(api_url) => BinancePublicTransportConfig {
+                api_url,
+                ..BinancePublicTransportConfig::default()
+            },
+            None => BinancePublicTransportConfig::default(),
+        };
+        Self::with_transport(transport)
+    }
 
+    /// 使用显式 endpoint、超时和代理创建无凭证公共客户端。
+    pub fn with_transport(transport: BinancePublicTransportConfig) -> PublicInstrumentResult<Self> {
+        let client = BinanceClient::new_public_with_transport(transport)?;
         Ok(Self {
             market: BinanceMarket::new(client),
         })

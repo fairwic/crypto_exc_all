@@ -10,6 +10,7 @@ pub mod debug_helper;
 pub mod dto;
 pub mod enums;
 pub mod error;
+pub mod public_transport;
 #[cfg(feature = "full")]
 pub mod utils;
 #[cfg(feature = "full")]
@@ -35,5 +36,6 @@ pub use client::{
 #[cfg(feature = "public-market")]
 pub use dto::public_data::OkxPublicInstrument;
 pub use error::Error;
+pub use public_transport::OkxPublicTransportConfig;
 #[cfg(feature = "full")]
 pub use websocket::OkxWebsocketClient;

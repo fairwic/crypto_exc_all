@@ -1,7 +1,7 @@
 use super::{
     BinancePublicMarketResult, BinancePublicResponse, BinanceUsdmKline, BinanceUsdmPublicKlineQuery,
 };
-use binance_rs::{BinanceClient, BinanceMarket};
+use binance_rs::{BinanceClient, BinanceMarket, BinancePublicTransportConfig};
 
 /// 不包含账户凭证的 Binance USD-M 公共 K 线客户端配置。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -22,11 +22,21 @@ pub struct BinanceUsdmPublicKlineClient {
 impl BinanceUsdmPublicKlineClient {
     /// 创建不持有 API Key/Secret 的 Binance USD-M 公共客户端。
     pub fn new(config: BinanceUsdmPublicKlineConfig) -> BinancePublicMarketResult<Self> {
-        let mut client = BinanceClient::new_public()?;
-        if let Some(api_url) = config.api_url {
-            client.set_base_url(api_url);
-        }
+        let transport = match config.api_url {
+            Some(api_url) => BinancePublicTransportConfig {
+                api_url,
+                ..BinancePublicTransportConfig::default()
+            },
+            None => BinancePublicTransportConfig::default(),
+        };
+        Self::with_transport(transport)
+    }
 
+    /// 使用显式 endpoint、超时和代理创建无凭证公共客户端。
+    pub fn with_transport(
+        transport: BinancePublicTransportConfig,
+    ) -> BinancePublicMarketResult<Self> {
+        let client = BinanceClient::new_public_with_transport(transport)?;
         Ok(Self {
             market: BinanceMarket::new(client),
         })
