@@ -486,6 +486,9 @@ pub struct PositionRespDto {
     /// 预估强平价
     #[serde(rename = "liqPx", skip_serializing_if = "Option::is_none")]
     pub liquidation_price: Option<String>,
+    /// 最近一次持仓更新时间，供上层在 snapshot 与私有流之间建立时序边界。
+    #[serde(rename = "uTime", default, skip_serializing_if = "Option::is_none")]
+    pub update_time: Option<String>,
 }
 
 /// 获取持仓信息请求DTO

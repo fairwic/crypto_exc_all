@@ -19,6 +19,8 @@ pub mod order;
 pub mod platform;
 #[cfg(feature = "full-sdk")]
 pub mod position;
+#[cfg(feature = "full-sdk")]
+pub mod private_account_stream;
 #[cfg(any(feature = "binance-public-instrument", feature = "okx-public-market"))]
 pub mod public_instrument;
 #[cfg(any(feature = "binance-public-kline", feature = "okx-public-market"))]
@@ -57,11 +59,11 @@ pub mod raw {
 
 #[cfg(feature = "full-sdk")]
 pub use account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, Balance,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, AccountIdentity, Balance,
     EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
     MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
     PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
-    SetPositionModeRequest, SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 #[cfg(feature = "full-sdk")]
 pub use config::{
@@ -86,7 +88,16 @@ pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
 #[cfg(feature = "full-sdk")]
 pub use platform::{PlatformEvent, PlatformEventQuery, PlatformFacade};
 #[cfg(feature = "full-sdk")]
-pub use position::{Position, PositionFacade, PositionHistory, PositionHistoryQuery};
+pub use position::{
+    Position, PositionFacade, PositionHistory, PositionHistoryQuery, SourcedPosition,
+};
+#[cfg(feature = "full-sdk")]
+pub use private_account_stream::{
+    PrivateAccountStreamChange, PrivateAccountStreamFacade, PrivateAccountStreamFrame,
+    PrivateAccountStreamKeepalive, PrivateAccountStreamRecord, PrivateAccountStreamSession,
+    PrivateBalanceStreamChange, PrivateOrderStreamChange, PrivatePositionStreamChange,
+    parse_private_account_stream_frame,
+};
 #[cfg(any(feature = "binance-public-instrument", feature = "okx-public-market"))]
 pub use public_instrument::*;
 #[cfg(feature = "binance-public-kline")]

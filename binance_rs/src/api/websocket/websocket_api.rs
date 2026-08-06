@@ -15,8 +15,10 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::handshake::client::Response;
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, client_async_tls_with_config, connect_async,
+    connect_async_with_config,
 };
 
 const LISTEN_KEY_PATH: &str = "/fapi/v1/listenKey";
@@ -56,6 +58,19 @@ impl BinanceApiTrait for BinanceWebsocket {
 }
 
 impl BinanceWebsocket {
+    /// 使用显式 REST client 与流地址创建客户端，供上层统一配置和本地协议测试复用。
+    pub fn with_stream_config(
+        client: BinanceClient,
+        stream_base_url: impl Into<String>,
+        proxy_url: Option<String>,
+    ) -> Self {
+        Self {
+            client,
+            stream_base_url: stream_base_url.into(),
+            proxy_url,
+        }
+    }
+
     pub fn new(client: BinanceClient) -> Self {
         <Self as BinanceApiTrait>::new(client)
     }
@@ -124,36 +139,13 @@ impl BinanceWebsocket {
         self.route_ws_url("market")
     }
 
-    pub fn private_route_ws_url(&self) -> String {
-        self.route_ws_url("private")
-    }
-
-    pub fn private_ws_url<S: AsRef<str>>(&self, listen_key: &str, events: &[S]) -> String {
-        let mut url = format!(
-            "{}/private/ws?listenKey={}",
-            self.stream_base_url(),
-            listen_key
-        );
-        let events = join_streams(events);
-        if !events.is_empty() {
-            url.push_str("&events=");
-            url.push_str(&events);
-        }
-        url
-    }
-
-    pub fn private_stream_url<S: AsRef<str>>(&self, listen_key: &str, events: &[S]) -> String {
-        let mut url = format!(
-            "{}/private/stream?listenKey={}",
-            self.stream_base_url(),
-            listen_key
-        );
-        let events = join_streams(events);
-        if !events.is_empty() {
-            url.push_str("&events=");
-            url.push_str(&events);
-        }
-        url
+    /// 构造 USDⓈ-M 私有用户流地址；listenKey 是路径段，不是订阅参数。
+    pub fn private_ws_url(&self, listen_key: &str) -> Result<String, Error> {
+        validate_listen_key(listen_key)?;
+        Ok(format!(
+            "{}/private/ws/{listen_key}",
+            self.stream_base_url()
+        ))
     }
 
     fn ws_path_url<S: AsRef<str>>(&self, route: &str, mode: &str, streams: &[S]) -> String {
@@ -182,6 +174,28 @@ impl BinanceWebsocket {
     fn stream_base_url(&self) -> &str {
         self.stream_base_url.trim_end_matches('/')
     }
+
+    pub(super) async fn connect_bounded_socket(
+        &self,
+        url: &str,
+        config: WebSocketConfig,
+    ) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), Error> {
+        connect_websocket_with_config(url, self.proxy_url.as_deref(), Some(config)).await
+    }
+}
+
+fn validate_listen_key(listen_key: &str) -> Result<(), Error> {
+    if listen_key.is_empty()
+        || listen_key.len() > 512
+        || !listen_key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(Error::InvalidRequest(
+            "listenKey 只能包含 ASCII 字母、数字、'-' 或 '_'，且长度为 1..=512".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn join_streams<S: AsRef<str>>(streams: &[S]) -> String {
@@ -196,18 +210,29 @@ async fn connect_websocket(
     url: &str,
     proxy_url: Option<&str>,
 ) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), Error> {
+    connect_websocket_with_config(url, proxy_url, None).await
+}
+
+async fn connect_websocket_with_config(
+    url: &str,
+    proxy_url: Option<&str>,
+    config: Option<WebSocketConfig>,
+) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), Error> {
     if let Some(proxy_addr) = proxy_url.and_then(socks5_proxy_addr) {
-        return connect_websocket_via_socks5(url, &proxy_addr).await;
+        return connect_websocket_via_socks5(url, &proxy_addr, config).await;
     }
 
-    connect_async(url)
-        .await
-        .map_err(|err| Error::WebSocketError(format!("连接失败: {err}")))
+    match config {
+        Some(config) => connect_async_with_config(url, Some(config), false).await,
+        None => connect_async(url).await,
+    }
+    .map_err(|err| Error::WebSocketError(format!("连接失败: {err}")))
 }
 
 async fn connect_websocket_via_socks5(
     url: &str,
     proxy_addr: &str,
+    config: Option<WebSocketConfig>,
 ) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), Error> {
     let parsed = url::Url::parse(url)
         .map_err(|err| Error::WebSocketError(format!("WebSocket URL 无效: {err}")))?;
@@ -223,7 +248,7 @@ async fn connect_websocket_via_socks5(
         .map_err(|err| Error::WebSocketError(format!("连接 SOCKS5 代理失败: {err}")))?;
     socks5_connect(&mut stream, host, port).await?;
 
-    client_async_tls_with_config(url, stream, None, None)
+    client_async_tls_with_config(url, stream, config, None)
         .await
         .map_err(|err| Error::WebSocketError(format!("代理 WebSocket 握手失败: {err}")))
 }
@@ -716,7 +741,6 @@ async fn forward_json(text: &str, tx: &mpsc::Sender<Value>) -> Result<(), ()> {
 pub enum BinanceStreamRoute {
     Public,
     Market,
-    Private,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -739,26 +763,11 @@ impl StreamSubscription {
             url: stream.into(),
         }
     }
-
-    pub fn private(listen_key: impl AsRef<str>, events: &[impl AsRef<str>]) -> Self {
-        let events = join_streams(events);
-        let url = if events.is_empty() {
-            format!("listenKey={}", listen_key.as_ref())
-        } else {
-            format!("listenKey={}&events={events}", listen_key.as_ref())
-        };
-
-        Self {
-            route: BinanceStreamRoute::Private,
-            url,
-        }
-    }
 }
 
 pub struct BinanceWebsocketHub {
     public_url: Option<String>,
     market_url: Option<String>,
-    private_url: Option<String>,
     proxy_url: Option<String>,
     reconnect_config: ReconnectConfig,
 }
@@ -768,7 +777,6 @@ impl BinanceWebsocketHub {
         Self {
             public_url: None,
             market_url: None,
-            private_url: None,
             proxy_url: None,
             reconnect_config: ReconnectConfig::default(),
         }
@@ -778,7 +786,6 @@ impl BinanceWebsocketHub {
         match route {
             BinanceStreamRoute::Public => self.public_url = Some(url.into()),
             BinanceStreamRoute::Market => self.market_url = Some(url.into()),
-            BinanceStreamRoute::Private => self.private_url = Some(url.into()),
         }
         self
     }
@@ -799,11 +806,7 @@ impl BinanceWebsocketHub {
     ) -> Result<mpsc::Receiver<Value>, Error> {
         let (output_tx, output_rx) = mpsc::channel::<Value>(WEBSOCKET_CHANNEL_SIZE);
 
-        for route in [
-            BinanceStreamRoute::Public,
-            BinanceStreamRoute::Market,
-            BinanceStreamRoute::Private,
-        ] {
+        for route in [BinanceStreamRoute::Public, BinanceStreamRoute::Market] {
             let route_subscriptions: Vec<String> = subscriptions
                 .iter()
                 .filter(|subscription| subscription.route == route)
@@ -846,13 +849,12 @@ impl BinanceWebsocketHub {
         match route {
             BinanceStreamRoute::Public => self.public_url.clone(),
             BinanceStreamRoute::Market => self.market_url.clone(),
-            BinanceStreamRoute::Private => self.private_url.clone(),
         }
     }
 }
 
 fn route_url_embeds_subscription(url: &str) -> bool {
-    url.contains("?streams=") || url.contains("&streams=") || url.contains("listenKey=")
+    url.contains("?streams=") || url.contains("&streams=")
 }
 
 impl Default for BinanceWebsocketHub {

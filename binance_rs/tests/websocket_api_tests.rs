@@ -81,8 +81,8 @@ fn websocket_url_builders_use_split_binance_futures_routes() {
         "wss://fstream.binance.com/market/stream?streams=btcusdt@aggTrade/ethusdt@markPrice"
     );
     assert_eq!(
-        websocket.private_ws_url("listen-key", &["ORDER_TRADE_UPDATE", "ACCOUNT_UPDATE"]),
-        "wss://fstream.binance.com/private/ws?listenKey=listen-key&events=ORDER_TRADE_UPDATE/ACCOUNT_UPDATE"
+        websocket.private_ws_url("listen-key").unwrap(),
+        "wss://fstream.binance.com/private/ws/listen-key"
     );
     assert_eq!(
         websocket.public_route_ws_url(),
@@ -91,10 +91,6 @@ fn websocket_url_builders_use_split_binance_futures_routes() {
     assert_eq!(
         websocket.market_route_ws_url(),
         "wss://fstream.binance.com/market/ws"
-    );
-    assert_eq!(
-        websocket.private_route_ws_url(),
-        "wss://fstream.binance.com/private/ws"
     );
 }
 
@@ -590,35 +586,30 @@ async fn websocket_manager_exposes_state_and_health_metrics() {
 }
 
 #[tokio::test]
-async fn websocket_hub_routes_subscriptions_to_split_public_market_private_urls() {
+async fn websocket_hub_routes_public_and_market_subscriptions() {
     let public_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let market_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let private_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 
     let public_url = format!("ws://{}", public_listener.local_addr().unwrap());
     let market_url = format!("ws://{}", market_listener.local_addr().unwrap());
-    let private_url = format!("ws://{}", private_listener.local_addr().unwrap());
 
-    let (route_tx, mut route_rx) = mpsc::channel::<String>(3);
+    let (route_tx, mut route_rx) = mpsc::channel::<String>(2);
     spawn_route_server(public_listener, "public", route_tx.clone());
-    spawn_route_server(market_listener, "market", route_tx.clone());
-    spawn_route_server(private_listener, "private", route_tx);
+    spawn_route_server(market_listener, "market", route_tx);
 
     let hub = BinanceWebsocketHub::new()
         .with_route_url(BinanceStreamRoute::Public, public_url)
-        .with_route_url(BinanceStreamRoute::Market, market_url)
-        .with_route_url(BinanceStreamRoute::Private, private_url);
+        .with_route_url(BinanceStreamRoute::Market, market_url);
     let mut receiver = hub
         .start(vec![
             StreamSubscription::public("btcusdt@depth"),
             StreamSubscription::market("btcusdt@aggTrade"),
-            StreamSubscription::private("listen-key", &["ORDER_TRADE_UPDATE"]),
         ])
         .await
         .unwrap();
 
     let mut routes = Vec::new();
-    for _ in 0..3 {
+    for _ in 0..2 {
         let message = timeout(Duration::from_secs(2), receiver.recv())
             .await
             .unwrap()
@@ -626,10 +617,10 @@ async fn websocket_hub_routes_subscriptions_to_split_public_market_private_urls(
         routes.push(message["route"].as_str().unwrap().to_string());
     }
     routes.sort();
-    assert_eq!(routes, vec!["market", "private", "public"]);
+    assert_eq!(routes, vec!["market", "public"]);
 
     let mut connected_routes = Vec::new();
-    for _ in 0..3 {
+    for _ in 0..2 {
         connected_routes.push(
             timeout(Duration::from_secs(1), route_rx.recv())
                 .await
@@ -638,7 +629,7 @@ async fn websocket_hub_routes_subscriptions_to_split_public_market_private_urls(
         );
     }
     connected_routes.sort();
-    assert_eq!(connected_routes, vec!["market", "private", "public"]);
+    assert_eq!(connected_routes, vec!["market", "public"]);
 }
 
 #[tokio::test]

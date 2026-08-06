@@ -1,9 +1,9 @@
 use crate::account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageSetting, MaxOrderSize, MaxOrderSizeRequest,
-    PositionModeSetting, PrepareOrderSettingsRequest, PrepareOrderSettingsResult,
-    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
-    SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, Balance,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting, MaxOrderSize,
+    MaxOrderSizeRequest, PositionModeSetting, PrepareOrderSettingsRequest,
+    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
+    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 use crate::config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
@@ -19,7 +19,8 @@ use crate::market::{
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::platform::{PlatformEvent, PlatformEventQuery};
-use crate::position::{Position, PositionHistory, PositionHistoryQuery};
+use crate::position::{Position, PositionHistory, PositionHistoryQuery, SourcedPosition};
+use crate::private_account_stream::PrivateAccountStreamSession;
 use crate::trade::{
     CancelOrderRequest, OrderAck, PlaceOrderRequest, ProtectiveOrderQuery, ProtectiveOrderRequest,
     TradeCapabilities,
@@ -122,6 +123,35 @@ impl ExchangeClient {
             Self::Gate(_) => ExchangeId::Gate,
             #[cfg(feature = "hyperliquid")]
             Self::Hyperliquid(_) => ExchangeId::Hyperliquid,
+        }
+    }
+
+    pub(crate) async fn open_private_account_stream(&self) -> Result<PrivateAccountStreamSession> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.open_private_account_stream().await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.open_private_account_stream().await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "private_account_stream",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "private_account_stream",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "private_account_stream",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "private_account_stream",
+            }),
         }
     }
 
@@ -443,6 +473,65 @@ impl ExchangeClient {
         }
     }
 
+    /// 只有首版 Account owner 支持的 OKX/Binance 暴露 source time 合同。
+    pub(crate) async fn sourced_balances(&self) -> Result<Vec<SourcedBalance>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.sourced_balances().await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.sourced_balances().await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "sourced account balances",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "sourced account balances",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "sourced account balances",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "sourced account balances",
+            }),
+        }
+    }
+
+    pub(crate) async fn account_identity(&self) -> Result<AccountIdentity> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.account_identity().await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.account_identity().await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "account identity",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account identity",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "account identity",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "account identity",
+            }),
+        }
+    }
+
     pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
         match self {
             #[cfg(feature = "okx")]
@@ -678,6 +767,39 @@ impl ExchangeClient {
             Self::Gate(adapter) => adapter.positions(instrument).await,
             #[cfg(feature = "hyperliquid")]
             Self::Hyperliquid(adapter) => adapter.positions(instrument).await,
+        }
+    }
+
+    /// 只有首版 Account owner 支持的 OKX/Binance 暴露 source time 合同。
+    pub(crate) async fn sourced_positions(
+        &self,
+        instrument: Option<&Instrument>,
+    ) -> Result<Vec<SourcedPosition>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.sourced_positions(instrument).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.sourced_positions(instrument).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "sourced account positions",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "sourced account positions",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "sourced account positions",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "sourced account positions",
+            }),
         }
     }
 

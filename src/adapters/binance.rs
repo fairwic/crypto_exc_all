@@ -3,9 +3,10 @@ use super::value::{
     map_string_field as string_field, map_u64_field as u64_field, value_string_at, value_u64_at,
 };
 use crate::account::{
-    AccountCapabilities, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
-    LeverageSetting, PositionMode, PositionModeSetting, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    AccountCapabilities, AccountIdentity, Balance, EnsureOrderMarginModeRequest,
+    EnsureOrderMarginModeResult, LeverageSetting, PositionMode, PositionModeSetting,
+    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
+    SymbolMarginModeSetting,
 };
 use crate::config::BinanceExchangeConfig;
 use crate::error::{Error, Result};
@@ -18,7 +19,8 @@ use crate::market::{
     Ticker,
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
-use crate::position::Position;
+use crate::position::{Position, SourcedPosition};
+use crate::private_account_stream::PrivateAccountStreamSession;
 use crate::trade::{
     CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, ProtectiveOrderQuery,
     ProtectiveOrderRequest, TimeInForce,
@@ -38,8 +40,10 @@ use binance_rs::api::trade::{
 use binance_rs::config::{Config as BinanceConfig, Credentials as BinanceCredentials};
 use binance_rs::{
     BinanceAccount, BinanceAnnouncements, BinanceAsset, BinanceClient, BinanceMarket, BinanceTrade,
+    BinanceWebsocket,
 };
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 
 #[path = "binance/account_bills.rs"]
 mod account_bills;
@@ -51,6 +55,7 @@ pub(crate) struct BinanceAdapter {
     announcements: BinanceAnnouncements,
     asset: BinanceAsset,
     market: BinanceMarket,
+    private_stream: BinanceWebsocket,
     trade: BinanceTrade,
 }
 
@@ -88,15 +93,32 @@ impl BinanceAdapter {
         asset_config.api_url = asset_config.sapi_api_url.clone();
         let asset_client = BinanceClient::with_config(Some(asset_credentials), asset_config)
             .map_err(Error::from_binance)?;
+        let private_stream_ws_url = binance_config.ws_stream_url.clone();
+        let private_stream_proxy_url = binance_config.proxy_url.clone();
         let client = BinanceClient::with_config(Some(credentials), binance_config)
             .map_err(Error::from_binance)?;
+        let private_stream = BinanceWebsocket::with_stream_config(
+            client.clone(),
+            private_stream_ws_url,
+            private_stream_proxy_url,
+        );
         Ok(Self {
             account: BinanceAccount::new(client.clone()),
             announcements: BinanceAnnouncements::new(announcements_client),
             asset: BinanceAsset::new(asset_client),
             market: BinanceMarket::new(client.clone()),
+            private_stream,
             trade: BinanceTrade::new(client),
         })
+    }
+
+    pub(crate) async fn open_private_account_stream(&self) -> Result<PrivateAccountStreamSession> {
+        let session = binance_rs::api::websocket::BinanceUserDataStreamSession::open(
+            self.private_stream.clone(),
+        )
+        .await
+        .map_err(Error::from_binance)?;
+        Ok(PrivateAccountStreamSession::from_binance(session))
     }
 
     pub(crate) async fn ticker(&self, instrument: &Instrument) -> Result<Ticker> {
@@ -372,6 +394,16 @@ impl BinanceAdapter {
     }
 
     pub(crate) async fn balances(&self) -> Result<Vec<Balance>> {
+        Ok(self
+            .sourced_balances()
+            .await?
+            .into_iter()
+            .map(|value| value.balance)
+            .collect())
+    }
+
+    /// 保留 Binance balance `updateTime`，不改变既有 `Balance` DTO。
+    pub(crate) async fn sourced_balances(&self) -> Result<Vec<SourcedBalance>> {
         let balances = self
             .account
             .get_balance()
@@ -382,16 +414,81 @@ impl BinanceAdapter {
             .into_iter()
             .map(|balance| {
                 let raw = serde_json::to_value(&balance)?;
-                Ok(Balance {
-                    exchange: ExchangeId::Binance,
-                    asset: balance.asset,
-                    total: balance.balance,
-                    available: balance.available_balance,
-                    frozen: non_empty(balance.cross_un_pnl),
-                    raw,
+                Ok(SourcedBalance {
+                    balance: Balance {
+                        exchange: ExchangeId::Binance,
+                        asset: balance.asset,
+                        total: balance.balance,
+                        available: balance.available_balance,
+                        frozen: non_empty(balance.cross_un_pnl),
+                        raw,
+                    },
+                    source_updated_at_ms: balance.update_time,
                 })
             })
             .collect()
+    }
+
+    /// 映射 Binance USDⓈ-M signed balance/config 的 accountAlias 与账户模式。
+    pub(crate) async fn account_identity(&self) -> Result<AccountIdentity> {
+        let exchange = ExchangeId::Binance;
+        let balances = self
+            .account
+            .get_balance()
+            .await
+            .map_err(Error::from_binance)?;
+        let aliases = balances
+            .iter()
+            .map(|balance| balance.account_alias.trim())
+            .filter(|alias| !alias.is_empty())
+            .collect::<BTreeSet<_>>();
+        if aliases.len() != 1 {
+            return Err(Error::Adapter {
+                exchange,
+                message: "Binance balance response has no unique accountAlias".to_owned(),
+            });
+        }
+        let provider_account_id = aliases
+            .into_iter()
+            .next()
+            .expect("one alias checked")
+            .to_owned();
+        let config = self
+            .account
+            .get_account_config()
+            .await
+            .map_err(Error::from_binance)?;
+        let object = config.as_object().ok_or_else(|| Error::Adapter {
+            exchange,
+            message: "Binance accountConfig response is not an object".to_owned(),
+        })?;
+        let multi_assets = object
+            .get("multiAssetsMargin")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: "Binance accountConfig missing multiAssetsMargin".to_owned(),
+            })?;
+        let dual_side = object
+            .get("dualSidePosition")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: "Binance accountConfig missing dualSidePosition".to_owned(),
+            })?;
+        Ok(AccountIdentity {
+            exchange,
+            provider_account_id,
+            parent_account_id: None,
+            margin_mode: if multi_assets {
+                "multi_asset"
+            } else {
+                "single_asset"
+            }
+            .to_owned(),
+            position_mode: if dual_side { "hedge" } else { "one_way" }.to_owned(),
+            settlement_asset: "USDT".to_owned(),
+        })
     }
 
     pub(crate) async fn set_leverage(
@@ -519,6 +616,39 @@ impl BinanceAdapter {
     }
 
     pub(crate) async fn positions(&self, instrument: Option<&Instrument>) -> Result<Vec<Position>> {
+        Ok(self
+            .position_rows(instrument)
+            .await?
+            .into_iter()
+            .map(|(position, _)| position)
+            .collect())
+    }
+
+    /// 保留 Binance position `updateTime`，不改变既有 `Position` DTO。
+    pub(crate) async fn sourced_positions(
+        &self,
+        instrument: Option<&Instrument>,
+    ) -> Result<Vec<SourcedPosition>> {
+        self.position_rows(instrument)
+            .await?
+            .into_iter()
+            .map(|(position, source_updated_at_ms)| {
+                Ok(SourcedPosition {
+                    position,
+                    source_updated_at_ms: source_updated_at_ms.ok_or_else(|| Error::Adapter {
+                        exchange: ExchangeId::Binance,
+                        message: "Binance position response missing updateTime".to_owned(),
+                    })?,
+                })
+            })
+            .collect()
+    }
+
+    /// 共享一次 provider 映射，同时让旧接口继续接受没有 source time 的历史响应。
+    async fn position_rows(
+        &self,
+        instrument: Option<&Instrument>,
+    ) -> Result<Vec<(Position, Option<u64>)>> {
         let exchange = ExchangeId::Binance;
         let symbol = instrument.map(|instrument| instrument.symbol_for(exchange));
         let raw = self
@@ -544,21 +674,25 @@ impl BinanceAdapter {
             let mapped_instrument = instrument
                 .cloned()
                 .unwrap_or_else(|| instrument_from_linear_symbol(&exchange_symbol));
-            output.push(Position {
-                exchange,
-                instrument: mapped_instrument,
-                exchange_symbol,
-                side: string_field(object, "positionSide"),
-                size: string_field(object, "positionAmt").unwrap_or_default(),
-                entry_price: string_field(object, "entryPrice"),
-                mark_price: string_field(object, "markPrice"),
-                unrealized_pnl: string_field(object, "unRealizedProfit")
-                    .or_else(|| string_field(object, "unrealizedProfit")),
-                leverage: string_field(object, "leverage"),
-                margin_mode: string_field(object, "marginType"),
-                liquidation_price: string_field(object, "liquidationPrice"),
-                raw: value.clone(),
-            });
+            let source_updated_at_ms = u64_field(object, "updateTime");
+            output.push((
+                Position {
+                    exchange,
+                    instrument: mapped_instrument,
+                    exchange_symbol,
+                    side: string_field(object, "positionSide"),
+                    size: string_field(object, "positionAmt").unwrap_or_default(),
+                    entry_price: string_field(object, "entryPrice"),
+                    mark_price: string_field(object, "markPrice"),
+                    unrealized_pnl: string_field(object, "unRealizedProfit")
+                        .or_else(|| string_field(object, "unrealizedProfit")),
+                    leverage: string_field(object, "leverage"),
+                    margin_mode: string_field(object, "marginType"),
+                    liquidation_price: string_field(object, "liquidationPrice"),
+                    raw: value.clone(),
+                },
+                source_updated_at_ms,
+            ));
         }
 
         Ok(output)

@@ -16,6 +16,31 @@ pub struct Balance {
     pub raw: Value,
 }
 
+/// 带 provider 更新时间的余额读取结果；旧 `Balance` 合同保持不变。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SourcedBalance {
+    /// 既有 canonical 余额事实。
+    pub balance: Balance,
+    /// 交易所报告的余额更新时间（Unix 毫秒）。
+    pub source_updated_at_ms: u64,
+}
+
+/// 交易所官方账户身份与账户级模式；不包含 API credential 或业务准入判断。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountIdentity {
+    pub exchange: ExchangeId,
+    /// 交易所返回的账户身份字段；Gateway 负责生成非敏感 fingerprint 后立即丢弃原值。
+    pub provider_account_id: String,
+    /// 主账户 identity；普通主账户或交易所未提供时为空。
+    pub parent_account_id: Option<String>,
+    /// 交易所账户级资金模式，不替代订单/持仓逐项 margin mode。
+    pub margin_mode: String,
+    /// 账户持仓模式。
+    pub position_mode: String,
+    /// 当前 facade 覆盖产品的结算币种。
+    pub settlement_asset: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AccountBill {
     pub exchange: ExchangeId,
@@ -445,6 +470,16 @@ impl<'a> AccountFacade<'a> {
 
     pub async fn balances(&self) -> Result<Vec<Balance>> {
         self.client.balances().await
+    }
+
+    /// 读取带 provider 更新时间的 OKX/Binance 余额，供 snapshot/stream 因果合并。
+    pub async fn sourced_balances(&self) -> Result<Vec<SourcedBalance>> {
+        self.client.sourced_balances().await
+    }
+
+    /// 读取官方 signed account identity；本方法只做协议映射，不判断用户授权或 Core admission。
+    pub async fn identity(&self) -> Result<AccountIdentity> {
+        self.client.account_identity().await
     }
 
     pub async fn bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {

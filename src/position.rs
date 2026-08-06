@@ -21,6 +21,15 @@ pub struct Position {
     pub raw: Value,
 }
 
+/// 带 provider 更新时间的持仓读取结果；旧 `Position` 合同保持不变。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SourcedPosition {
+    /// 既有 canonical 持仓事实。
+    pub position: Position,
+    /// 交易所报告的持仓更新时间（Unix 毫秒）。
+    pub source_updated_at_ms: u64,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PositionHistoryQuery {
     pub instrument: Option<Instrument>,
@@ -120,6 +129,14 @@ impl<'a> PositionFacade<'a> {
 
     pub async fn list(&self, instrument: Option<&Instrument>) -> Result<Vec<Position>> {
         self.client.positions(instrument).await
+    }
+
+    /// 读取带 provider 更新时间的 OKX/Binance 持仓，供 snapshot/stream 因果合并。
+    pub async fn sourced_list(
+        &self,
+        instrument: Option<&Instrument>,
+    ) -> Result<Vec<SourcedPosition>> {
+        self.client.sourced_positions(instrument).await
     }
 
     pub async fn history(&self, query: PositionHistoryQuery) -> Result<Vec<PositionHistory>> {

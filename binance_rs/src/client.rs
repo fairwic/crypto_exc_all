@@ -285,7 +285,13 @@ impl BinanceClient {
         let body = response.text().await.map_err(Error::HttpError)?;
 
         if status.is_success() {
-            return serde_json::from_str(&body).map_err(Error::JsonError);
+            // Binance 的部分 DELETE 端点以空 body 表示成功；按 JSON null 解析可保留泛型返回合同。
+            let body = if body.trim().is_empty() {
+                "null"
+            } else {
+                &body
+            };
+            return serde_json::from_str(body).map_err(Error::JsonError);
         }
 
         if let Ok(error_body) = serde_json::from_str::<BinanceApiErrorBody>(&body) {

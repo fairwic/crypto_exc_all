@@ -3,10 +3,11 @@ use super::value::{
     map_u64_field as u64_field,
 };
 use crate::account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageSetting, MarginModeApplyMethod, MaxOrderSize,
-    MaxOrderSizeRequest, PositionMode, PositionModeSetting, SetLeverageRequest,
-    SetPositionModeRequest, SetSymbolMarginModeRequest, SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, Balance,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
+    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
+    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
+    SymbolMarginModeSetting,
 };
 use crate::config::OkxExchangeConfig;
 use crate::error::{Error, Result};
@@ -20,7 +21,8 @@ use crate::market::{
     Ticker,
 };
 use crate::order::{Order, OrderListQuery, OrderQuery};
-use crate::position::{Position, PositionHistory, PositionHistoryQuery};
+use crate::position::{Position, PositionHistory, PositionHistoryQuery, SourcedPosition};
+use crate::private_account_stream::PrivateAccountStreamSession;
 use crate::trade::{CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, TimeInForce};
 use okx_rs::api::announcements::announcements_api::OkxAnnouncements;
 use okx_rs::api::api_trait::OkxApiTrait;
@@ -38,6 +40,7 @@ use okx_rs::dto::{
     CandleOkxRespDto, EnumToStrTrait, MarginMode as OkxMarginMode, OrderType as OkxRawOrderType,
     TickerOkxResDto,
 };
+use okx_rs::websocket::OkxPrivateAccountStreamClient;
 use okx_rs::{OkxAccount, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
 use serde_json::{Value, json};
 
@@ -53,19 +56,24 @@ pub(crate) struct OkxAdapter {
     big_data: OkxBigData,
     market: OkxMarket,
     public_data: OkxPublicData,
+    private_stream: Option<OkxPrivateAccountStreamClient>,
     trade: OkxTrade,
 }
 
 impl OkxAdapter {
     pub(crate) fn new(config: OkxExchangeConfig) -> Result<Self> {
+        let simulated = config.simulated;
         let credentials = OkxCredentials::new(
             config.api_key,
             config.api_secret,
             config.passphrase,
-            if config.simulated { "1" } else { "0" },
+            if simulated { "1" } else { "0" },
         );
+        // W3 只承诺生产私有流；demo credential 不能静默发送到生产 WebSocket。
+        let private_stream =
+            (!simulated).then(|| OkxPrivateAccountStreamClient::new(credentials.clone()));
         let mut client = OkxClient::new(credentials).map_err(Error::from_okx)?;
-        client.set_simulated_trading(if config.simulated { "1" } else { "0" }.to_string());
+        client.set_simulated_trading(if simulated { "1" } else { "0" }.to_string());
         if let Some(api_url) = config.api_url {
             client.set_base_url(api_url);
         }
@@ -79,8 +87,18 @@ impl OkxAdapter {
             big_data: <OkxBigData as OkxApiTrait>::new(client.clone()),
             market: <OkxMarket as OkxApiTrait>::new(client.clone()),
             public_data: <OkxPublicData as OkxApiTrait>::new(client.clone()),
+            private_stream,
             trade: <OkxTrade as OkxApiTrait>::new(client),
         })
+    }
+
+    pub(crate) async fn open_private_account_stream(&self) -> Result<PrivateAccountStreamSession> {
+        let private_stream = self.private_stream.as_ref().ok_or(Error::Unsupported {
+            exchange: ExchangeId::Okx,
+            capability: "simulated private account stream",
+        })?;
+        let session = private_stream.connect().await.map_err(Error::from_okx)?;
+        Ok(PrivateAccountStreamSession::from_okx(session))
     }
 
     pub(crate) async fn ticker(&self, instrument: &Instrument) -> Result<Ticker> {
@@ -348,6 +366,16 @@ impl OkxAdapter {
     }
 
     pub(crate) async fn balances(&self) -> Result<Vec<Balance>> {
+        Ok(self
+            .sourced_balances()
+            .await?
+            .into_iter()
+            .map(|value| value.balance)
+            .collect())
+    }
+
+    /// 保留 OKX account-level `uTime`，不把本地响应时间冒充 provider source time。
+    pub(crate) async fn sourced_balances(&self) -> Result<Vec<SourcedBalance>> {
         let accounts = self
             .account
             .get_balance(None)
@@ -356,24 +384,80 @@ impl OkxAdapter {
         let mut output = Vec::new();
 
         for account in accounts {
+            let source_updated_at_ms =
+                parse_u64_string(&account.u_time).ok_or_else(|| Error::Adapter {
+                    exchange: ExchangeId::Okx,
+                    message: "OKX balance response missing uTime".to_owned(),
+                })?;
             for detail in account.details {
                 let raw = serde_json::to_value(&detail)?;
-                output.push(Balance {
-                    exchange: ExchangeId::Okx,
-                    asset: detail.ccy,
-                    total: detail.eq,
-                    available: if detail.avail_bal.is_empty() {
-                        detail.avail_eq
-                    } else {
-                        detail.avail_bal
+                output.push(SourcedBalance {
+                    balance: Balance {
+                        exchange: ExchangeId::Okx,
+                        asset: detail.ccy,
+                        total: detail.eq,
+                        available: if detail.avail_bal.is_empty() {
+                            detail.avail_eq
+                        } else {
+                            detail.avail_bal
+                        },
+                        frozen: non_empty(detail.frozen_bal),
+                        raw,
                     },
-                    frozen: non_empty(detail.frozen_bal),
-                    raw,
+                    source_updated_at_ms,
                 });
             }
         }
 
         Ok(output)
+    }
+
+    /// 映射 OKX `/api/v5/account/config` 当前官方 identity 与账户模式字段。
+    pub(crate) async fn account_identity(&self) -> Result<AccountIdentity> {
+        let exchange = ExchangeId::Okx;
+        let raw = self
+            .account
+            .get_config_raw()
+            .await
+            .map_err(Error::from_okx)?;
+        let object = raw
+            .as_array()
+            .and_then(|items| items.first())
+            .and_then(Value::as_object)
+            .or_else(|| raw.as_object())
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: "OKX account config response missing object".to_owned(),
+            })?;
+        let provider_account_id = string_field(object, "uid")
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: "OKX account config response missing uid".to_owned(),
+            })?;
+        let account_level = string_field(object, "acctLv").unwrap_or_default();
+        let margin_mode = okx_account_mode(&account_level).ok_or_else(|| Error::Adapter {
+            exchange,
+            message: "OKX account config returned an unknown acctLv".to_owned(),
+        })?;
+        let position_mode = string_field(object, "posMode")
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| Error::Adapter {
+                exchange,
+                message: "OKX account config response missing posMode".to_owned(),
+            })?;
+        let parent_account_id = okx_parent_account_id(
+            &provider_account_id,
+            string_field(object, "mainUid").filter(|value| !value.trim().is_empty()),
+        );
+        Ok(AccountIdentity {
+            exchange,
+            provider_account_id,
+            parent_account_id,
+            margin_mode: margin_mode.to_owned(),
+            position_mode,
+            settlement_asset: "USDT".to_owned(),
+        })
     }
 
     pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
@@ -567,6 +651,39 @@ impl OkxAdapter {
     }
 
     pub(crate) async fn positions(&self, instrument: Option<&Instrument>) -> Result<Vec<Position>> {
+        Ok(self
+            .position_rows(instrument)
+            .await?
+            .into_iter()
+            .map(|(position, _)| position)
+            .collect())
+    }
+
+    /// 保留 OKX position `uTime`，供 Account snapshot 与私有流按同一时钟合并。
+    pub(crate) async fn sourced_positions(
+        &self,
+        instrument: Option<&Instrument>,
+    ) -> Result<Vec<SourcedPosition>> {
+        self.position_rows(instrument)
+            .await?
+            .into_iter()
+            .map(|(position, source_updated_at_ms)| {
+                Ok(SourcedPosition {
+                    position,
+                    source_updated_at_ms: source_updated_at_ms.ok_or_else(|| Error::Adapter {
+                        exchange: ExchangeId::Okx,
+                        message: "OKX position response missing uTime".to_owned(),
+                    })?,
+                })
+            })
+            .collect()
+    }
+
+    /// 共享一次 DTO 映射，同时让旧接口继续接受没有 `uTime` 的历史响应。
+    async fn position_rows(
+        &self,
+        instrument: Option<&Instrument>,
+    ) -> Result<Vec<(Position, Option<u64>)>> {
         let exchange = ExchangeId::Okx;
         let symbol = instrument.map(|instrument| instrument.symbol_for(exchange));
         let positions = self
@@ -578,24 +695,31 @@ impl OkxAdapter {
         positions
             .into_iter()
             .map(|position| {
+                let source_updated_at_ms =
+                    position.update_time.as_deref().and_then(parse_u64_string);
                 let raw = serde_json::to_value(&position)?;
                 let mapped_instrument = instrument
                     .cloned()
                     .unwrap_or_else(|| instrument_from_okx_symbol(&position.inst_id));
-                Ok(Position {
-                    exchange,
-                    instrument: mapped_instrument,
-                    exchange_symbol: position.inst_id,
-                    side: Some(position.position_side.as_str().to_string()),
-                    size: position.pos,
-                    entry_price: non_empty(position.average_price),
-                    mark_price: None,
-                    unrealized_pnl: non_empty(position.upl),
-                    leverage: non_empty(position.leverage),
-                    margin_mode: Some(okx_margin_mode_from_enum(position.margin_mode).to_string()),
-                    liquidation_price: position.liquidation_price.and_then(non_empty),
-                    raw,
-                })
+                Ok((
+                    Position {
+                        exchange,
+                        instrument: mapped_instrument,
+                        exchange_symbol: position.inst_id,
+                        side: Some(position.position_side.as_str().to_string()),
+                        size: position.pos,
+                        entry_price: non_empty(position.average_price),
+                        mark_price: None,
+                        unrealized_pnl: non_empty(position.upl),
+                        leverage: non_empty(position.leverage),
+                        margin_mode: Some(
+                            okx_margin_mode_from_enum(position.margin_mode).to_string(),
+                        ),
+                        liquidation_price: position.liquidation_price.and_then(non_empty),
+                        raw,
+                    },
+                    source_updated_at_ms,
+                ))
             })
             .collect()
     }
@@ -922,6 +1046,25 @@ fn okx_margin_mode(value: Option<&MarginMode>) -> String {
     value
         .map(MarginMode::as_okx_td_mode)
         .unwrap_or_else(|| "cross".to_string())
+}
+
+/// 把 OKX `acctLv` 映射为当前官方账户模式；未知等级不做猜测。
+fn okx_account_mode(account_level: &str) -> Option<&'static str> {
+    match account_level {
+        "1" => Some("spot"),
+        "2" => Some("futures"),
+        "3" => Some("multi_currency_margin"),
+        "4" => Some("portfolio_margin"),
+        _ => None,
+    }
+}
+
+/// OKX 主账户的 `mainUid` 等于 `uid`；只有子账户才保留真实父账户标识。
+fn okx_parent_account_id(
+    provider_account_id: &str,
+    parent_account_id: Option<String>,
+) -> Option<String> {
+    parent_account_id.filter(|value| value != provider_account_id)
 }
 
 fn okx_margin_mode_from_enum(value: OkxMarginMode) -> &'static str {
@@ -1701,6 +1844,39 @@ mod tests {
 
         assert!(error.to_string().contains("51076"));
         assert!(error.to_string().contains("Attached TP/SL parameter error"));
+    }
+
+    #[test]
+    fn okx_account_level_uses_current_official_mode_names() {
+        assert_eq!(okx_account_mode("1"), Some("spot"));
+        assert_eq!(okx_account_mode("2"), Some("futures"));
+        assert_eq!(okx_account_mode("3"), Some("multi_currency_margin"));
+        assert_eq!(okx_account_mode("4"), Some("portfolio_margin"));
+        assert_eq!(okx_account_mode("5"), None);
+    }
+
+    #[test]
+    fn okx_main_account_does_not_report_itself_as_parent() {
+        assert_eq!(okx_parent_account_id("100", Some("100".to_owned())), None);
+        assert_eq!(
+            okx_parent_account_id("101", Some("100".to_owned())),
+            Some("100".to_owned())
+        );
+    }
+
+    #[test]
+    fn simulated_credentials_cannot_silently_open_the_production_private_stream() {
+        let adapter = OkxAdapter::new(OkxExchangeConfig {
+            api_key: "demo-key".to_owned(),
+            api_secret: "demo-secret".to_owned(),
+            passphrase: "demo-passphrase".to_owned(),
+            simulated: true,
+            api_url: None,
+            request_expiration_ms: None,
+        })
+        .unwrap();
+
+        assert!(adapter.private_stream.is_none());
     }
 
     #[test]

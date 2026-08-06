@@ -7,9 +7,9 @@ use std::sync::Once;
 pub const DEFAULT_API_URL: &str = "https://www.okx.com";
 
 /// OKX WebSocket的默认URL
-// Note: ws.okx.com:8443 may be blocked/unavailable in some networks; 443 generally works.
 pub const DEFAULT_WEBSOCKET_URL: &str = "wss://ws.okx.com/ws/v5/public";
-pub const DEFAULT_PRIVATE_WEBSOCKET_URL: &str = "wss://ws.okx.com/ws/v5/private";
+/// OKX 文档声明的生产私有 WebSocket 地址。
+pub const DEFAULT_PRIVATE_WEBSOCKET_URL: &str = "wss://ws.okx.com:8443/ws/v5/private";
 pub const DEFAULT_BUSINESS_WEBSOCKET_URL: &str = "wss://ws.okx.com/ws/v5/business";
 
 /// OKX API超时配置（毫秒）

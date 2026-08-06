@@ -8,6 +8,7 @@ use crate::market::MarketFacade;
 use crate::order::OrderFacade;
 use crate::platform::PlatformFacade;
 use crate::position::PositionFacade;
+use crate::private_account_stream::PrivateAccountStreamFacade;
 use crate::trade::TradeFacade;
 use std::collections::HashMap;
 
@@ -94,6 +95,14 @@ impl CryptoSdk {
 
     pub fn platform(&self, exchange: ExchangeId) -> Result<PlatformFacade<'_>> {
         Ok(PlatformFacade::new(self.client(exchange)?))
+    }
+
+    /// 返回统一私有账户流入口；当前仅 OKX 与 Binance 提供实现。
+    pub fn private_account_stream(
+        &self,
+        exchange: ExchangeId,
+    ) -> Result<PrivateAccountStreamFacade<'_>> {
+        Ok(PrivateAccountStreamFacade::new(self.client(exchange)?))
     }
 
     fn client(&self, exchange: ExchangeId) -> Result<&ExchangeClient> {
@@ -189,5 +198,7 @@ mod tests {
         assert!(sdk.trade(ExchangeId::Okx).is_ok());
         assert!(sdk.orders(ExchangeId::Bitget).is_ok());
         assert!(sdk.fills(ExchangeId::Binance).is_ok());
+        assert!(sdk.private_account_stream(ExchangeId::Okx).is_ok());
+        assert!(sdk.private_account_stream(ExchangeId::Binance).is_ok());
     }
 }
