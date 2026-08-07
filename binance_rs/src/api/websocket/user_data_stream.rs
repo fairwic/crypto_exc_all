@@ -64,13 +64,14 @@ impl BinanceUserDataStreamSession {
         })
     }
 
-    /// 读取下一条 provider JSON；连接正常关闭返回 `None`，协议损坏立即报错。
+    /// 读取下一条 provider JSON；响应 provider ping，连接正常关闭返回 `None`。
     pub async fn recv_json(&mut self) -> Result<Option<Value>, Error> {
         loop {
-            let Some(message) = self.socket.next().await else {
+            let message = self.socket.next().await;
+            let Some(message) = message else {
                 return Ok(None);
             };
-            match message.map_err(|error| Error::WebSocketError(error.to_string()))? {
+            match message.map_err(sanitized_receive_error)? {
                 Message::Text(text) => return decode_json(text.as_str()).map(Some),
                 Message::Binary(bytes) => {
                     let text = std::str::from_utf8(&bytes).map_err(|error| {
@@ -119,4 +120,52 @@ impl BinanceUserDataStreamSession {
 
 fn decode_json(text: &str) -> Result<Value, Error> {
     serde_json::from_str(text).map_err(Error::JsonError)
+}
+
+/// 将底层 WebSocket 错误收敛为可运维分类，禁止 URL、listenKey 或代理细节进入日志。
+fn sanitized_receive_error(error: tokio_tungstenite::tungstenite::Error) -> Error {
+    use std::io::ErrorKind;
+    use tokio_tungstenite::tungstenite::Error as WebSocketError;
+
+    let category = match error {
+        WebSocketError::ConnectionClosed => "connection_closed",
+        WebSocketError::AlreadyClosed => "already_closed",
+        WebSocketError::Io(error) => match error.kind() {
+            ErrorKind::ConnectionReset => "connection_reset",
+            ErrorKind::ConnectionAborted => "connection_aborted",
+            ErrorKind::BrokenPipe => "broken_pipe",
+            ErrorKind::TimedOut => "timed_out",
+            ErrorKind::UnexpectedEof => "unexpected_eof",
+            _ => "io",
+        },
+        WebSocketError::Tls(_) => "tls",
+        WebSocketError::Capacity(_) => "capacity",
+        WebSocketError::Protocol(_) => "protocol",
+        WebSocketError::Utf8(_) => "utf8",
+        WebSocketError::WriteBufferFull(_) => "write_buffer_full",
+        WebSocketError::AttackAttempt => "attack_attempt",
+        _ => "other",
+    };
+    Error::WebSocketReceiveError { category }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+
+    #[test]
+    fn receive_error_reports_only_safe_transport_category() {
+        let error = sanitized_receive_error(tokio_tungstenite::tungstenite::Error::Io(
+            io::Error::new(io::ErrorKind::ConnectionReset, "sensitive transport detail"),
+        ));
+
+        assert!(matches!(
+            error,
+            Error::WebSocketReceiveError {
+                category: "connection_reset"
+            }
+        ));
+        assert!(!error.to_string().contains("sensitive"));
+    }
 }

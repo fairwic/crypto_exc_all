@@ -20,21 +20,28 @@ pub use binance_rs::dto::market::{BinanceUsdmKline, BinanceWireDecimal};
 pub type BinancePublicMarketResult<T> = std::result::Result<T, BinancePublicMarketSdkError>;
 
 #[cfg(feature = "okx-public-market")]
-use crate::error::{Error, Result};
-#[cfg(feature = "okx-public-market")]
-use crate::exchange::ExchangeId;
+pub use okx_rs::Error as OkxPublicMarketSdkError;
 #[cfg(feature = "okx-public-market")]
 use okx_rs::api::api_trait::OkxApiTrait;
 #[cfg(feature = "okx-public-market")]
 use okx_rs::dto::CandleOkxRespDto;
 #[cfg(feature = "okx-public-market")]
-use okx_rs::{OkxClient, OkxMarket, OkxPublicTransportConfig};
+use okx_rs::{OkxClient, OkxMarket};
+#[cfg(feature = "okx-public-market")]
+pub use okx_rs::{
+    OkxPublicFailureEvidence, OkxPublicFailureKind, OkxPublicResponse, OkxPublicResponseEvidence,
+    OkxPublicTransportConfig,
+};
 #[cfg(feature = "okx-public-market")]
 use serde::{Deserialize, Serialize};
 
 /// OKX 公共 K 线 endpoint 的单页上限。
 #[cfg(feature = "okx-public-market")]
 pub const OKX_MAX_CANDLE_PAGE_SIZE: u32 = 300;
+
+/// OKX 公共 Market 门面的返回类型；保留 provider SDK 的 typed failure。
+#[cfg(feature = "okx-public-market")]
+pub type OkxPublicMarketResult<T> = std::result::Result<T, OkxPublicMarketSdkError>;
 
 /// OKX 公共 K 线数据集。
 #[cfg(feature = "okx-public-market")]
@@ -138,7 +145,7 @@ pub struct OkxPublicMarketClient {
 #[cfg(feature = "okx-public-market")]
 impl OkxPublicMarketClient {
     /// 创建无账户凭证的公共行情客户端。
-    pub fn new(config: OkxPublicMarketConfig) -> Result<Self> {
+    pub fn new(config: OkxPublicMarketConfig) -> OkxPublicMarketResult<Self> {
         let transport = match config.api_url {
             Some(api_url) => OkxPublicTransportConfig {
                 api_url,
@@ -150,8 +157,8 @@ impl OkxPublicMarketClient {
     }
 
     /// 使用显式 endpoint、超时和代理创建无凭证公共客户端。
-    pub fn with_transport(transport: OkxPublicTransportConfig) -> Result<Self> {
-        let client = OkxClient::new_public_with_transport(transport).map_err(Error::from_okx)?;
+    pub fn with_transport(transport: OkxPublicTransportConfig) -> OkxPublicMarketResult<Self> {
+        let client = OkxClient::new_public_with_transport(transport)?;
         Ok(Self {
             market: <OkxMarket as OkxApiTrait>::new(client),
         })
@@ -165,13 +172,13 @@ impl OkxPublicMarketClient {
         &self,
         dataset: OkxCandleDataset,
         query: OkxPublicCandleQuery,
-    ) -> Result<Vec<OkxPublicCandle>> {
+    ) -> OkxPublicMarketResult<OkxPublicResponse<Vec<OkxPublicCandle>>> {
         validate_query(&query)?;
         let limit = query.limit.map(|value| value.to_string());
         let rows = match dataset {
             OkxCandleDataset::Recent => {
                 self.market
-                    .get_candles(
+                    .get_candles_with_evidence(
                         &query.instrument_id,
                         &query.interval,
                         query.after.as_deref(),
@@ -182,7 +189,7 @@ impl OkxPublicMarketClient {
             }
             OkxCandleDataset::History => {
                 self.market
-                    .get_history_candles(
+                    .get_history_candles_with_evidence(
                         &query.instrument_id,
                         &query.interval,
                         query.after.as_deref(),
@@ -191,39 +198,38 @@ impl OkxPublicMarketClient {
                     )
                     .await
             }
-        }
-        .map_err(Error::from_okx)?;
+        }?;
 
-        Ok(rows.into_iter().map(OkxPublicCandle::from).collect())
+        Ok(OkxPublicResponse {
+            data: rows.data.into_iter().map(OkxPublicCandle::from).collect(),
+            evidence: rows.evidence,
+        })
     }
 }
 
 /// 拒绝 SDK 当前无法无歧义表达的查询，避免字段存在但被静默忽略。
 #[cfg(feature = "okx-public-market")]
-fn validate_query(query: &OkxPublicCandleQuery) -> Result<()> {
+fn validate_query(query: &OkxPublicCandleQuery) -> OkxPublicMarketResult<()> {
     if query.instrument_id.is_empty()
         || !query
             .instrument_id
             .bytes()
             .all(|byte| byte.is_ascii_graphic())
     {
-        return Err(Error::Adapter {
-            exchange: ExchangeId::Okx,
-            message: "OKX candle instId 必须是非空、无空白的可打印 ASCII".to_string(),
-        });
+        return Err(OkxPublicMarketSdkError::ConfigError(
+            "OKX candle instId 必须是非空、无空白的可打印 ASCII".to_string(),
+        ));
     }
     match query.limit {
         Some(0) => {
-            return Err(Error::Adapter {
-                exchange: ExchangeId::Okx,
-                message: "OKX candle limit 必须大于零".to_string(),
-            });
+            return Err(OkxPublicMarketSdkError::ConfigError(
+                "OKX candle limit 必须大于零".to_string(),
+            ));
         }
         Some(limit) if limit > OKX_MAX_CANDLE_PAGE_SIZE => {
-            return Err(Error::Adapter {
-                exchange: ExchangeId::Okx,
-                message: format!("OKX candle limit {limit} 超过上限 {OKX_MAX_CANDLE_PAGE_SIZE}"),
-            });
+            return Err(OkxPublicMarketSdkError::ConfigError(format!(
+                "OKX candle limit {limit} 超过上限 {OKX_MAX_CANDLE_PAGE_SIZE}"
+            )));
         }
         _ => {}
     }

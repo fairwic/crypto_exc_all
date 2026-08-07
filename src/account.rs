@@ -41,6 +41,16 @@ pub struct AccountIdentity {
     pub settlement_asset: String,
 }
 
+/// 交易所 signed account-config 返回的下单权限事实；不等同于 Core 业务准入。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountOrderPermission {
+    pub exchange: ExchangeId,
+    /// 当前 API credential/account configuration 是否允许创建订单。
+    pub can_create_orders: bool,
+    /// 固定映射版本，供上层生成不含原始 provider 配置的审计哈希。
+    pub source_revision: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AccountBill {
     pub exchange: ExchangeId,
@@ -480,6 +490,11 @@ impl<'a> AccountFacade<'a> {
     /// 读取官方 signed account identity；本方法只做协议映射，不判断用户授权或 Core admission。
     pub async fn identity(&self) -> Result<AccountIdentity> {
         self.client.account_identity().await
+    }
+
+    /// 读取 provider 的 signed 下单权限；用户授权、账户状态与风险判断仍由 Core 负责。
+    pub async fn order_permission(&self) -> Result<AccountOrderPermission> {
+        self.client.account_order_permission().await
     }
 
     pub async fn bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {

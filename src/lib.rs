@@ -59,11 +59,12 @@ pub mod raw {
 
 #[cfg(feature = "full-sdk")]
 pub use account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, AccountIdentity, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
-    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
-    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
-    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, AccountIdentity,
+    AccountOrderPermission, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
+    LeverageSetting, MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode,
+    PositionModeSetting, PrepareOrderSettingsRequest, PrepareOrderSettingsResult,
+    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
+    SymbolMarginModeSetting,
 };
 #[cfg(feature = "full-sdk")]
 pub use config::{
@@ -110,7 +111,7 @@ pub use public_market::{
 #[cfg(feature = "okx-public-market")]
 pub use public_market::{
     OKX_MAX_CANDLE_PAGE_SIZE, OkxCandleDataset, OkxPublicCandle, OkxPublicCandleQuery,
-    OkxPublicMarketClient, OkxPublicMarketConfig,
+    OkxPublicMarketClient, OkxPublicMarketConfig, OkxPublicMarketResult, OkxPublicMarketSdkError,
 };
 #[cfg(any(
     feature = "binance-public-instrument",

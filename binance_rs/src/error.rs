@@ -35,6 +35,13 @@ pub enum Error {
     #[error("WebSocket错误: {0}")]
     WebSocketError(String),
 
+    /// 私有流接收失败的脱敏分类；不得携带 URL、listenKey 或底层代理文本。
+    #[error("WebSocket接收错误: {category}")]
+    WebSocketReceiveError {
+        /// connection_reset、protocol、tls 等固定运维分类。
+        category: &'static str,
+    },
+
     #[error("缺少 API 凭证")]
     MissingCredentials,
 }

@@ -3,8 +3,8 @@ use super::value::{
     map_u64_field as u64_field,
 };
 use crate::account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountOrderPermission,
+    Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
     MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
     SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
     SymbolMarginModeSetting,
@@ -44,6 +44,8 @@ use okx_rs::websocket::OkxPrivateAccountStreamClient;
 use okx_rs::{OkxAccount, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
 use serde_json::{Value, json};
 
+#[path = "okx/account_permission.rs"]
+mod account_permission;
 #[path = "okx/platform.rs"]
 mod platform;
 #[path = "okx/shared.rs"]
@@ -458,6 +460,16 @@ impl OkxAdapter {
             position_mode,
             settlement_asset: "USDT".to_owned(),
         })
+    }
+
+    /// 复用 OKX signed account config，只映射官方 `perm` 权限集合。
+    pub(crate) async fn account_order_permission(&self) -> Result<AccountOrderPermission> {
+        let raw = self
+            .account
+            .get_config_raw()
+            .await
+            .map_err(Error::from_okx)?;
+        account_permission::map_account_order_permission(raw)
     }
 
     pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {

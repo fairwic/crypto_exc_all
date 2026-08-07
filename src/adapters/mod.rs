@@ -1,7 +1,7 @@
 use crate::account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting, MaxOrderSize,
-    MaxOrderSizeRequest, PositionModeSetting, PrepareOrderSettingsRequest,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountOrderPermission,
+    Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
+    MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting, PrepareOrderSettingsRequest,
     PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
     SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
@@ -528,6 +528,35 @@ impl ExchangeClient {
             Self::Hyperliquid(_) => Err(Error::Unsupported {
                 exchange: ExchangeId::Hyperliquid,
                 capability: "account identity",
+            }),
+        }
+    }
+
+    pub(crate) async fn account_order_permission(&self) -> Result<AccountOrderPermission> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.account_order_permission().await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.account_order_permission().await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "account order permission",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account order permission",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "account order permission",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "account order permission",
             }),
         }
     }

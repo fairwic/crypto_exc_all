@@ -1,6 +1,8 @@
 use crate::api::api_trait::OkxApiTrait;
 use crate::api::API_MARKET_PATH;
 use crate::client::OkxClient;
+#[cfg(feature = "public-market")]
+use crate::client::OkxPublicResponse;
 use crate::dto::market::market_dto::{
     CandleOkxRespDto, Depth, InstrumentOkxResDto, TickerOkxResDto,
 };
@@ -91,28 +93,31 @@ impl OkxMarket {
         before: Option<&str>,
         limit: Option<&str>,
     ) -> Result<Vec<CandleOkxRespDto>, Error> {
-        let mut path = format!("{}/candles?instId={}", API_MARKET_PATH, inst_id);
-
-        path.push_str(&format!("&bar={}", bar));
-        // }
-
-        if let Some(a) = after {
-            path.push_str(&format!("&after={}", a));
-        }
-
-        if let Some(b) = before {
-            path.push_str(&format!("&before={}", b));
-        }
-
-        if let Some(l) = limit {
-            path.push_str(&format!("&limit={}", l));
-        }
+        let path = candle_path("candles", inst_id, bar, after, before, limit);
 
         let res: Vec<Vec<String>> = self
             .client
             .send_public_request::<Vec<Vec<String>>>(Method::GET, &path, "")
             .await?;
         parse_candle_rows(res)
+    }
+
+    /// 获取最近 K 线，并保留同一次 HTTP/OKX envelope 的限频证据。
+    #[cfg(feature = "public-market")]
+    pub async fn get_candles_with_evidence(
+        &self,
+        inst_id: &str,
+        bar: &str,
+        after: Option<&str>,
+        before: Option<&str>,
+        limit: Option<&str>,
+    ) -> Result<OkxPublicResponse<Vec<CandleOkxRespDto>>, Error> {
+        let path = candle_path("candles", inst_id, bar, after, before, limit);
+        let response = self
+            .client
+            .send_public_request_with_evidence::<Vec<Vec<String>>>(Method::GET, &path, "")
+            .await?;
+        parse_candle_response(response)
     }
 
     // 获取最近几年的历史k线数据(1s k线支持查询最近3个月的数据)
@@ -126,27 +131,32 @@ impl OkxMarket {
         before: Option<&str>,
         limit: Option<&str>,
     ) -> Result<Vec<CandleOkxRespDto>, Error> {
-        let mut path = format!("{}/history-candles?instId={}", API_MARKET_PATH, inst_id);
-
-        path.push_str(&format!("&bar={}", bar));
-
-        if let Some(a) = after {
-            path.push_str(&format!("&after={}", a));
-        }
-
-        if let Some(b) = before {
-            path.push_str(&format!("&before={}", b));
-        }
-
-        if let Some(l) = limit {
-            path.push_str(&format!("&limit={}", l));
-        }
+        let path = candle_path("history-candles", inst_id, bar, after, before, limit);
         debug!("OKX path: {}", path);
         let res: Vec<Vec<String>> = self
             .client
             .send_public_request::<Vec<Vec<String>>>(Method::GET, &path, "")
             .await?;
         parse_candle_rows(res)
+    }
+
+    /// 获取历史 K 线，并保留同一次 HTTP/OKX envelope 的限频证据。
+    #[cfg(feature = "public-market")]
+    pub async fn get_history_candles_with_evidence(
+        &self,
+        inst_id: &str,
+        bar: &str,
+        after: Option<&str>,
+        before: Option<&str>,
+        limit: Option<&str>,
+    ) -> Result<OkxPublicResponse<Vec<CandleOkxRespDto>>, Error> {
+        let path = candle_path("history-candles", inst_id, bar, after, before, limit);
+        debug!("OKX path: {}", path);
+        let response = self
+            .client
+            .send_public_request_with_evidence::<Vec<Vec<String>>>(Method::GET, &path, "")
+            .await?;
+        parse_candle_response(response)
     }
 
     /// 获取交易产品深度
@@ -189,6 +199,39 @@ impl OkxMarket {
             .send_public_request::<Vec<InstrumentOkxResDto>>(Method::GET, &path, "")
             .await
     }
+}
+
+/// 生成与 legacy 和 typed evidence 入口共用的 candle 请求路径。
+fn candle_path(
+    endpoint: &str,
+    inst_id: &str,
+    bar: &str,
+    after: Option<&str>,
+    before: Option<&str>,
+    limit: Option<&str>,
+) -> String {
+    let mut path = format!("{API_MARKET_PATH}/{endpoint}?instId={inst_id}&bar={bar}");
+    if let Some(after) = after {
+        path.push_str(&format!("&after={after}"));
+    }
+    if let Some(before) = before {
+        path.push_str(&format!("&before={before}"));
+    }
+    if let Some(limit) = limit {
+        path.push_str(&format!("&limit={limit}"));
+    }
+    path
+}
+
+/// 映射 candle 行时保留已经取得的同次成功响应证据。
+#[cfg(feature = "public-market")]
+fn parse_candle_response(
+    response: OkxPublicResponse<Vec<Vec<String>>>,
+) -> Result<OkxPublicResponse<Vec<CandleOkxRespDto>>, Error> {
+    Ok(OkxPublicResponse {
+        data: parse_candle_rows(response.data)?,
+        evidence: response.evidence,
+    })
 }
 
 /// 将 provider 行逐行转换为 DTO；短行必须返回定位明确的错误，不能索引 panic。

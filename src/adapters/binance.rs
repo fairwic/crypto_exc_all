@@ -3,10 +3,10 @@ use super::value::{
     map_string_field as string_field, map_u64_field as u64_field, value_string_at, value_u64_at,
 };
 use crate::account::{
-    AccountCapabilities, AccountIdentity, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageSetting, PositionMode, PositionModeSetting,
-    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
-    SymbolMarginModeSetting,
+    AccountCapabilities, AccountIdentity, AccountOrderPermission, Balance,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting, PositionMode,
+    PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
+    SourcedBalance, SymbolMarginModeSetting,
 };
 use crate::config::BinanceExchangeConfig;
 use crate::error::{Error, Result};
@@ -47,6 +47,10 @@ use std::collections::BTreeSet;
 
 #[path = "binance/account_bills.rs"]
 mod account_bills;
+#[path = "binance/account_permission.rs"]
+mod account_permission;
+#[path = "binance/balance_mapping.rs"]
+mod balance_mapping;
 #[path = "binance/platform.rs"]
 mod platform;
 
@@ -409,24 +413,13 @@ impl BinanceAdapter {
             .get_balance()
             .await
             .map_err(Error::from_binance)?;
-
-        balances
-            .into_iter()
-            .map(|balance| {
-                let raw = serde_json::to_value(&balance)?;
-                Ok(SourcedBalance {
-                    balance: Balance {
-                        exchange: ExchangeId::Binance,
-                        asset: balance.asset,
-                        total: balance.balance,
-                        available: balance.available_balance,
-                        frozen: non_empty(balance.cross_un_pnl),
-                        raw,
-                    },
-                    source_updated_at_ms: balance.update_time,
-                })
-            })
-            .collect()
+        let mut sourced = Vec::with_capacity(balances.len());
+        for balance in balances {
+            if let Some(balance) = balance_mapping::map_sourced_balance(balance)? {
+                sourced.push(balance);
+            }
+        }
+        Ok(sourced)
     }
 
     /// 映射 Binance USDⓈ-M signed balance/config 的 accountAlias 与账户模式。
@@ -489,6 +482,16 @@ impl BinanceAdapter {
             position_mode: if dual_side { "hedge" } else { "one_way" }.to_owned(),
             settlement_asset: "USDT".to_owned(),
         })
+    }
+
+    /// 复用 USDⓈ-M signed accountConfig，只映射官方 `canTrade` 字段。
+    pub(crate) async fn account_order_permission(&self) -> Result<AccountOrderPermission> {
+        let raw = self
+            .account
+            .get_account_config()
+            .await
+            .map_err(Error::from_binance)?;
+        account_permission::map_account_order_permission(raw)
     }
 
     pub(crate) async fn set_leverage(

@@ -34,12 +34,21 @@ pub enum Error {
         message: String,
     },
 
+    /// 私有流 transport 的脱敏生命周期错误，供 Account owner 决定恢复策略。
+    #[error("私有流生命周期错误: {exchange} {phase}")]
+    PrivateStreamLifecycle {
+        /// 发生 transport 失败的交易所。
+        exchange: ExchangeId,
+        /// receive_connection_reset 等固定分类，不包含 URL、凭证或代理详情。
+        phase: &'static str,
+    },
+
     #[error("JSON 错误: {0}")]
     Json(#[from] serde_json::Error),
 }
 
 impl Error {
-    #[cfg(any(feature = "okx", feature = "okx-public-market"))]
+    #[cfg(feature = "okx")]
     pub(crate) fn from_okx(error: okx_rs::Error) -> Self {
         match error {
             okx_rs::Error::OkxApiError { code, message, smg } => Self::Api {
@@ -75,6 +84,10 @@ impl Error {
             },
             binance_rs::Error::ConfigError(message) => Self::Config(message),
             binance_rs::Error::MissingCredentials => Self::MissingCredentials(ExchangeId::Binance),
+            binance_rs::Error::WebSocketReceiveError { category } => Self::PrivateStreamLifecycle {
+                exchange: ExchangeId::Binance,
+                phase: binance_receive_phase(category),
+            },
             other => Self::Adapter {
                 exchange: ExchangeId::Binance,
                 message: other.to_string(),
@@ -167,5 +180,47 @@ impl Error {
                 message: other.to_string(),
             },
         }
+    }
+}
+
+/// 把 Binance SDK 的固定接收分类转换为统一 SDK 可公开的稳定 phase。
+#[cfg(feature = "binance")]
+fn binance_receive_phase(category: &'static str) -> &'static str {
+    match category {
+        "connection_closed" => "receive_connection_closed",
+        "already_closed" => "receive_already_closed",
+        "connection_reset" => "receive_connection_reset",
+        "connection_aborted" => "receive_connection_aborted",
+        "broken_pipe" => "receive_broken_pipe",
+        "timed_out" => "receive_timed_out",
+        "unexpected_eof" => "receive_unexpected_eof",
+        "io" => "receive_io",
+        "tls" => "receive_tls",
+        "capacity" => "receive_capacity",
+        "protocol" => "receive_protocol",
+        "utf8" => "receive_utf8",
+        "write_buffer_full" => "receive_write_buffer_full",
+        "attack_attempt" => "receive_attack_attempt",
+        _ => "receive_other",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_binance_receive_error_to_safe_private_stream_phase() {
+        let error = Error::from_binance(binance_rs::Error::WebSocketReceiveError {
+            category: "connection_reset",
+        });
+
+        assert!(matches!(
+            error,
+            Error::PrivateStreamLifecycle {
+                exchange: ExchangeId::Binance,
+                phase: "receive_connection_reset"
+            }
+        ));
     }
 }
