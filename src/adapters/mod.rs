@@ -1,9 +1,9 @@
 use crate::account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountOrderPermission,
-    Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
-    MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting, PrepareOrderSettingsRequest,
-    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountMarginSummary,
+    AccountOrderPermission, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
+    LeverageSetting, MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting,
+    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 use crate::config::{
     BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
@@ -499,6 +499,39 @@ impl ExchangeClient {
             Self::Hyperliquid(_) => Err(Error::Unsupported {
                 exchange: ExchangeId::Hyperliquid,
                 capability: "sourced account balances",
+            }),
+        }
+    }
+
+    /// 只有 OKX/Binance 能提供当前 Account owner 所需的 signed 保证金摘要。
+    pub(crate) async fn margin_summary(
+        &self,
+        quote_currency: &str,
+    ) -> Result<AccountMarginSummary> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.margin_summary(quote_currency).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.margin_summary(quote_currency).await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "account margin summary",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account margin summary",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "account margin summary",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "account margin summary",
             }),
         }
     }

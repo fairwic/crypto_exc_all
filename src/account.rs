@@ -25,6 +25,29 @@ pub struct SourcedBalance {
     pub source_updated_at_ms: u64,
 }
 
+/// Provider signed 账户端点返回的同一报价币保证金摘要。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountMarginSummary {
+    /// 提供摘要的交易所。
+    pub exchange: ExchangeId,
+    /// 所有金额字段共同使用的报价币种。
+    pub quote_currency: String,
+    /// 包含未实现盈亏的账户权益。
+    pub account_equity: String,
+    /// Provider 当前报告的可用保证金。
+    pub available_margin: String,
+    /// 账户总初始保证金；provider 当前模式不提供时为空。
+    pub initial_margin: Option<String>,
+    /// 持仓占用的初始保证金；provider 当前模式不提供时为空。
+    pub position_initial_margin: Option<String>,
+    /// 未完成订单占用的初始保证金；provider 当前模式不提供时为空。
+    pub open_order_initial_margin: Option<String>,
+    /// Provider 可证明的最近账户状态更新时间（Unix 毫秒）。
+    pub source_updated_at_ms: u64,
+    /// 固定协议映射版本，供 Account owner 生成审计 hash。
+    pub source_revision: String,
+}
+
 /// 交易所官方账户身份与账户级模式；不包含 API credential 或业务准入判断。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AccountIdentity {
@@ -485,6 +508,11 @@ impl<'a> AccountFacade<'a> {
     /// 读取带 provider 更新时间的 OKX/Binance 余额，供 snapshot/stream 因果合并。
     pub async fn sourced_balances(&self) -> Result<Vec<SourcedBalance>> {
         self.client.sourced_balances().await
+    }
+
+    /// 读取同一报价币的 signed 保证金摘要；无法等价表达时返回错误。
+    pub async fn margin_summary(&self, quote_currency: &str) -> Result<AccountMarginSummary> {
+        self.client.margin_summary(quote_currency).await
     }
 
     /// 读取官方 signed account identity；本方法只做协议映射，不判断用户授权或 Core admission。

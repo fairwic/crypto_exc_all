@@ -3,7 +3,7 @@ use super::value::{
     map_string_field as string_field, map_u64_field as u64_field, value_string_at, value_u64_at,
 };
 use crate::account::{
-    AccountCapabilities, AccountIdentity, AccountOrderPermission, Balance,
+    AccountCapabilities, AccountIdentity, AccountMarginSummary, AccountOrderPermission, Balance,
     EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting, PositionMode,
     PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
     SourcedBalance, SymbolMarginModeSetting,
@@ -51,6 +51,8 @@ mod account_bills;
 mod account_permission;
 #[path = "binance/balance_mapping.rs"]
 mod balance_mapping;
+#[path = "binance/margin_summary.rs"]
+mod margin_summary;
 #[path = "binance/platform.rs"]
 mod platform;
 
@@ -420,6 +422,24 @@ impl BinanceAdapter {
             }
         }
         Ok(sourced)
+    }
+
+    /// 读取 Binance USDⓈ-M 账户摘要，并拒绝不能标成 USDT 的多资产模式。
+    pub(crate) async fn margin_summary(
+        &self,
+        quote_currency: &str,
+    ) -> Result<AccountMarginSummary> {
+        let config = self
+            .account
+            .get_account_config()
+            .await
+            .map_err(Error::from_binance)?;
+        let account = self
+            .account
+            .get_account_info()
+            .await
+            .map_err(Error::from_binance)?;
+        margin_summary::map_margin_summary(config, account, quote_currency)
     }
 
     /// 映射 Binance USDⓈ-M signed balance/config 的 accountAlias 与账户模式。

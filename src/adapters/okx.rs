@@ -3,11 +3,11 @@ use super::value::{
     map_u64_field as u64_field,
 };
 use crate::account::{
-    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountOrderPermission,
-    Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting,
-    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
-    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
-    SymbolMarginModeSetting,
+    AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountMarginSummary,
+    AccountOrderPermission, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
+    LeverageSetting, MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode,
+    PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
+    SourcedBalance, SymbolMarginModeSetting,
 };
 use crate::config::OkxExchangeConfig;
 use crate::error::{Error, Result};
@@ -46,6 +46,8 @@ use serde_json::{Value, json};
 
 #[path = "okx/account_permission.rs"]
 mod account_permission;
+#[path = "okx/margin_summary.rs"]
+mod margin_summary;
 #[path = "okx/platform.rs"]
 mod platform;
 #[path = "okx/shared.rs"]
@@ -412,6 +414,19 @@ impl OkxAdapter {
         }
 
         Ok(output)
+    }
+
+    /// 读取 OKX 币种明细的权益、可用保证金与占用保证金。
+    pub(crate) async fn margin_summary(
+        &self,
+        quote_currency: &str,
+    ) -> Result<AccountMarginSummary> {
+        let accounts = self
+            .account
+            .get_balance(Some(quote_currency))
+            .await
+            .map_err(Error::from_okx)?;
+        margin_summary::map_margin_summary(accounts, quote_currency)
     }
 
     /// 映射 OKX `/api/v5/account/config` 当前官方 identity 与账户模式字段。
