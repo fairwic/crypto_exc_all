@@ -23,7 +23,9 @@ use crate::market::{
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::{Position, PositionHistory, PositionHistoryQuery, SourcedPosition};
 use crate::private_account_stream::PrivateAccountStreamSession;
-use crate::trade::{CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, TimeInForce};
+use crate::trade::{
+    CancelOrderRequest, OrderAck, OrderType, PlaceOrderRequest, ProtectiveOrderQuery, TimeInForce,
+};
 use okx_rs::api::announcements::announcements_api::OkxAnnouncements;
 use okx_rs::api::api_trait::OkxApiTrait;
 use okx_rs::config::Credentials as OkxCredentials;
@@ -894,6 +896,23 @@ impl OkxAdapter {
         okx_order_from_detail(exchange, Some(instrument), Some(symbol), order)
     }
 
+    /// 查询由主订单附带创建的 OKX 止损算法订单，不把它误当普通订单查询。
+    pub(crate) async fn protective_order(&self, query: ProtectiveOrderQuery) -> Result<Order> {
+        let exchange = ExchangeId::Okx;
+        let instrument = query.instrument;
+        let symbol = instrument.symbol_for(exchange);
+        if query.order_id.is_none() && query.client_order_id.is_none() {
+            return Err(missing_order_query_id(exchange));
+        }
+        let raw = self
+            .trade
+            .get_algo_order_details(query.order_id.as_deref(), query.client_order_id.as_deref())
+            .await
+            .map_err(Error::from_okx)?;
+        let item = first_object_value(raw, exchange, "OKX protective order response")?;
+        okx_algo_order_from_value(exchange, instrument, symbol, item)
+    }
+
     pub(crate) async fn open_orders(&self, query: OrderListQuery) -> Result<Vec<Order>> {
         let exchange = ExchangeId::Okx;
         let instrument = query.instrument;
@@ -1125,7 +1144,7 @@ fn okx_attached_stop_loss_ords(request: &PlaceOrderRequest) -> Option<Vec<Attach
         .filter(|price| !price.trim().is_empty())
         .map(|price| {
             vec![AttachAlgoOrdReqDto {
-                attach_algo_cl_ord_id: None,
+                attach_algo_cl_ord_id: request.attached_stop_loss_client_order_id.clone(),
                 tp_trigger_px: None,
                 tp_ord_px: None,
                 tp_ord_kind: None,
@@ -1278,6 +1297,37 @@ fn okx_order_from_pending(
         status: non_empty(order.state),
         created_at: parse_u64_string(&order.creation_time),
         updated_at: order.update_time.as_deref().and_then(parse_u64_string),
+        raw,
+    })
+}
+
+/// 把 OKX `order-algo` 的条件止损详情映射到统一只读 Order contract。
+fn okx_algo_order_from_value(
+    exchange: ExchangeId,
+    instrument: Instrument,
+    symbol_hint: String,
+    raw: Value,
+) -> Result<Order> {
+    let object = raw.as_object().ok_or_else(|| Error::Adapter {
+        exchange,
+        message: "OKX protective order response item is not an object".to_string(),
+    })?;
+    let exchange_symbol = string_field(object, "instId").unwrap_or(symbol_hint);
+    Ok(Order {
+        exchange,
+        instrument,
+        exchange_symbol,
+        order_id: string_field(object, "algoId"),
+        client_order_id: string_field(object, "algoClOrdId"),
+        side: string_field(object, "side"),
+        order_type: string_field(object, "ordType"),
+        price: first_string_field(object, &["slTriggerPx", "triggerPx", "tpTriggerPx"]),
+        size: string_field(object, "sz"),
+        filled_size: string_field(object, "actualSz"),
+        average_price: string_field(object, "actualPx"),
+        status: string_field(object, "state"),
+        created_at: u64_field(object, "cTime"),
+        updated_at: u64_field(object, "uTime"),
         raw,
     })
 }
@@ -1755,6 +1805,42 @@ mod tests {
         assert_eq!(attached[0].sl_trigger_px_type.as_deref(), Some("mark"));
         assert_eq!(attached[0].tp_trigger_px, None);
         assert_eq!(attached[0].tp_ord_px, None);
+    }
+
+    #[test]
+    fn maps_okx_algo_order_detail_to_protective_order() {
+        let protective_client_order_id = format!("rq{}", "1".repeat(30));
+        let order = okx_algo_order_from_value(
+            ExchangeId::Okx,
+            Instrument::perp("ETH", "USDT"),
+            "ETH-USDT-SWAP".to_owned(),
+            serde_json::json!({
+                "algoId": "2510789768709120",
+                "algoClOrdId": protective_client_order_id,
+                "instId": "ETH-USDT-SWAP",
+                "ordType": "conditional",
+                "side": "sell",
+                "slTriggerPx": "2200.5",
+                "sz": "1",
+                "actualSz": "0",
+                "state": "live",
+                "cTime": "1779023785699",
+                "uTime": "1779023785700",
+                "reduceOnly": "true",
+                "failCode": ""
+            }),
+        )
+        .expect("valid protective order");
+
+        assert_eq!(order.order_id.as_deref(), Some("2510789768709120"));
+        assert_eq!(
+            order.client_order_id.as_deref(),
+            Some(protective_client_order_id.as_str())
+        );
+        assert_eq!(order.status.as_deref(), Some("live"));
+        assert_eq!(order.price.as_deref(), Some("2200.5"));
+        assert_eq!(order.size.as_deref(), Some("1"));
+        assert_eq!(order.side.as_deref(), Some("sell"));
     }
 
     #[test]

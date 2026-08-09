@@ -61,6 +61,7 @@ pub struct PlaceOrderRequest {
     pub reduce_only: Option<bool>,
     pub time_in_force: Option<TimeInForce>,
     pub attached_stop_loss_price: Option<String>,
+    pub attached_stop_loss_client_order_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -222,6 +223,7 @@ impl PlaceOrderRequest {
             reduce_only: None,
             time_in_force: None,
             attached_stop_loss_price: None,
+            attached_stop_loss_client_order_id: None,
         }
     }
 
@@ -280,6 +282,12 @@ impl PlaceOrderRequest {
 
     pub fn with_attached_stop_loss_price(mut self, value: impl Into<String>) -> Self {
         self.attached_stop_loss_price = Some(value.into());
+        self
+    }
+
+    /// 为随主单提交的保护止损保留调用方稳定 identity。
+    pub fn with_attached_stop_loss_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.attached_stop_loss_client_order_id = Some(value.into());
         self
     }
 }
@@ -407,9 +415,14 @@ mod tests {
     fn place_order_request_carries_attached_stop_loss_price() {
         let request =
             PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.1")
-                .with_attached_stop_loss_price("2200.5");
+                .with_attached_stop_loss_price("2200.5")
+                .with_attached_stop_loss_client_order_id("rqstop00000000000000000000000000");
 
         assert_eq!(request.attached_stop_loss_price.as_deref(), Some("2200.5"));
+        assert_eq!(
+            request.attached_stop_loss_client_order_id.as_deref(),
+            Some("rqstop00000000000000000000000000")
+        );
     }
 
     #[test]

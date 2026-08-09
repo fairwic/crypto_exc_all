@@ -1065,7 +1065,7 @@ impl ExchangeClient {
     pub(crate) async fn protective_order(&self, query: ProtectiveOrderQuery) -> Result<Order> {
         match self {
             #[cfg(feature = "okx")]
-            Self::Okx(adapter) => adapter.order(query.into_order_query()).await,
+            Self::Okx(adapter) => adapter.protective_order(query).await,
             #[cfg(feature = "binance")]
             Self::Binance(adapter) => adapter.protective_order(query).await,
             #[cfg(feature = "bitget")]

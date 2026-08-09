@@ -149,6 +149,24 @@ impl OkxTrade {
             .await
     }
 
+    /// 按交易所或客户端策略订单 ID 查询单条算法订单详情。
+    pub async fn get_algo_order_details(
+        &self,
+        algo_id: Option<&str>,
+        algo_cl_ord_id: Option<&str>,
+    ) -> Result<serde_json::Value, Error> {
+        let mut path = format!("{}/order-algo", API_TRADE_PATH);
+        if let Some(order_id) = algo_id {
+            path.push_str(&format!("?algoId={order_id}"));
+        } else if let Some(client_order_id) = algo_cl_ord_id {
+            path.push_str(&format!("?algoClOrdId={client_order_id}"));
+        }
+
+        self.client
+            .send_request::<serde_json::Value>(Method::GET, &path, "")
+            .await
+    }
+
     /// 获取未成交订单列表
     pub async fn get_pending_orders(
         &self,
