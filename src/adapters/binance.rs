@@ -429,17 +429,12 @@ impl BinanceAdapter {
         &self,
         quote_currency: &str,
     ) -> Result<AccountMarginSummary> {
-        let config = self
-            .account
-            .get_account_config()
-            .await
-            .map_err(Error::from_binance)?;
         let account = self
             .account
-            .get_account_info()
+            .get_account_info_v2()
             .await
             .map_err(Error::from_binance)?;
-        margin_summary::map_margin_summary(config, account, quote_currency)
+        margin_summary::map_margin_summary(account, quote_currency)
     }
 
     /// 映射 Binance USDⓈ-M signed balance/config 的 accountAlias 与账户模式。

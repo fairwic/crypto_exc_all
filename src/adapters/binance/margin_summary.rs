@@ -4,9 +4,8 @@ use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use serde_json::{Map, Value};
 
-/// 把 USDⓈ-M accountConfig 与 Account Information V3 绑定成单资产 USDT 摘要。
+/// 把同一 USDⓈ-M Account Information V2 响应映射成单资产 USDT 摘要。
 pub(super) fn map_margin_summary(
-    config: Value,
     account: Value,
     quote_currency: &str,
 ) -> Result<AccountMarginSummary> {
@@ -17,13 +16,13 @@ pub(super) fn map_margin_summary(
             message: "Binance margin summary only supports USDT".to_owned(),
         });
     }
-    let config = object(&config, "Binance accountConfig")?;
-    let multi_assets = config
+    let account = object(&account, "Binance account information")?;
+    let multi_assets = account
         .get("multiAssetsMargin")
         .and_then(Value::as_bool)
         .ok_or_else(|| Error::Adapter {
             exchange,
-            message: "Binance accountConfig missing multiAssetsMargin".to_owned(),
+            message: "Binance account information missing multiAssetsMargin".to_owned(),
         })?;
     if multi_assets {
         return Err(Error::Adapter {
@@ -31,8 +30,6 @@ pub(super) fn map_margin_summary(
             message: "Binance multi-assets margin is USD-denominated, not USDT".to_owned(),
         });
     }
-
-    let account = object(&account, "Binance account information")?;
     Ok(AccountMarginSummary {
         exchange,
         quote_currency: quote_currency.to_owned(),
@@ -42,7 +39,7 @@ pub(super) fn map_margin_summary(
         position_initial_margin: Some(required_string(account, "totalPositionInitialMargin")?),
         open_order_initial_margin: Some(required_string(account, "totalOpenOrderInitialMargin")?),
         source_updated_at_ms: latest_update_time(account)?,
-        source_revision: "binance-usds-account-v3-single-asset-v1".to_owned(),
+        source_revision: "binance-usds-account-v2-single-asset-v1".to_owned(),
     })
 }
 
@@ -83,12 +80,8 @@ mod tests {
 
     #[test]
     fn maps_single_asset_usdt_totals_and_latest_provider_time() {
-        let summary = map_margin_summary(
-            json!({"multiAssetsMargin": false}),
-            account_fixture(),
-            "USDT",
-        )
-        .expect("single-asset USDT summary");
+        let summary =
+            map_margin_summary(account_fixture(false), "USDT").expect("single-asset USDT summary");
 
         assert_eq!(summary.account_equity, "126.72469206");
         assert_eq!(summary.available_margin, "120.00000000");
@@ -103,18 +96,15 @@ mod tests {
 
     #[test]
     fn rejects_multi_assets_totals_instead_of_labeling_usd_as_usdt() {
-        let error = map_margin_summary(
-            json!({"multiAssetsMargin": true}),
-            account_fixture(),
-            "USDT",
-        )
-        .expect_err("multi-assets totals are USD-denominated");
+        let error = map_margin_summary(account_fixture(true), "USDT")
+            .expect_err("multi-assets totals are USD-denominated");
 
         assert!(error.to_string().contains("USD-denominated"));
     }
 
-    fn account_fixture() -> Value {
+    fn account_fixture(multi_assets_margin: bool) -> Value {
         json!({
+            "multiAssetsMargin": multi_assets_margin,
             "totalMarginBalance": "126.72469206",
             "availableBalance": "120.00000000",
             "totalInitialMargin": "6.72469206",

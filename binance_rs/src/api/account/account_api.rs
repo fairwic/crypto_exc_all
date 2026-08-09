@@ -43,6 +43,14 @@ impl BinanceAccount {
             .await
     }
 
+    /// 读取仍在官方合同中的 V2 账户信息；该版本在同一响应内携带多资产模式与汇总金额。
+    pub async fn get_account_info_v2(&self) -> Result<serde_json::Value, Error> {
+        let path = format!("{}/account", API_ACCOUNT_V2_PATH);
+        self.client
+            .send_signed_request(Method::GET, &path, &[])
+            .await
+    }
+
     pub async fn get_positions(&self, symbol: Option<&str>) -> Result<serde_json::Value, Error> {
         let mut params = Vec::new();
         push_optional(&mut params, "symbol", symbol);

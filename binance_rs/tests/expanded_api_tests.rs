@@ -130,6 +130,24 @@ async fn account_wrappers_map_signed_account_position_and_income_endpoints() {
         .with_body(r#"{"availableBalance":"100","assets":[],"positions":[]}"#)
         .create_async()
         .await;
+    let account_info_v2 = server
+        .mock("GET", "/fapi/v2/account")
+        .match_header("x-mbx-apikey", "test-key")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("recvWindow".into(), "5000".into()),
+            Matcher::UrlEncoded("timestamp".into(), "1591702613943".into()),
+            Matcher::UrlEncoded(
+                "signature".into(),
+                "3694879045b8071b7b94882ec6c5c4332da0a384d10f80c157f495f3055770d3".into(),
+            ),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"multiAssetsMargin":false,"availableBalance":"100","assets":[],"positions":[]}"#,
+        )
+        .create_async()
+        .await;
     let positions = server
         .mock("GET", "/fapi/v3/positionRisk")
         .match_header("x-mbx-apikey", "test-key")
@@ -170,6 +188,10 @@ async fn account_wrappers_map_signed_account_position_and_income_endpoints() {
         "100"
     );
     assert_eq!(
+        account.get_account_info_v2().await.unwrap()["multiAssetsMargin"],
+        false
+    );
+    assert_eq!(
         account.get_positions(Some("BTCUSDT")).await.unwrap()[0]["symbol"],
         "BTCUSDT"
     );
@@ -187,6 +209,7 @@ async fn account_wrappers_map_signed_account_position_and_income_endpoints() {
     );
 
     account_info.assert_async().await;
+    account_info_v2.assert_async().await;
     positions.assert_async().await;
     income.assert_async().await;
 }
