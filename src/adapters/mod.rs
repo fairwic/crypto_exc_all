@@ -5,10 +5,18 @@ use crate::account::{
     PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
     SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
-use crate::config::{
-    BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, GateExchangeConfig,
-    HyperliquidExchangeConfig, OkxExchangeConfig,
-};
+#[cfg(feature = "binance")]
+use crate::config::BinanceExchangeConfig;
+#[cfg(feature = "bitget")]
+use crate::config::BitgetExchangeConfig;
+#[cfg(feature = "bybit")]
+use crate::config::BybitExchangeConfig;
+#[cfg(feature = "gate")]
+use crate::config::GateExchangeConfig;
+#[cfg(feature = "hyperliquid")]
+use crate::config::HyperliquidExchangeConfig;
+#[cfg(feature = "okx")]
+use crate::config::OkxExchangeConfig;
 use crate::error::{Error, Result};
 use crate::exchange::ExchangeId;
 use crate::fill::{Fill, FillListQuery};

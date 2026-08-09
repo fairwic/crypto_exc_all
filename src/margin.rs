@@ -32,6 +32,7 @@ impl MarginMode {
         }
     }
 
+    #[cfg(feature = "bitget")]
     pub(crate) fn as_bitget_margin_mode(&self) -> String {
         match self {
             Self::Cross => "crossed".to_string(),
