@@ -3,6 +3,7 @@ use okx::config::Credentials;
 use okx::websocket::OkxPrivateAccountStreamClient;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::env;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::time::{timeout, Duration};
@@ -174,6 +175,28 @@ async fn private_account_stream_rejects_login_ack_without_success_code() {
     let client = OkxPrivateAccountStreamClient::new(credentials).with_url(url);
 
     assert!(client.connect().await.is_err());
+}
+
+#[tokio::test]
+#[ignore = "requires live OKX private websocket credentials and network access"]
+async fn live_private_account_stream_confirms_all_required_channels() {
+    dotenv::dotenv().ok();
+    let credentials = Credentials::new(
+        env::var("OKX_API_KEY").expect("OKX_API_KEY 未设置"),
+        env::var("OKX_API_SECRET").expect("OKX_API_SECRET 未设置"),
+        env::var("OKX_PASSPHRASE").expect("OKX_PASSPHRASE 未设置"),
+        "0",
+    );
+
+    let mut session = OkxPrivateAccountStreamClient::new(credentials)
+        .connect()
+        .await
+        .expect("OKX private/business 登录或必需频道确认失败");
+    session
+        .heartbeat()
+        .await
+        .expect("OKX private/business heartbeat 失败");
+    session.close().await.expect("OKX private stream 关闭失败");
 }
 
 async fn next_json<S>(socket: &mut tokio_tungstenite::WebSocketStream<S>) -> Value

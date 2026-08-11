@@ -5,18 +5,26 @@ use futures::{SinkExt, StreamExt};
 use reqwest::Method;
 use serde_json::{json, Value};
 use std::collections::{HashSet, VecDeque};
+use std::env;
 use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
+use tokio_socks::tcp::Socks5Stream;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async_with_config, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{client_async_tls_with_config, MaybeTlsStream, WebSocketStream};
+use url::Url;
 
 const MAX_PRIVATE_MESSAGE_BYTES: usize = 1024 * 1024;
 const MAX_HANDSHAKE_BUFFERED_FRAMES: usize = 64;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
-type OkxPrivateSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+trait PrivateSocketIo: AsyncRead + AsyncWrite + Send + Unpin {}
+
+impl<T> PrivateSocketIo for T where T: AsyncRead + AsyncWrite + Send + Unpin {}
+
+type OkxPrivateSocket = WebSocketStream<MaybeTlsStream<Box<dyn PrivateSocketIo>>>;
 
 /// OKX 账户私有流连接器，只负责 provider 登录与固定 P0 频道订阅。
 #[derive(Clone)]
@@ -175,17 +183,80 @@ async fn open_authenticated_socket(
     let config = WebSocketConfig::default()
         .max_message_size(Some(MAX_PRIVATE_MESSAGE_BYTES))
         .max_frame_size(Some(MAX_PRIVATE_MESSAGE_BYTES));
-    let (mut socket, _) = timeout(
-        HANDSHAKE_TIMEOUT,
-        connect_async_with_config(url, Some(config), false),
-    )
-    .await
-    .map_err(|_| Error::TimeoutError(format!("连接 OKX {endpoint} 私有流超时")))?
-    .map_err(|error| Error::WebSocketError(format!("连接 OKX {endpoint} 私有流失败: {error}")))?;
+    let (mut socket, _) = timeout(HANDSHAKE_TIMEOUT, connect_socket(url, config))
+        .await
+        .map_err(|_| Error::TimeoutError(format!("连接 OKX {endpoint} 私有流超时")))?
+        .map_err(|error| {
+            Error::WebSocketError(format!("连接 OKX {endpoint} 私有流失败: {error}"))
+        })?;
     send_login(&mut socket, credentials).await?;
     let mut pending = VecDeque::new();
     wait_for_login(&mut socket, &mut pending, endpoint).await?;
     Ok((socket, pending))
+}
+
+async fn connect_socket(
+    url: &str,
+    config: WebSocketConfig,
+) -> Result<
+    (
+        OkxPrivateSocket,
+        tokio_tungstenite::tungstenite::handshake::client::Response,
+    ),
+    Error,
+> {
+    let target = Url::parse(url)
+        .map_err(|_| Error::ConfigError("OKX private WebSocket URL 无效".to_string()))?;
+    let host = target
+        .host_str()
+        .ok_or_else(|| Error::ConfigError("OKX private WebSocket 缺少 host".to_string()))?;
+    let port = target
+        .port_or_known_default()
+        .ok_or_else(|| Error::ConfigError("OKX private WebSocket 缺少 port".to_string()))?;
+    let transport: Box<dyn PrivateSocketIo> = match proxy_endpoint(host)? {
+        Some((proxy_host, proxy_port)) => Box::new(
+            Socks5Stream::connect((proxy_host.as_str(), proxy_port), (host, port))
+                .await
+                .map_err(|error| {
+                    Error::WebSocketError(format!("OKX private SOCKS5 连接失败: {error}"))
+                })?,
+        ),
+        None => Box::new(TcpStream::connect((host, port)).await.map_err(|error| {
+            Error::WebSocketError(format!("OKX private TCP 连接失败: {error}"))
+        })?),
+    };
+    client_async_tls_with_config(url, transport, Some(config), None)
+        .await
+        .map_err(|error| Error::WebSocketError(error.to_string()))
+}
+
+fn proxy_endpoint(target_host: &str) -> Result<Option<(String, u16)>, Error> {
+    if matches!(target_host, "localhost" | "127.0.0.1" | "::1") {
+        return Ok(None);
+    }
+    let Some(raw_proxy) = ["ALL_PROXY", "all_proxy"]
+        .into_iter()
+        .find_map(|name| env::var(name).ok().filter(|value| !value.trim().is_empty()))
+    else {
+        return Ok(None);
+    };
+    let proxy = Url::parse(raw_proxy.trim())
+        .map_err(|_| Error::ConfigError("ALL_PROXY 不是有效 URL".to_string()))?;
+    if !matches!(proxy.scheme(), "socks5" | "socks5h")
+        || !proxy.username().is_empty()
+        || proxy.password().is_some()
+    {
+        return Err(Error::ConfigError(
+            "OKX private WebSocket 只支持无认证 socks5/socks5h ALL_PROXY".to_string(),
+        ));
+    }
+    let host = proxy
+        .host_str()
+        .ok_or_else(|| Error::ConfigError("ALL_PROXY 缺少 host".to_string()))?;
+    let port = proxy
+        .port()
+        .ok_or_else(|| Error::ConfigError("ALL_PROXY 缺少 port".to_string()))?;
+    Ok(Some((host.to_string(), port)))
 }
 
 async fn wait_for_pong(
@@ -199,7 +270,7 @@ async fn wait_for_pong(
                 "OKX {endpoint} 在 heartbeat 期间关闭连接"
             )));
         };
-        match message.map_err(|error| Error::WebSocketError(error.to_string()))? {
+        match message.map_err(sanitized_receive_error)? {
             Message::Text(text) if text.as_str() == "pong" => return Ok(()),
             Message::Text(text) => {
                 let value = serde_json::from_str(text.as_str())?;
@@ -224,6 +295,33 @@ async fn wait_for_pong(
             Message::Pong(_) | Message::Frame(_) => {}
         }
     }
+}
+
+/// 将底层 WebSocket 错误收敛为可运维分类，禁止连接细节进入 owner 日志。
+fn sanitized_receive_error(error: tokio_tungstenite::tungstenite::Error) -> Error {
+    use std::io::ErrorKind;
+    use tokio_tungstenite::tungstenite::Error as WebSocketError;
+
+    let category = match error {
+        WebSocketError::ConnectionClosed => "connection_closed",
+        WebSocketError::AlreadyClosed => "already_closed",
+        WebSocketError::Io(error) => match error.kind() {
+            ErrorKind::ConnectionReset => "connection_reset",
+            ErrorKind::ConnectionAborted => "connection_aborted",
+            ErrorKind::BrokenPipe => "broken_pipe",
+            ErrorKind::TimedOut => "timed_out",
+            ErrorKind::UnexpectedEof => "unexpected_eof",
+            _ => "io",
+        },
+        WebSocketError::Tls(_) => "tls",
+        WebSocketError::Capacity(_) => "capacity",
+        WebSocketError::Protocol(_) => "protocol",
+        WebSocketError::Utf8(_) => "utf8",
+        WebSocketError::WriteBufferFull(_) => "write_buffer_full",
+        WebSocketError::AttackAttempt => "attack_attempt",
+        _ => "other",
+    };
+    Error::WebSocketError(category.to_owned())
 }
 
 async fn send_login(socket: &mut OkxPrivateSocket, credentials: &Credentials) -> Result<(), Error> {
@@ -382,7 +480,7 @@ async fn recv_json(socket: &mut OkxPrivateSocket) -> Result<Option<Value>, Error
         let Some(message) = socket.next().await else {
             return Ok(None);
         };
-        match message.map_err(|error| Error::WebSocketError(error.to_string()))? {
+        match message.map_err(sanitized_receive_error)? {
             Message::Text(text) if text.as_str() == "pong" => continue,
             Message::Text(text) => {
                 return serde_json::from_str(text.as_str())
@@ -402,5 +500,23 @@ async fn recv_json(socket: &mut OkxPrivateSocket) -> Result<Option<Value>, Error
             Message::Close(_) => return Ok(None),
             Message::Pong(_) | Message::Frame(_) => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+
+    #[test]
+    fn receive_error_reports_only_safe_transport_category() {
+        let error = sanitized_receive_error(tokio_tungstenite::tungstenite::Error::Io(
+            io::Error::new(io::ErrorKind::ConnectionReset, "sensitive transport detail"),
+        ));
+
+        assert!(
+            matches!(error, Error::WebSocketError(ref category) if category == "connection_reset")
+        );
+        assert!(!error.to_string().contains("sensitive"));
     }
 }

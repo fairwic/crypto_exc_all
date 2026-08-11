@@ -62,6 +62,16 @@ impl Error {
                 },
             },
             okx_rs::Error::ConfigError(message) => Self::Config(message),
+            okx_rs::Error::WebSocketError(category) => match okx_receive_phase(&category) {
+                Some(phase) => Self::PrivateStreamLifecycle {
+                    exchange: ExchangeId::Okx,
+                    phase,
+                },
+                None => Self::Adapter {
+                    exchange: ExchangeId::Okx,
+                    message: okx_rs::Error::WebSocketError(category).to_string(),
+                },
+            },
             other => Self::Adapter {
                 exchange: ExchangeId::Okx,
                 message: other.to_string(),
@@ -206,6 +216,28 @@ impl Error {
     }
 }
 
+#[cfg(feature = "okx")]
+fn okx_receive_phase(category: &str) -> Option<&'static str> {
+    match category {
+        "connection_closed" => Some("receive_connection_closed"),
+        "already_closed" => Some("receive_already_closed"),
+        "connection_reset" => Some("receive_connection_reset"),
+        "connection_aborted" => Some("receive_connection_aborted"),
+        "broken_pipe" => Some("receive_broken_pipe"),
+        "timed_out" => Some("receive_timed_out"),
+        "unexpected_eof" => Some("receive_unexpected_eof"),
+        "io" => Some("receive_io"),
+        "tls" => Some("receive_tls"),
+        "capacity" => Some("receive_capacity"),
+        "protocol" => Some("receive_protocol"),
+        "utf8" => Some("receive_utf8"),
+        "write_buffer_full" => Some("receive_write_buffer_full"),
+        "attack_attempt" => Some("receive_attack_attempt"),
+        "other" => Some("receive_other"),
+        _ => None,
+    }
+}
+
 /// 把 Binance SDK 的固定接收分类转换为统一 SDK 可公开的稳定 phase。
 #[cfg(feature = "binance")]
 fn binance_receive_phase(category: &'static str) -> &'static str {
@@ -231,6 +263,20 @@ fn binance_receive_phase(category: &'static str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "okx")]
+    #[test]
+    fn maps_okx_receive_error_to_safe_private_stream_phase() {
+        let error = Error::from_okx(okx_rs::Error::WebSocketError("connection_reset".to_owned()));
+
+        assert!(matches!(
+            error,
+            Error::PrivateStreamLifecycle {
+                exchange: ExchangeId::Okx,
+                phase: "receive_connection_reset"
+            }
+        ));
+    }
 
     #[test]
     fn maps_binance_receive_error_to_safe_private_stream_phase() {
