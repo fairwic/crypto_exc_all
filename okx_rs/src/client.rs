@@ -174,7 +174,7 @@ impl OkxClient {
             is_simulated_trading: "0".to_string(),
             base_url,
             #[cfg(feature = "full")]
-            request_expiration_ms: 1_000,
+            request_expiration_ms: crate::config::DEFAULT_REQUEST_EXPIRATION_MS,
             accept_language: None,
         }
     }
@@ -352,23 +352,30 @@ impl OkxClient {
                 }
                 // result={"code":"1","data":[{"clOrdId":"","ordId":"","sCode":"51000","sMsg":"Parameter ordId error","ts":"1752558485701"}],"inTime":"1752558485701589","msg":"All operations failed","outTime":"1752558485701884"}
                 // 尝试从data数组的第一个元素中提取sMsg
-                let smg = if let Ok(data_array) =
+                let (item_code, smg) = if let Ok(data_array) =
                     serde_json::from_str::<Vec<serde_json::Value>>(&json!(result.data).to_string())
                 {
-                    data_array
-                        .first()
-                        .and_then(|item| item.get("sMsg"))
-                        .and_then(|s| s.as_str())
-                        .unwrap_or("未知错误")
-                        .to_string()
+                    let first = data_array.first();
+                    (
+                        first
+                            .and_then(|item| item.get("sCode"))
+                            .and_then(|value| value.as_str())
+                            .filter(|value| !value.is_empty() && *value != "0")
+                            .map(ToOwned::to_owned),
+                        first
+                            .and_then(|item| item.get("sMsg"))
+                            .and_then(|value| value.as_str())
+                            .unwrap_or_default()
+                            .to_owned(),
+                    )
                 } else {
                     error!("解析错误信息失败: {}", response_body);
-                    "解析错误信息失败".to_string()
+                    (None, String::new())
                 };
 
                 error!("OKX API错误响应: {}", response_body);
                 Err(Error::OkxApiError {
-                    code: result.code,
+                    code: item_code.unwrap_or(result.code),
                     message: result.msg,
                     smg,
                 })

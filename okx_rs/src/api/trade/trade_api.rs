@@ -73,6 +73,23 @@ impl OkxTrade {
             .await
     }
 
+    /// 撤销一条未触发的算法订单；当前调用方用于清理已平仓仓位的附带止损。
+    pub async fn cancel_algo_order(
+        &self,
+        inst_id: &str,
+        algo_id: &str,
+    ) -> Result<serde_json::Value, Error> {
+        let path = format!("{}/cancel-algos", API_TRADE_PATH);
+        let body = json!([{
+            "instId": inst_id,
+            "algoId": algo_id,
+        }]);
+        let body_str = serde_json::to_string(&body).map_err(Error::JsonError)?;
+        self.client
+            .send_request::<serde_json::Value>(Method::POST, &path, &body_str)
+            .await
+    }
+
     /// 批量撤单
     pub async fn cancel_multiple_orders(
         &self,

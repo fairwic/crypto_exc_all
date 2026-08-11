@@ -61,6 +61,7 @@ pub struct PlaceOrderRequest {
     pub reduce_only: Option<bool>,
     pub time_in_force: Option<TimeInForce>,
     pub attached_stop_loss_price: Option<String>,
+    pub attached_take_profit_price: Option<String>,
     pub attached_stop_loss_client_order_id: Option<String>,
 }
 
@@ -74,6 +75,7 @@ pub enum ProtectiveOrderWorkingType {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TradeCapabilities {
     pub attached_stop_loss_on_place_order: bool,
+    pub attached_take_profit_on_place_order: bool,
     pub protective_order: bool,
 }
 
@@ -223,6 +225,7 @@ impl PlaceOrderRequest {
             reduce_only: None,
             time_in_force: None,
             attached_stop_loss_price: None,
+            attached_take_profit_price: None,
             attached_stop_loss_client_order_id: None,
         }
     }
@@ -282,6 +285,11 @@ impl PlaceOrderRequest {
 
     pub fn with_attached_stop_loss_price(mut self, value: impl Into<String>) -> Self {
         self.attached_stop_loss_price = Some(value.into());
+        self
+    }
+
+    pub fn with_attached_take_profit_price(mut self, value: impl Into<String>) -> Self {
+        self.attached_take_profit_price = Some(value.into());
         self
     }
 
@@ -359,6 +367,14 @@ impl<'a> TradeFacade<'a> {
     }
 
     pub async fn place_order(&self, request: PlaceOrderRequest) -> Result<OrderAck> {
+        if request.attached_take_profit_price.is_some()
+            && !self.capabilities().attached_take_profit_on_place_order
+        {
+            return Err(crate::error::Error::Unsupported {
+                exchange: self.client.exchange_id(),
+                capability: "attached take profit on place_order",
+            });
+        }
         self.client.place_order(request).await
     }
 
@@ -412,13 +428,15 @@ mod tests {
     }
 
     #[test]
-    fn place_order_request_carries_attached_stop_loss_price() {
+    fn place_order_request_carries_attached_exit_prices() {
         let request =
             PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.1")
                 .with_attached_stop_loss_price("2200.5")
+                .with_attached_take_profit_price("2800")
                 .with_attached_stop_loss_client_order_id("rqstop00000000000000000000000000");
 
         assert_eq!(request.attached_stop_loss_price.as_deref(), Some("2200.5"));
+        assert_eq!(request.attached_take_profit_price.as_deref(), Some("2800"));
         assert_eq!(
             request.attached_stop_loss_client_order_id.as_deref(),
             Some("rqstop00000000000000000000000000")

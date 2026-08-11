@@ -156,6 +156,17 @@ impl OkxAccount {
             .await
     }
 
+    /// 查询指定合约与保证金模式的当前杠杆设置。
+    pub async fn get_leverage_info(&self, inst_id: &str, mgn_mode: &str) -> Result<Value, Error> {
+        let path = format!(
+            "{}/leverage-info?instId={}&mgnMode={}",
+            API_ACCOUNT_PATH, inst_id, mgn_mode
+        );
+        self.client
+            .send_request::<Value>(Method::GET, &path, "")
+            .await
+    }
+
     /// 设置持仓模式
     pub async fn set_position_mode(
         &self,

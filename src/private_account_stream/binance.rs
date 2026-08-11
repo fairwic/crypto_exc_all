@@ -1,7 +1,7 @@
 use super::{
     PrivateAccountStreamChange, PrivateAccountStreamFrame, PrivateAccountStreamRecord,
-    PrivateBalanceStreamChange, PrivateOrderStreamChange, PrivatePositionStreamChange,
-    adapter_error, nonempty, number_or_string,
+    PrivateBalanceStreamChange, PrivateOrderStreamChange, PrivateOrderStreamKind,
+    PrivatePositionStreamChange, adapter_error, nonempty, number_or_string,
 };
 use crate::{Error, ExchangeId, Result};
 use binance_rs::api::websocket::BinanceWebsocketEvent;
@@ -55,14 +55,18 @@ fn parse_order_update(
                 update.order.execution_type
             ),
             change: PrivateAccountStreamChange::Order(PrivateOrderStreamChange {
+                kind: PrivateOrderStreamKind::Regular,
                 exchange_symbol: update.order.symbol,
                 order_id: update.order.order_id.to_string(),
                 client_order_id: nonempty(update.order.client_order_id),
+                parent_order_id: None,
+                parent_client_order_id: None,
                 side: nonempty(update.order.side),
                 order_type: nonempty(update.order.order_type),
                 price: nonempty(update.order.original_price),
                 size: nonempty(update.order.original_quantity),
                 filled_size: raw_order.get("z").and_then(number_or_string),
+                average_fill_price: raw_order.get("ap").and_then(number_or_string),
                 status: update.order.status,
                 created_at_ms: raw_order
                     .get("O")
