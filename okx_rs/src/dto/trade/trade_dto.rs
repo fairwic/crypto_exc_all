@@ -33,6 +33,7 @@ impl EnumToStrTrait for TdModeEnum {
 
 ///止盈止损请求参数结构体
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct AttachAlgoOrdReqDto {
     /// 下单附带止盈止损时，客户自定义的策略订单ID
     /// 字母（区分大小写）与数字的组合，可以是纯字母、纯数字且长度要在1-32位之间。

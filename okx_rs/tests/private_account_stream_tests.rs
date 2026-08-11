@@ -11,11 +11,13 @@ use tokio_tungstenite::tungstenite::Message;
 
 #[tokio::test]
 async fn private_account_stream_waits_for_login_and_all_channel_acks() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("ws://{}", listener.local_addr().unwrap());
-    let (requests_tx, requests_rx) = oneshot::channel();
+    let private_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let private_url = format!("ws://{}", private_listener.local_addr().unwrap());
+    let business_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let business_url = format!("ws://{}", business_listener.local_addr().unwrap());
+    let (private_requests_tx, private_requests_rx) = oneshot::channel();
     tokio::spawn(async move {
-        let (stream, _) = listener.accept().await.unwrap();
+        let (stream, _) = private_listener.accept().await.unwrap();
         let mut socket = accept_async(stream).await.unwrap();
         let login = next_json(&mut socket).await;
         socket
@@ -47,7 +49,7 @@ async fn private_account_stream_waits_for_login_and_all_channel_acks() {
                 .await
                 .unwrap();
         }
-        requests_tx.send((login, subscribe)).unwrap();
+        private_requests_tx.send((login, subscribe)).unwrap();
         assert!(matches!(
             socket.next().await,
             Some(Ok(Message::Text(text))) if text.as_str() == "ping"
@@ -61,15 +63,59 @@ async fn private_account_stream_waits_for_login_and_all_channel_acks() {
         socket.send(Message::Text("pong".into())).await.unwrap();
         assert!(matches!(socket.next().await, Some(Ok(Message::Close(_)))));
     });
+    let (business_requests_tx, business_requests_rx) = oneshot::channel();
+    tokio::spawn(async move {
+        let (stream, _) = business_listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        let login = next_json(&mut socket).await;
+        socket
+            .send(Message::Text(
+                r#"{"event":"login","code":"0","msg":""}"#.into(),
+            ))
+            .await
+            .unwrap();
+        let subscribe = next_json(&mut socket).await;
+        socket
+            .send(Message::Text(
+                r#"{"event":"channel-conn-count","channel":"orders-algo","connCount":"1"}"#.into(),
+            ))
+            .await
+            .unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"arg":{"channel":"orders-algo"},"data":[{"algoId":"9","state":"canceled","pTime":"9"}]}"#
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"event":"subscribe","arg":{"channel":"orders-algo"},"code":"0"}"#.into(),
+            ))
+            .await
+            .unwrap();
+        business_requests_tx.send((login, subscribe)).unwrap();
+        assert!(matches!(
+            socket.next().await,
+            Some(Ok(Message::Text(text))) if text.as_str() == "ping"
+        ));
+        socket.send(Message::Text("pong".into())).await.unwrap();
+        assert!(matches!(socket.next().await, Some(Ok(Message::Close(_)))));
+    });
 
     let credentials = Credentials::new("key", "secret", "pass", "1");
-    let client = OkxPrivateAccountStreamClient::new(credentials).with_url(url);
+    let client = OkxPrivateAccountStreamClient::new(credentials)
+        .with_url(private_url)
+        .with_business_url(business_url);
     let mut session = client.connect().await.unwrap();
-    let (login, subscribe) = requests_rx.await.unwrap();
+    let (private_login, private_subscribe) = private_requests_rx.await.unwrap();
+    let (business_login, business_subscribe) = business_requests_rx.await.unwrap();
 
-    assert_eq!(login["op"], "login");
-    assert_eq!(subscribe["op"], "subscribe");
-    let channels = subscribe["args"]
+    assert_eq!(private_login["op"], "login");
+    assert_eq!(private_subscribe["op"], "subscribe");
+    assert_eq!(business_login["op"], "login");
+    assert_eq!(business_subscribe["op"], "subscribe");
+    let channels = private_subscribe["args"]
         .as_array()
         .unwrap()
         .iter()
@@ -82,6 +128,25 @@ async fn private_account_stream_waits_for_login_and_all_channel_acks() {
             .unwrap()
             .unwrap(),
         Some(json!({"arg":{"channel":"orders"},"data":[{"ordId":"1","uTime":"7"}]}))
+    );
+    assert_eq!(
+        business_subscribe["args"],
+        json!([{"channel":"orders-algo","instType":"ANY"}])
+    );
+    assert_eq!(
+        session.recv_json().await.unwrap(),
+        Some(json!({
+            "event":"channel-conn-count",
+            "channel":"orders-algo",
+            "connCount":"1"
+        }))
+    );
+    assert_eq!(
+        session.recv_json().await.unwrap(),
+        Some(json!({
+            "arg":{"channel":"orders-algo"},
+            "data":[{"algoId":"9","state":"canceled","pTime":"9"}]
+        }))
     );
     session.heartbeat().await.unwrap();
     assert_eq!(

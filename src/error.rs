@@ -69,6 +69,29 @@ impl Error {
         }
     }
 
+    /// 将 OKX mutation 的同步业务拒绝与传输/HTTP 不确定错误分开。
+    #[cfg(feature = "okx")]
+    pub(crate) fn from_okx_mutation(error: okx_rs::Error) -> Self {
+        match error {
+            okx_rs::Error::OkxApiError { code, message, smg }
+                if !smg.is_empty()
+                    || (code.len() == 5 && code.bytes().all(|byte| byte.is_ascii_digit())) =>
+            {
+                Self::Api {
+                    exchange: ExchangeId::Okx,
+                    status: Some(200),
+                    code,
+                    message: if smg.is_empty() {
+                        message
+                    } else {
+                        format!("{message}: {smg}")
+                    },
+                }
+            }
+            other => Self::from_okx(other),
+        }
+    }
+
     #[cfg(feature = "binance")]
     pub(crate) fn from_binance(error: binance_rs::Error) -> Self {
         match error {

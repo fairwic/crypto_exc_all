@@ -15,8 +15,8 @@ pub const DEFAULT_BUSINESS_WEBSOCKET_URL: &str = "wss://ws.okx.com/ws/v5/busines
 /// OKX API超时配置（毫秒）
 pub const DEFAULT_API_TIMEOUT_MS: u64 = 5000;
 
-/// 默认请求有效时间（毫秒）
-pub const DEFAULT_REQUEST_EXPIRATION_MS: i64 = 1000;
+/// 默认请求有效时间（毫秒）；给公网时钟偏差和往返延迟留出空间，同时短于默认 HTTP 超时。
+pub const DEFAULT_REQUEST_EXPIRATION_MS: i64 = 4_000;
 
 /// 环境初始化状态
 static INIT_ENV: Once = Once::new();
@@ -232,4 +232,17 @@ pub fn init_env() {
         // 尝试加载.env文件，忽略失败
         dotenv::dotenv().ok();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_request_expiration_tolerates_network_jitter_but_precedes_timeout() {
+        let config = Config::default();
+
+        assert_eq!(config.request_expiration_ms, 4_000);
+        assert!(config.request_expiration_ms < config.api_timeout_ms as i64);
+    }
 }

@@ -204,6 +204,21 @@ pub struct LeverageSetting {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LeverageInfoQuery {
+    pub instrument: Instrument,
+    pub margin_mode: MarginMode,
+}
+
+impl LeverageInfoQuery {
+    pub fn new(instrument: Instrument, margin_mode: impl Into<MarginMode>) -> Self {
+        Self {
+            instrument,
+            margin_mode: margin_mode.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MaxOrderSizeRequest {
     /// 需要查询最大可下单数量的交易产品。
     pub instrument: Instrument,
@@ -531,6 +546,11 @@ impl<'a> AccountFacade<'a> {
 
     pub async fn set_leverage(&self, request: SetLeverageRequest) -> Result<LeverageSetting> {
         self.client.set_leverage(request).await
+    }
+
+    /// 读取 provider 当前杠杆配置，不修改账户设置。
+    pub async fn leverage_info(&self, query: LeverageInfoQuery) -> Result<Vec<LeverageSetting>> {
+        self.client.leverage_info(query).await
     }
 
     pub fn capabilities(&self) -> AccountCapabilities {

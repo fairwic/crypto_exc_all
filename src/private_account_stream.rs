@@ -36,17 +36,34 @@ pub struct PrivatePositionStreamChange {
     pub source_updated_at_ms: u64,
 }
 
+/// provider 订单事实的协议类别；保护算法单不能按普通订单解释成交状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivateOrderStreamKind {
+    Regular,
+    ProtectionAlgo,
+    /// OKX 保护算法单触发后在普通 `orders` channel 推送的真实 child order。
+    ProtectionAlgoChild,
+}
+
 /// 私有流中的订单变更；Account Gateway 根据 provider 状态判定 active/terminal。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateOrderStreamChange {
+    pub kind: PrivateOrderStreamKind,
     pub exchange_symbol: String,
+    /// 当前 provider 订单 identity；保护 child 场景为真实 child `ordId`。
     pub order_id: String,
     pub client_order_id: Option<String>,
+    /// 保护 child 所属 parent `algoId`；其他订单必须为空。
+    pub parent_order_id: Option<String>,
+    /// 保护 child 所属 parent `algoClOrdId`；其他订单必须为空。
+    pub parent_client_order_id: Option<String>,
     pub side: Option<String>,
     pub order_type: Option<String>,
     pub price: Option<String>,
     pub size: Option<String>,
     pub filled_size: Option<String>,
+    /// provider 报告的累计成交均价；零成交时通常为空或零文本。
+    pub average_fill_price: Option<String>,
     pub status: String,
     pub created_at_ms: Option<u64>,
     pub source_updated_at_ms: u64,

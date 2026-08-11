@@ -61,10 +61,10 @@ pub mod raw {
 pub use account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, AccountIdentity,
     AccountMarginSummary, AccountOrderPermission, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageSetting, MarginModeApplyMethod, MaxOrderSize,
-    MaxOrderSizeRequest, PositionMode, PositionModeSetting, PrepareOrderSettingsRequest,
-    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting, MarginModeApplyMethod,
+    MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
+    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 #[cfg(feature = "full-sdk")]
 pub use config::{
@@ -96,8 +96,8 @@ pub use position::{
 pub use private_account_stream::{
     PrivateAccountStreamChange, PrivateAccountStreamFacade, PrivateAccountStreamFrame,
     PrivateAccountStreamKeepalive, PrivateAccountStreamRecord, PrivateAccountStreamSession,
-    PrivateBalanceStreamChange, PrivateOrderStreamChange, PrivatePositionStreamChange,
-    parse_private_account_stream_frame,
+    PrivateBalanceStreamChange, PrivateOrderStreamChange, PrivateOrderStreamKind,
+    PrivatePositionStreamChange, parse_private_account_stream_frame,
 };
 #[cfg(any(feature = "binance-public-instrument", feature = "okx-public-market"))]
 pub use public_instrument::*;
