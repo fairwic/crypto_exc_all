@@ -84,6 +84,10 @@ pub use market::{
     MarketStatsQuery, OpenInterest, OrderBook, OrderBookLevel, OrderBookQuery, TakerBuySellVolume,
     Ticker,
 };
+#[cfg(feature = "okx-public-candle-ws")]
+pub use okx_rs::websocket::{
+    OkxPublicCandleStreamClient, OkxPublicCandleStreamSession, OkxPublicCandleUpdate,
+};
 #[cfg(feature = "full-sdk")]
 pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
 #[cfg(feature = "full-sdk")]

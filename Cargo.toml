@@ -20,6 +20,7 @@ resolver = "2"
 default = ["okx", "binance", "bitget", "bybit", "gate", "hyperliquid"]
 full-sdk = ["dep:dotenv"]
 okx-public-market = ["dep:okx_rs", "okx_rs/public-market"]
+okx-public-candle-ws = ["dep:okx_rs", "okx_rs/full"]
 okx = ["full-sdk", "okx-public-market", "okx_rs/full"]
 binance-public-instrument = ["dep:binance_rs"]
 binance-public-kline = ["dep:binance_rs"]
