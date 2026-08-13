@@ -519,4 +519,15 @@ mod tests {
         );
         assert!(!error.to_string().contains("sensitive"));
     }
+
+    #[test]
+    fn unexpected_eof_reports_the_exact_safe_transport_category() {
+        let error = sanitized_receive_error(tokio_tungstenite::tungstenite::Error::Io(
+            io::Error::from(io::ErrorKind::UnexpectedEof),
+        ));
+
+        assert!(
+            matches!(error, Error::WebSocketError(ref category) if category == "unexpected_eof")
+        );
+    }
 }

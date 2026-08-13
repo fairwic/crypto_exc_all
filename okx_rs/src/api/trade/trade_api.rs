@@ -1,7 +1,9 @@
 use crate::api::api_trait::OkxApiTrait;
 use crate::api::API_TRADE_PATH;
 use crate::client::OkxClient;
-use crate::dto::trade::trade_dto::{FeeRate, OrderPendingRespDto, OrderReqDto, OrderResDto};
+use crate::dto::trade::trade_dto::{
+    AmendAlgoOrderReqDto, FeeRate, OrderPendingRespDto, OrderReqDto, OrderResDto,
+};
 use crate::dto::trade_dto::{CloseOrderReqDto, OrdListReqDto, OrderDetailRespDto};
 use crate::error::Error;
 use reqwest::Method;
@@ -85,6 +87,18 @@ impl OkxTrade {
             "algoId": algo_id,
         }]);
         let body_str = serde_json::to_string(&body).map_err(Error::JsonError)?;
+        self.client
+            .send_request::<serde_json::Value>(Method::POST, &path, &body_str)
+            .await
+    }
+
+    /// 原位修改一条未触发的止损策略单。
+    pub async fn amend_algo_order(
+        &self,
+        request: AmendAlgoOrderReqDto,
+    ) -> Result<serde_json::Value, Error> {
+        let path = format!("{}/amend-algos", API_TRADE_PATH);
+        let body_str = serde_json::to_string(&request).map_err(Error::JsonError)?;
         self.client
             .send_request::<serde_json::Value>(Method::POST, &path, &body_str)
             .await
@@ -181,6 +195,39 @@ impl OkxTrade {
 
         self.client
             .send_request::<serde_json::Value>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 获取当前账户尚未触发的条件算法订单；调用方用它排除遗留止损。
+    pub async fn get_pending_algo_orders(
+        &self,
+        inst_type: &str,
+        ord_type: &str,
+        limit: u32,
+    ) -> Result<Vec<serde_json::Value>, Error> {
+        let path = format!(
+            "{}/orders-algo-pending?ordType={}&instType={}&limit={}",
+            API_TRADE_PATH, ord_type, inst_type, limit
+        );
+        self.client
+            .send_request::<Vec<serde_json::Value>>(Method::GET, &path, "")
+            .await
+    }
+
+    /// 获取已生效、已撤销或失败的条件算法订单历史。
+    pub async fn get_algo_order_history(
+        &self,
+        inst_type: &str,
+        ord_type: &str,
+        state: &str,
+        limit: u32,
+    ) -> Result<Vec<serde_json::Value>, Error> {
+        let path = format!(
+            "{}/orders-algo-history?ordType={}&state={}&instType={}&limit={}",
+            API_TRADE_PATH, ord_type, state, inst_type, limit
+        );
+        self.client
+            .send_request::<Vec<serde_json::Value>>(Method::GET, &path, "")
             .await
     }
 

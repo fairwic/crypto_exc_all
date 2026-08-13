@@ -30,8 +30,8 @@ use crate::platform::{PlatformEvent, PlatformEventQuery};
 use crate::position::{Position, PositionHistory, PositionHistoryQuery, SourcedPosition};
 use crate::private_account_stream::PrivateAccountStreamSession;
 use crate::trade::{
-    CancelOrderRequest, OrderAck, PlaceOrderRequest, ProtectiveOrderQuery, ProtectiveOrderRequest,
-    TradeCapabilities,
+    AmendProtectiveStopRequest, CancelOrderRequest, OrderAck, PlaceOrderRequest,
+    ProtectiveOrderQuery, ProtectiveOrderRequest, TradeCapabilities,
 };
 
 #[cfg(feature = "binance")]

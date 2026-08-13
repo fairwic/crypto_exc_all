@@ -135,6 +135,7 @@ impl OkxAdapter {
             self.account
                 .get_bills_archive(
                     inst_type.as_deref(),
+                    symbol_hint.as_deref(),
                     query.asset.as_deref(),
                     None,
                     query.bill_type.as_deref(),
@@ -147,6 +148,7 @@ impl OkxAdapter {
             self.account
                 .get_bills(
                     inst_type.as_deref(),
+                    symbol_hint.as_deref(),
                     query.asset.as_deref(),
                     None,
                     query.bill_type.as_deref(),

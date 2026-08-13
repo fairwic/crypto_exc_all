@@ -77,6 +77,26 @@ pub struct AttachAlgoOrdReqDto {
     /// 1：开启，且止损触发价不能为空
     pub amend_px_on_trigger_type: Option<i32>,
 }
+
+/// 修改未触发止损策略单的请求参数。
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AmendAlgoOrderReqDto {
+    pub inst_id: String,
+    pub algo_id: String,
+    pub cxl_on_fail: bool,
+    pub req_id: String,
+    pub new_sz: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_tp_trigger_px: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_tp_ord_px: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_tp_trigger_px_type: Option<String>,
+    pub new_sl_trigger_px: String,
+    pub new_sl_ord_px: String,
+    pub new_sl_trigger_px_type: String,
+}
 impl AttachAlgoOrdReqDto {
     /// 创建止盈止损订单
     /// tp_trigger_px: 止盈触发价

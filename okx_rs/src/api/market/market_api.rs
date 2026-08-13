@@ -1,5 +1,7 @@
 use crate::api::api_trait::OkxApiTrait;
 use crate::api::API_MARKET_PATH;
+#[cfg(feature = "public-market")]
+use crate::api::API_PUBLIC_PATH;
 use crate::client::OkxClient;
 #[cfg(feature = "public-market")]
 use crate::client::OkxPublicResponse;
@@ -9,6 +11,8 @@ use crate::dto::market::market_dto::{
 use crate::error::Error;
 use log::debug;
 use reqwest::Method;
+#[cfg(feature = "public-market")]
+use serde_json::Value;
 
 /// OKX市场数据API
 /// 提供市场行情相关的API访问
@@ -36,6 +40,21 @@ impl OkxApiTrait for OkxMarket {
 }
 
 impl OkxMarket {
+    /// 获取单个 SWAP 的公开标记价，并保留同一次响应的 HTTP/OKX 证据。
+    #[cfg(feature = "public-market")]
+    pub async fn get_mark_price_with_evidence(
+        &self,
+        inst_id: &str,
+    ) -> Result<OkxPublicResponse<Vec<Value>>, Error> {
+        let path = format!(
+            "{}/mark-price?instType=SWAP&instId={}",
+            API_PUBLIC_PATH, inst_id
+        );
+        self.client
+            .send_public_request_with_evidence::<Vec<Value>>(Method::GET, &path, "")
+            .await
+    }
+
     /// 获取单个产品行情信息
     pub async fn get_ticker(&self, inst_id: &str) -> Result<Vec<TickerOkxResDto>, Error> {
         let path = format!("{}/ticker?instId={}", API_MARKET_PATH, inst_id);
@@ -249,6 +268,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires live OKX credentials and network access"]
     async fn test_get_ticker() {
         let market = OkxMarket::from_env().expect("无法从环境变量创建市场API");
         let ticker = market.get_ticker("BTC-USDT").await;
@@ -257,6 +277,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires live OKX credentials and network access"]
     async fn test_get_candles() {
         let market = OkxMarket::from_env().expect("无法从环境变量创建市场API");
         let candles = market

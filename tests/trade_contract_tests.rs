@@ -1,7 +1,8 @@
 use crypto_exc_all::{
-    BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, CancelOrderRequest,
-    CryptoSdk, Error, ExchangeId, GateExchangeConfig, HyperliquidExchangeConfig, Instrument,
-    OkxExchangeConfig, OrderSide, PlaceOrderRequest, SdkConfig,
+    AmendProtectiveStopRequest, BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig,
+    CancelOrderRequest, CryptoSdk, Error, ExchangeId, GateExchangeConfig,
+    HyperliquidExchangeConfig, Instrument, OkxExchangeConfig, OrderSide, PlaceOrderRequest,
+    ProtectiveOrderWorkingType, SdkConfig,
 };
 use mockito::{Matcher, Server};
 
@@ -26,21 +27,27 @@ fn external_consumer_can_discover_trade_capabilities_without_exchange_branching(
     assert!(!binance_capabilities.attached_stop_loss_on_place_order);
     assert!(!binance_capabilities.attached_take_profit_on_place_order);
     assert!(binance_capabilities.protective_order);
+    assert!(!binance_capabilities.protective_stop_amendment);
     assert!(okx_capabilities.attached_stop_loss_on_place_order);
     assert!(okx_capabilities.attached_take_profit_on_place_order);
     assert!(!okx_capabilities.protective_order);
+    assert!(okx_capabilities.protective_stop_amendment);
     assert!(bitget_capabilities.attached_stop_loss_on_place_order);
     assert!(!bitget_capabilities.attached_take_profit_on_place_order);
     assert!(!bitget_capabilities.protective_order);
+    assert!(!bitget_capabilities.protective_stop_amendment);
     assert!(!bybit_capabilities.attached_stop_loss_on_place_order);
     assert!(!bybit_capabilities.attached_take_profit_on_place_order);
     assert!(!bybit_capabilities.protective_order);
+    assert!(!bybit_capabilities.protective_stop_amendment);
     assert!(!gate_capabilities.attached_stop_loss_on_place_order);
     assert!(!gate_capabilities.attached_take_profit_on_place_order);
     assert!(!gate_capabilities.protective_order);
+    assert!(!gate_capabilities.protective_stop_amendment);
     assert!(!hyperliquid_capabilities.attached_stop_loss_on_place_order);
     assert!(!hyperliquid_capabilities.attached_take_profit_on_place_order);
     assert!(!hyperliquid_capabilities.protective_order);
+    assert!(!hyperliquid_capabilities.protective_stop_amendment);
 }
 
 #[tokio::test]
@@ -196,8 +203,224 @@ async fn okx_protective_cancellation_uses_algo_order_endpoint_and_identity() {
         .expect("cancel protective order");
 
     assert_eq!(ack.order_id.as_deref(), Some("2510789768709120"));
+    assert_eq!(
+        ack.client_order_id.as_deref(),
+        Some("rq111111111111111111111111111111")
+    );
     assert_eq!(ack.status.as_deref(), Some("0"));
     cancel.assert_async().await;
+}
+
+#[tokio::test]
+async fn okx_protective_stop_amendment_uses_algo_endpoint_and_keeps_stop_active_on_failure() {
+    let mut okx_server = Server::new_async().await;
+    let amend = okx_server
+        .mock("POST", "/api/v5/trade/amend-algos")
+        .match_body(Matcher::Json(serde_json::json!({
+            "instId": "ETH-USDT-SWAP",
+            "algoId": "2510789768709120",
+            "cxlOnFail": false,
+            "reqId": "rq0123456789abcdef0123456789abcd",
+            "newSz": "0.02",
+            "newTpTriggerPx": "2800",
+            "newTpOrdPx": "-1",
+            "newTpTriggerPxType": "mark",
+            "newSlTriggerPx": "2400.5",
+            "newSlOrdPx": "-1",
+            "newSlTriggerPxType": "mark"
+        })))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"code":"0","msg":"","data":[{"algoId":"2510789768709120","algoClOrdId":"rq111111111111111111111111111111","reqId":"rq0123456789abcdef0123456789abcd","sCode":"0","sMsg":""}]}"#,
+        )
+        .create_async()
+        .await;
+    let sdk = configured_all_order_sdk(
+        "https://binance.invalid".to_owned(),
+        okx_server.url(),
+        "https://bitget.invalid".to_owned(),
+        "https://bybit.invalid".to_owned(),
+        "https://gate.invalid".to_owned(),
+        "https://hyperliquid.invalid".to_owned(),
+    );
+
+    let ack = sdk
+        .trade(ExchangeId::Okx)
+        .expect("OKX trade facade")
+        .amend_protective_stop(
+            AmendProtectiveStopRequest::new(
+                Instrument::perp("ETH", "USDT"),
+                "2510789768709120",
+                "rq0123456789abcdef0123456789abcd",
+                "0.02",
+                "2400.5",
+                ProtectiveOrderWorkingType::MarkPrice,
+            )
+            .with_take_profit_price("2800"),
+        )
+        .await
+        .expect("amend protective stop");
+
+    assert_eq!(ack.order_id.as_deref(), Some("2510789768709120"));
+    assert_eq!(
+        ack.client_order_id.as_deref(),
+        Some("rq0123456789abcdef0123456789abcd")
+    );
+    assert_eq!(ack.status.as_deref(), Some("0"));
+    amend.assert_async().await;
+}
+
+#[tokio::test]
+async fn okx_protective_stop_amendment_maps_item_rejection() {
+    let mut okx_server = Server::new_async().await;
+    let amend = okx_server
+        .mock("POST", "/api/v5/trade/amend-algos")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"code":"0","msg":"","data":[{"algoId":"2510789768709120","reqId":"rq0123456789abcdef0123456789abcd","sCode":"51538","sMsg":"Stop-loss amendment rejected"}]}"#,
+        )
+        .create_async()
+        .await;
+    let sdk = configured_all_order_sdk(
+        "https://binance.invalid".to_owned(),
+        okx_server.url(),
+        "https://bitget.invalid".to_owned(),
+        "https://bybit.invalid".to_owned(),
+        "https://gate.invalid".to_owned(),
+        "https://hyperliquid.invalid".to_owned(),
+    );
+
+    let error = sdk
+        .trade(ExchangeId::Okx)
+        .expect("OKX trade facade")
+        .amend_protective_stop(AmendProtectiveStopRequest::new(
+            Instrument::perp("ETH", "USDT"),
+            "2510789768709120",
+            "rq0123456789abcdef0123456789abcd",
+            "0.02",
+            "2400.5",
+            ProtectiveOrderWorkingType::MarkPrice,
+        ))
+        .await
+        .expect_err("item rejection must not become an accepted amendment");
+
+    assert!(matches!(
+        error,
+        Error::Api {
+            exchange: ExchangeId::Okx,
+            status: Some(200),
+            ref code,
+            ..
+        } if code == "51538"
+    ));
+    amend.assert_async().await;
+}
+
+#[tokio::test]
+async fn okx_pending_protective_orders_use_signed_algo_list_and_preserve_identity() {
+    let mut okx_server = Server::new_async().await;
+    let pending = okx_server
+        .mock(
+            "GET",
+            "/api/v5/trade/orders-algo-pending?ordType=conditional&instType=SWAP&limit=100",
+        )
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"code":"0","msg":"","data":[{"instId":"ETH-USDT-SWAP","algoId":"2510789768709120","algoClOrdId":"rq111111111111111111111111111111","side":"sell","ordType":"conditional","slTriggerPx":"1880","sz":"1","state":"live","cTime":"1786522000000","uTime":"1786522000100"}]}"#,
+        )
+        .create_async()
+        .await;
+    let sdk = configured_all_order_sdk(
+        "https://binance.invalid".to_owned(),
+        okx_server.url(),
+        "https://bitget.invalid".to_owned(),
+        "https://bybit.invalid".to_owned(),
+        "https://gate.invalid".to_owned(),
+        "https://hyperliquid.invalid".to_owned(),
+    );
+
+    let orders = sdk
+        .orders(ExchangeId::Okx)
+        .expect("OKX order facade")
+        .open_protective_orders()
+        .await
+        .expect("pending protective orders");
+
+    assert_eq!(orders.len(), 1);
+    assert_eq!(orders[0].exchange_symbol, "ETH-USDT-SWAP");
+    assert_eq!(orders[0].order_id.as_deref(), Some("2510789768709120"));
+    assert_eq!(
+        orders[0].client_order_id.as_deref(),
+        Some("rq111111111111111111111111111111")
+    );
+    pending.assert_async().await;
+}
+
+#[tokio::test]
+async fn okx_protective_history_preserves_triggered_identity_and_fill() {
+    let mut okx_server = Server::new_async().await;
+    let effective = okx_server
+        .mock(
+            "GET",
+            "/api/v5/trade/orders-algo-history?ordType=conditional&state=effective&instType=SWAP&limit=100",
+        )
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"code":"0","msg":"","data":[{"instId":"ETH-USDT-SWAP","algoId":"2510789768709120","algoClOrdId":"rq111111111111111111111111111111","side":"sell","posSide":"long","ordType":"conditional","slTriggerPx":"1880","slOrdPx":"-1","slTriggerPxType":"mark","sz":"1","actualSz":"1","actualPx":"1879.9","state":"effective","ordId":"2510789768709121","cTime":"1786522000000","uTime":"1786522000100"}]}"#,
+        )
+        .create_async()
+        .await;
+    let canceled = okx_server
+        .mock(
+            "GET",
+            "/api/v5/trade/orders-algo-history?ordType=conditional&state=canceled&instType=SWAP&limit=100",
+        )
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":"0","msg":"","data":[]}"#)
+        .create_async()
+        .await;
+    let failed = okx_server
+        .mock(
+            "GET",
+            "/api/v5/trade/orders-algo-history?ordType=conditional&state=order_failed&instType=SWAP&limit=100",
+        )
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"code":"0","msg":"","data":[]}"#)
+        .create_async()
+        .await;
+    let sdk = configured_all_order_sdk(
+        "https://binance.invalid".to_owned(),
+        okx_server.url(),
+        "https://bitget.invalid".to_owned(),
+        "https://bybit.invalid".to_owned(),
+        "https://gate.invalid".to_owned(),
+        "https://hyperliquid.invalid".to_owned(),
+    );
+
+    let orders = sdk
+        .orders(ExchangeId::Okx)
+        .expect("OKX order facade")
+        .protective_order_history()
+        .await
+        .expect("protective order history");
+
+    assert_eq!(orders.len(), 1);
+    assert_eq!(orders[0].status.as_deref(), Some("effective"));
+    assert_eq!(orders[0].filled_size.as_deref(), Some("1"));
+    assert_eq!(orders[0].average_price.as_deref(), Some("1879.9"));
+    assert_eq!(
+        orders[0].client_order_id.as_deref(),
+        Some("rq111111111111111111111111111111")
+    );
+    effective.assert_async().await;
+    canceled.assert_async().await;
+    failed.assert_async().await;
 }
 
 #[tokio::test]

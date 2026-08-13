@@ -28,36 +28,42 @@ impl ExchangeClient {
                 attached_stop_loss_on_place_order: true,
                 attached_take_profit_on_place_order: true,
                 protective_order: false,
+                protective_stop_amendment: true,
             },
             #[cfg(feature = "binance")]
             Self::Binance(_) => TradeCapabilities {
                 attached_stop_loss_on_place_order: false,
                 attached_take_profit_on_place_order: false,
                 protective_order: true,
+                protective_stop_amendment: false,
             },
             #[cfg(feature = "bitget")]
             Self::Bitget(_) => TradeCapabilities {
                 attached_stop_loss_on_place_order: true,
                 attached_take_profit_on_place_order: false,
                 protective_order: false,
+                protective_stop_amendment: false,
             },
             #[cfg(feature = "bybit")]
             Self::Bybit(_) => TradeCapabilities {
                 attached_stop_loss_on_place_order: false,
                 attached_take_profit_on_place_order: false,
                 protective_order: false,
+                protective_stop_amendment: false,
             },
             #[cfg(feature = "gate")]
             Self::Gate(_) => TradeCapabilities {
                 attached_stop_loss_on_place_order: false,
                 attached_take_profit_on_place_order: false,
                 protective_order: false,
+                protective_stop_amendment: false,
             },
             #[cfg(feature = "hyperliquid")]
             Self::Hyperliquid(_) => TradeCapabilities {
                 attached_stop_loss_on_place_order: false,
                 attached_take_profit_on_place_order: false,
                 protective_order: false,
+                protective_stop_amendment: false,
             },
         }
     }
@@ -149,6 +155,41 @@ impl ExchangeClient {
         }
     }
 
+    pub(crate) async fn amend_protective_stop(
+        &self,
+        request: AmendProtectiveStopRequest,
+    ) -> Result<OrderAck> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.amend_protective_stop(request).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Binance,
+                capability: "protective stop amendment",
+            }),
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "protective stop amendment",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "protective stop amendment",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "protective stop amendment",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "protective stop amendment",
+            }),
+        }
+    }
+
     pub(crate) async fn order(&self, query: OrderQuery) -> Result<Order> {
         match self {
             #[cfg(feature = "okx")]
@@ -182,6 +223,28 @@ impl ExchangeClient {
             Self::Hyperliquid(_) => Err(Error::Unsupported {
                 exchange: ExchangeId::Hyperliquid,
                 capability: "protective order detail",
+            }),
+        }
+    }
+
+    pub(crate) async fn open_protective_orders(&self) -> Result<Vec<Order>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.open_protective_orders().await,
+            _ => Err(Error::Unsupported {
+                exchange: self.exchange_id(),
+                capability: "open protective orders",
+            }),
+        }
+    }
+
+    pub(crate) async fn protective_order_history(&self) -> Result<Vec<Order>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.protective_order_history().await,
+            _ => Err(Error::Unsupported {
+                exchange: self.exchange_id(),
+                capability: "protective order history",
             }),
         }
     }

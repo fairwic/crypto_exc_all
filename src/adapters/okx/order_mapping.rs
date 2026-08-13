@@ -125,15 +125,21 @@ pub(super) fn okx_order_from_pending(
 /// 把 OKX `order-algo` 的条件止损详情映射到统一只读 Order contract。
 pub(super) fn okx_algo_order_from_value(
     exchange: ExchangeId,
-    instrument: Instrument,
-    symbol_hint: String,
+    instrument: Option<Instrument>,
+    symbol_hint: Option<String>,
     raw: Value,
 ) -> Result<Order> {
     let object = raw.as_object().ok_or_else(|| Error::Adapter {
         exchange,
         message: "OKX protective order response item is not an object".to_string(),
     })?;
-    let exchange_symbol = string_field(object, "instId").unwrap_or(symbol_hint);
+    let exchange_symbol = string_field(object, "instId")
+        .or(symbol_hint)
+        .ok_or_else(|| Error::Adapter {
+            exchange,
+            message: "OKX protective order response is missing instId".to_string(),
+        })?;
+    let instrument = instrument.unwrap_or_else(|| instrument_from_okx_symbol(&exchange_symbol));
     Ok(Order {
         exchange,
         instrument,

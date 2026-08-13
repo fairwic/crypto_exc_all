@@ -68,6 +68,39 @@ async fn public_history_candles_are_anonymous_and_lossless() {
     assert_eq!(response.evidence.retry_after.as_deref(), Some("2"));
 }
 
+#[tokio::test]
+async fn public_mark_price_is_anonymous_and_identity_exact() {
+    let mut server = Server::new_async().await;
+    let request = server
+        .mock(
+            "GET",
+            "/api/v5/public/mark-price?instType=SWAP&instId=ETH-USDT-SWAP",
+        )
+        .match_header("OK-ACCESS-KEY", Matcher::Missing)
+        .match_header("OK-ACCESS-SIGN", Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"code":"0","msg":"","data":[{"instType":"SWAP","instId":"ETH-USDT-SWAP","markPx":"1892.56","ts":"1786522657867"}]}"#,
+        )
+        .create_async()
+        .await;
+    let client = OkxPublicMarketClient::new(OkxPublicMarketConfig {
+        api_url: Some(server.url()),
+    })
+    .expect("public client");
+
+    let response = client
+        .mark_price("ETH-USDT-SWAP")
+        .await
+        .expect("public mark price");
+
+    request.assert_async().await;
+    assert_eq!(response.data.instrument_id, "ETH-USDT-SWAP");
+    assert_eq!(response.data.mark_price, "1892.56");
+    assert_eq!(response.data.timestamp, "1786522657867");
+}
+
 /// provider 短行必须作为 SDK 解析错误返回，不能 panic 或丢弃。
 #[tokio::test]
 async fn malformed_public_candle_row_fails_closed() {

@@ -140,6 +140,16 @@ impl<'a> OrderFacade<'a> {
         self.client.protective_order(query).await
     }
 
+    /// 返回账户级未触发保护条件单；当前只有 OKX SWAP 提供完整实现。
+    pub async fn open_protective_orders(&self) -> Result<Vec<Order>> {
+        self.client.open_protective_orders().await
+    }
+
+    /// 返回账户级条件保护单封闭历史；用于恢复已经触发或撤销的附带止损。
+    pub async fn protective_order_history(&self) -> Result<Vec<Order>> {
+        self.client.protective_order_history().await
+    }
+
     pub async fn open(&self, query: OrderListQuery) -> Result<Vec<Order>> {
         self.client.open_orders(query).await
     }

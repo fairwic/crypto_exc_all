@@ -111,7 +111,8 @@ pub use public_market::{
 #[cfg(feature = "okx-public-market")]
 pub use public_market::{
     OKX_MAX_CANDLE_PAGE_SIZE, OkxCandleDataset, OkxPublicCandle, OkxPublicCandleQuery,
-    OkxPublicMarketClient, OkxPublicMarketConfig, OkxPublicMarketResult, OkxPublicMarketSdkError,
+    OkxPublicMarkPrice, OkxPublicMarketClient, OkxPublicMarketConfig, OkxPublicMarketResult,
+    OkxPublicMarketSdkError,
 };
 #[cfg(any(
     feature = "binance-public-instrument",
@@ -123,7 +124,7 @@ pub use public_transport::*;
 pub use sdk::CryptoSdk;
 #[cfg(feature = "full-sdk")]
 pub use trade::{
-    CancelOrderRequest, OrderAck, OrderSide, OrderType, PlaceOrderRequest, ProtectiveOrderQuery,
-    ProtectiveOrderRequest, ProtectiveOrderWorkingType, TimeInForce, TradeCapabilities,
-    TradeFacade,
+    AmendProtectiveStopRequest, CancelOrderRequest, OrderAck, OrderSide, OrderType,
+    PlaceOrderRequest, ProtectiveOrderQuery, ProtectiveOrderRequest, ProtectiveOrderWorkingType,
+    TimeInForce, TradeCapabilities, TradeFacade,
 };

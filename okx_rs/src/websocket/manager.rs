@@ -81,11 +81,10 @@ impl OkxWebsocketManager {
         let private_client = credentials
             .clone()
             .map(|creds| Arc::new(Mutex::new(AutoReconnectWebsocketClient::new_private(creds))));
-        let business_client = credentials.clone().map(|creds| {
-            Arc::new(Mutex::new(AutoReconnectWebsocketClient::new_business(
-                creds,
-            )))
-        });
+        let business_client = Some(Arc::new(Mutex::new(match credentials.clone() {
+            Some(creds) => AutoReconnectWebsocketClient::new_business(creds),
+            None => AutoReconnectWebsocketClient::new_public_business(),
+        })));
 
         Self {
             config,
@@ -120,6 +119,10 @@ impl OkxWebsocketManager {
             let private_rx = private_client.lock().await.start().await?;
             self.start_message_forwarder(private_rx, tx.clone()).await;
         }
+        if let Some(business_client) = &self.business_client {
+            let business_rx = business_client.lock().await.start().await?;
+            self.start_message_forwarder(business_rx, tx.clone()).await;
+        }
 
         info!("WebSocket管理器已启动");
         Ok(rx)
@@ -134,6 +137,9 @@ impl OkxWebsocketManager {
         self.public_client.lock().await.stop().await;
         if let Some(private_client) = &self.private_client {
             private_client.lock().await.stop().await;
+        }
+        if let Some(business_client) = &self.business_client {
+            business_client.lock().await.stop().await;
         }
 
         info!("WebSocket管理器已停止");
@@ -237,9 +243,19 @@ impl OkxWebsocketManager {
                     .subscribe(channel.clone(), args.clone())
                     .await
             }
+            ChannelType::Candle(_) => {
+                self.business_client
+                    .as_ref()
+                    .ok_or_else(|| {
+                        Error::WebSocketError("Business client not available".to_string())
+                    })?
+                    .lock()
+                    .await
+                    .subscribe(channel.clone(), args.clone())
+                    .await
+            }
             // 私有频道使用私有客户端
-            ChannelType::Candle(_)
-            | ChannelType::Account
+            ChannelType::Account
             | ChannelType::Orders
             | ChannelType::Positions
             | ChannelType::AlgoOrders
@@ -301,9 +317,19 @@ impl OkxWebsocketManager {
                     .unsubscribe(channel.clone(), args.clone())
                     .await
             }
+            ChannelType::Candle(_) => {
+                self.business_client
+                    .as_ref()
+                    .ok_or_else(|| {
+                        Error::WebSocketError("Business client not available".to_string())
+                    })?
+                    .lock()
+                    .await
+                    .unsubscribe(channel.clone(), args.clone())
+                    .await
+            }
             // 私有频道使用私有客户端
-            ChannelType::Candle(_)
-            | ChannelType::Account
+            ChannelType::Account
             | ChannelType::Orders
             | ChannelType::Positions
             | ChannelType::AlgoOrders

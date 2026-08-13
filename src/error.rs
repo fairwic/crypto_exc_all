@@ -278,6 +278,20 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "okx")]
+    #[test]
+    fn maps_okx_unexpected_eof_to_the_exact_private_stream_phase() {
+        let error = Error::from_okx(okx_rs::Error::WebSocketError("unexpected_eof".to_owned()));
+
+        assert!(matches!(
+            error,
+            Error::PrivateStreamLifecycle {
+                exchange: ExchangeId::Okx,
+                phase: "receive_unexpected_eof"
+            }
+        ));
+    }
+
     #[test]
     fn maps_binance_receive_error_to_safe_private_stream_phase() {
         let error = Error::from_binance(binance_rs::Error::WebSocketReceiveError {

@@ -23,7 +23,10 @@ use crate::market::{
 use crate::order::{Order, OrderListQuery, OrderQuery};
 use crate::position::{Position, PositionHistory, PositionHistoryQuery, SourcedPosition};
 use crate::private_account_stream::PrivateAccountStreamSession;
-use crate::trade::{CancelOrderRequest, OrderAck, PlaceOrderRequest, ProtectiveOrderQuery};
+use crate::trade::{
+    AmendProtectiveStopRequest, CancelOrderRequest, OrderAck, PlaceOrderRequest,
+    ProtectiveOrderQuery, ProtectiveOrderWorkingType,
+};
 use okx_rs::api::announcements::announcements_api::OkxAnnouncements;
 use okx_rs::api::api_trait::OkxApiTrait;
 use okx_rs::config::Credentials as OkxCredentials;
@@ -33,7 +36,8 @@ use okx_rs::dto::account_dto::{
 };
 use okx_rs::dto::public_data_dto::{FundingRateHistoryOkxRespDto, FundingRateOkxRespDto};
 use okx_rs::dto::trade_dto::{
-    OrdListReqDto, OrderDetailRespDto, OrderPendingRespDto, OrderReqDto, OrderResDto,
+    AmendAlgoOrderReqDto, OrdListReqDto, OrderDetailRespDto, OrderPendingRespDto, OrderReqDto,
+    OrderResDto,
 };
 use okx_rs::dto::{
     CandleOkxRespDto, EnumToStrTrait, MarginMode as OkxMarginMode, OrderType as OkxRawOrderType,

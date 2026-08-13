@@ -233,6 +233,15 @@ impl AutoReconnectWebsocketClient {
         )
     }
 
+    /// 创建不登录的公共业务频道客户端；OKX 普通 K 线位于 business WebSocket。
+    pub fn new_public_business() -> Self {
+        Self::new_with_config(
+            &CONFIG.business_websocket_url,
+            None,
+            ReconnectConfig::default(),
+        )
+    }
+
     /// 使用自定义配置创建客户端
     pub fn new_with_config(
         url: &str,

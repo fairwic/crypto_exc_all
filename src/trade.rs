@@ -77,6 +77,7 @@ pub struct TradeCapabilities {
     pub attached_stop_loss_on_place_order: bool,
     pub attached_take_profit_on_place_order: bool,
     pub protective_order: bool,
+    pub protective_stop_amendment: bool,
 }
 
 impl ProtectiveOrderWorkingType {
@@ -201,6 +202,44 @@ impl ProtectiveOrderQuery {
             query = query.with_client_order_id(client_order_id);
         }
         query
+    }
+}
+
+/// 原位修改既有保护止损策略单的 provider-neutral 请求。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AmendProtectiveStopRequest {
+    pub instrument: Instrument,
+    pub order_id: String,
+    pub request_id: String,
+    pub quantity: String,
+    pub stop_price: String,
+    pub take_profit_price: Option<String>,
+    pub working_type: ProtectiveOrderWorkingType,
+}
+
+impl AmendProtectiveStopRequest {
+    pub fn new(
+        instrument: Instrument,
+        order_id: impl Into<String>,
+        request_id: impl Into<String>,
+        quantity: impl Into<String>,
+        stop_price: impl Into<String>,
+        working_type: ProtectiveOrderWorkingType,
+    ) -> Self {
+        Self {
+            instrument,
+            order_id: order_id.into(),
+            request_id: request_id.into(),
+            quantity: quantity.into(),
+            stop_price: stop_price.into(),
+            take_profit_price: None,
+            working_type,
+        }
+    }
+
+    pub fn with_take_profit_price(mut self, value: impl Into<String>) -> Self {
+        self.take_profit_price = Some(value.into());
+        self
     }
 }
 
@@ -392,6 +431,13 @@ impl<'a> TradeFacade<'a> {
     pub async fn cancel_protective_order(&self, request: CancelOrderRequest) -> Result<OrderAck> {
         self.client.cancel_protective_order(request).await
     }
+
+    pub async fn amend_protective_stop(
+        &self,
+        request: AmendProtectiveStopRequest,
+    ) -> Result<OrderAck> {
+        self.client.amend_protective_stop(request).await
+    }
 }
 
 #[cfg(test)]
@@ -457,5 +503,25 @@ mod tests {
             order_query.client_order_id.as_deref(),
             Some("sl-rqethopen3")
         );
+    }
+
+    #[test]
+    fn protective_stop_amendment_keeps_provider_and_request_identity() {
+        let request = AmendProtectiveStopRequest::new(
+            Instrument::perp("ETH", "USDT"),
+            "2510789768709120",
+            "rq0123456789abcdef0123456789abcd",
+            "0.02",
+            "2400.5",
+            ProtectiveOrderWorkingType::MarkPrice,
+        )
+        .with_take_profit_price("2800");
+
+        assert_eq!(request.order_id, "2510789768709120");
+        assert_eq!(request.request_id, "rq0123456789abcdef0123456789abcd");
+        assert_eq!(request.quantity, "0.02");
+        assert_eq!(request.stop_price, "2400.5");
+        assert_eq!(request.take_profit_price.as_deref(), Some("2800"));
+        assert_eq!(request.working_type, ProtectiveOrderWorkingType::MarkPrice);
     }
 }

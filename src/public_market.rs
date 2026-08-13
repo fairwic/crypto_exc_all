@@ -133,6 +133,15 @@ pub struct OkxPublicCandle {
     pub confirm: String,
 }
 
+/// OKX 公共 mark-price endpoint 的单标的原始十进制事实。
+#[cfg(feature = "okx-public-market")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OkxPublicMarkPrice {
+    pub instrument_id: String,
+    pub mark_price: String,
+    pub timestamp: String,
+}
+
 /// 仅暴露 OKX 公共 Market API 的 SDK capability。
 ///
 /// 该类型内部使用无 credential client，且没有账户、私有读取或 mutation 方法。
@@ -203,6 +212,46 @@ impl OkxPublicMarketClient {
         Ok(OkxPublicResponse {
             data: rows.data.into_iter().map(OkxPublicCandle::from).collect(),
             evidence: rows.evidence,
+        })
+    }
+
+    /// 读取一个 SWAP 的实时公开标记价；缺失、重复或 identity 漂移全部拒绝。
+    pub async fn mark_price(
+        &self,
+        instrument_id: &str,
+    ) -> OkxPublicMarketResult<OkxPublicResponse<OkxPublicMarkPrice>> {
+        if instrument_id.is_empty() || !instrument_id.bytes().all(|byte| byte.is_ascii_graphic()) {
+            return Err(OkxPublicMarketSdkError::ConfigError(
+                "OKX mark-price instId 必须是非空、无空白的可打印 ASCII".to_owned(),
+            ));
+        }
+        let response = self
+            .market
+            .get_mark_price_with_evidence(instrument_id)
+            .await?;
+        let [row] = response.data.as_slice() else {
+            return Err(OkxPublicMarketSdkError::ParseError(
+                "OKX mark-price 必须精确返回一个标的".to_owned(),
+            ));
+        };
+        let row_instrument = row.get("instId").and_then(serde_json::Value::as_str);
+        let mark_price = row.get("markPx").and_then(serde_json::Value::as_str);
+        let timestamp = row.get("ts").and_then(serde_json::Value::as_str);
+        if row_instrument != Some(instrument_id)
+            || mark_price.is_none_or(str::is_empty)
+            || timestamp.is_none_or(str::is_empty)
+        {
+            return Err(OkxPublicMarketSdkError::ParseError(
+                "OKX mark-price identity 或价格字段不完整".to_owned(),
+            ));
+        }
+        Ok(OkxPublicResponse {
+            data: OkxPublicMarkPrice {
+                instrument_id: instrument_id.to_owned(),
+                mark_price: mark_price.unwrap_or_default().to_owned(),
+                timestamp: timestamp.unwrap_or_default().to_owned(),
+            },
+            evidence: response.evidence,
         })
     }
 }

@@ -257,18 +257,21 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires live OKX network access"]
     async fn test_get_time() {
         let time = OkxPublicData::get_time().await;
         println!("系统时间: {:?}", time);
     }
 
     #[tokio::test]
+    #[ignore = "requires live OKX credentials and network access"]
     async fn test_get_instruments() {
         let public_data = OkxPublicData::from_env().expect("无法从环境变量创建公共数据API");
         let instruments = public_data.get_instruments("SPOT", None, None, None).await;
         println!("交易产品列表: {:?}", instruments);
     }
     #[tokio::test]
+    #[ignore = "requires live OKX credentials and network access"]
     async fn test_get_economic_calendar() {
         env_logger::init();
         let public_data = OkxPublicData::from_env().expect("无法从环境变量创建公共数据API");

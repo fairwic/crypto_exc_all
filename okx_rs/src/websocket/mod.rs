@@ -4,6 +4,7 @@ pub mod client;
 pub mod manager;
 mod models;
 mod private_account_stream;
+mod public_candle_stream;
 
 pub use channel::{Args, ChannelType};
 pub use client::OkxWebsocketClient;
@@ -13,3 +14,6 @@ pub use models::{
     WebSocketResponse, WebSocketSubscription,
 };
 pub use private_account_stream::{OkxPrivateAccountStreamClient, OkxPrivateAccountStreamSession};
+pub use public_candle_stream::{
+    OkxPublicCandleStreamClient, OkxPublicCandleStreamSession, OkxPublicCandleUpdate,
+};

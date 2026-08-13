@@ -37,8 +37,8 @@ fn maps_okx_algo_order_detail_to_protective_order() {
     let protective_client_order_id = format!("rq{}", "1".repeat(30));
     let order = okx_algo_order_from_value(
         ExchangeId::Okx,
-        Instrument::perp("ETH", "USDT"),
-        "ETH-USDT-SWAP".to_owned(),
+        Some(Instrument::perp("ETH", "USDT")),
+        Some("ETH-USDT-SWAP".to_owned()),
         serde_json::json!({
             "algoId": "2510789768709120",
             "algoClOrdId": protective_client_order_id,

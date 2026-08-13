@@ -223,6 +223,7 @@ impl OkxAccount {
     pub async fn get_bills(
         &self,
         inst_type: Option<&str>,
+        inst_id: Option<&str>,
         ccy: Option<&str>,
         margin_mode: Option<&str>,
         typ: Option<&str>,
@@ -235,6 +236,10 @@ impl OkxAccount {
 
         if let Some(it) = inst_type {
             query_params.push(format!("instType={}", it));
+        }
+
+        if let Some(instrument_id) = inst_id {
+            query_params.push(format!("instId={}", instrument_id));
         }
 
         if let Some(currency) = ccy {
@@ -274,6 +279,7 @@ impl OkxAccount {
     pub async fn get_bills_archive(
         &self,
         inst_type: Option<&str>,
+        inst_id: Option<&str>,
         ccy: Option<&str>,
         margin_mode: Option<&str>,
         typ: Option<&str>,
@@ -286,6 +292,10 @@ impl OkxAccount {
 
         if let Some(it) = inst_type {
             query_params.push(format!("instType={}", it));
+        }
+
+        if let Some(instrument_id) = inst_id {
+            query_params.push(format!("instId={}", instrument_id));
         }
 
         if let Some(currency) = ccy {

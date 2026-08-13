@@ -240,6 +240,7 @@ mod tests {
     use super::*;
     use crate::enums::account_enums::AccountType;
     #[tokio::test]
+    #[ignore = "requires live OKX private credentials and network access"]
     async fn test_get_balances() {
         let asset = OkxAsset::from_env().expect("无法从环境变量创建资产API");
         let balances = asset.get_balances(None).await;
@@ -247,6 +248,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "moves funds between live OKX accounts"]
     async fn test_transfer() {
         let asset = OkxAsset::from_env().expect("无法从环境变量创建资产API");
         let transfer_req = TransferOkxReqDto {
