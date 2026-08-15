@@ -346,9 +346,12 @@ impl ExchangeClient {
         &self,
         query: LeverageInfoQuery,
     ) -> Result<Vec<LeverageSetting>> {
+        #[allow(unreachable_patterns)]
         match self {
             #[cfg(feature = "okx")]
             Self::Okx(adapter) => adapter.leverage_info(query).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.leverage_info(query).await,
             _ => Err(Error::Unsupported {
                 exchange: self.exchange_id(),
                 capability: "read leverage info",

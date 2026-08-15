@@ -51,6 +51,59 @@ fn external_consumer_can_discover_trade_capabilities_without_exchange_branching(
 }
 
 #[tokio::test]
+async fn binance_market_order_requests_final_filled_result() {
+    let mut binance_server = Server::new_async().await;
+    let place = binance_server
+        .mock("POST", "/fapi/v1/order")
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("symbol".into(), "ETHUSDT".into()),
+            Matcher::UrlEncoded("side".into(), "BUY".into()),
+            Matcher::UrlEncoded("type".into(), "MARKET".into()),
+            Matcher::UrlEncoded("quantity".into(), "0.1".into()),
+            Matcher::UrlEncoded("positionSide".into(), "LONG".into()),
+            Matcher::UrlEncoded("newOrderRespType".into(), "RESULT".into()),
+            Matcher::UrlEncoded(
+                "newClientOrderId".into(),
+                "rq0123456789abcdef0123456789abcd".into(),
+            ),
+            Matcher::Regex("(^|&)signature=".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"symbol":"ETHUSDT","orderId":12345,"clientOrderId":"rq0123456789abcdef0123456789abcd","status":"FILLED","executedQty":"0.1","avgPrice":"2200"}"#,
+        )
+        .create_async()
+        .await;
+    let sdk = configured_all_order_sdk(
+        binance_server.url(),
+        "https://okx.invalid".to_owned(),
+        "https://bitget.invalid".to_owned(),
+        "https://bybit.invalid".to_owned(),
+        "https://gate.invalid".to_owned(),
+        "https://hyperliquid.invalid".to_owned(),
+    );
+
+    let ack = sdk
+        .trade(ExchangeId::Binance)
+        .expect("Binance trade facade")
+        .place_order(
+            PlaceOrderRequest::market(
+                Instrument::perp("ETH", "USDT"),
+                OrderSide::Buy,
+                "0.1",
+            )
+            .with_position_side("long")
+            .with_client_order_id("rq0123456789abcdef0123456789abcd"),
+        )
+        .await
+        .expect("Binance final market result");
+
+    assert_eq!(ack.status.as_deref(), Some("FILLED"));
+    place.assert_async().await;
+}
+
+#[tokio::test]
 async fn unsupported_attached_take_profit_is_rejected_before_place_order_submission() {
     let sdk = configured_all_order_sdk(
         "https://binance.invalid".to_string(),

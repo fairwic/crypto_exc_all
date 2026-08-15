@@ -1,8 +1,76 @@
 use crypto_exc_all::{
     AccountBillQuery, BinanceExchangeConfig, BitgetExchangeConfig, BybitExchangeConfig, CryptoSdk,
-    ExchangeId, GateExchangeConfig, SdkConfig,
+    ExchangeId, GateExchangeConfig, Instrument, SdkConfig,
 };
 use mockito::{Matcher, Server};
+
+#[tokio::test]
+async fn binance_futures_funding_income_keeps_exact_symbol_window_and_identity() {
+    let mut server = Server::new_async().await;
+    let income = server
+        .mock("GET", "/fapi/v1/income")
+        .match_header("X-MBX-APIKEY", "binance-key")
+        .match_query(signed_query(vec![
+            Matcher::UrlEncoded("symbol".into(), "BTCUSDT".into()),
+            Matcher::UrlEncoded("incomeType".into(), "FUNDING_FEE".into()),
+            Matcher::UrlEncoded("startTime".into(), "1700000000000".into()),
+            Matcher::UrlEncoded("endTime".into(), "1700007200000".into()),
+            Matcher::UrlEncoded("limit".into(), "100".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"[{
+                "symbol":"BTCUSDT",
+                "incomeType":"FUNDING_FEE",
+                "income":"-0.12",
+                "asset":"USDT",
+                "info":"FUNDING_FEE",
+                "time":1700003600000,
+                "tranId":987654321,
+                "tradeId":""
+            }]"#,
+        )
+        .create_async()
+        .await;
+    let sdk = CryptoSdk::from_config(SdkConfig {
+        binance: Some(BinanceExchangeConfig {
+            api_key: "binance-key".to_owned(),
+            api_secret: "binance-secret".to_owned(),
+            api_url: Some(server.url()),
+            sapi_api_url: None,
+            web_api_url: None,
+            ws_stream_url: None,
+            api_timeout_ms: Some(1_000),
+            recv_window_ms: Some(5_000),
+            proxy_url: None,
+        }),
+        ..SdkConfig::default()
+    })
+    .expect("sdk");
+
+    let bills = sdk
+        .account(ExchangeId::Binance)
+        .expect("account")
+        .bills(
+            AccountBillQuery::for_instrument(Instrument::perp("BTC", "USDT"))
+                .with_asset("USDT")
+                .with_inst_type("SWAP")
+                .with_bill_type("funding_fee")
+                .with_start_time(1_700_000_000_000)
+                .with_end_time(1_700_007_200_000)
+                .with_limit(100),
+        )
+        .await
+        .expect("funding income");
+
+    assert_eq!(bills.len(), 1);
+    assert_eq!(bills[0].bill_id.as_deref(), Some("987654321"));
+    assert_eq!(bills[0].bill_type.as_deref(), Some("FUNDING_FEE"));
+    assert_eq!(bills[0].balance_change.as_deref(), Some("-0.12"));
+    assert_eq!(bills[0].exchange_symbol.as_deref(), Some("BTCUSDT"));
+    income.assert_async().await;
+}
 
 #[tokio::test]
 async fn external_consumer_uses_root_crate_for_binance_account_bills() {

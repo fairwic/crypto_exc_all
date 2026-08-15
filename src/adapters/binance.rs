@@ -4,9 +4,9 @@ use super::value::{
 };
 use crate::account::{
     AccountCapabilities, AccountIdentity, AccountMarginSummary, AccountOrderPermission, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageSetting, PositionMode,
-    PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
-    SourcedBalance, SymbolMarginModeSetting,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
+    PositionMode, PositionModeSetting, SetLeverageRequest, SetPositionModeRequest,
+    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 use crate::config::BinanceExchangeConfig;
 use crate::error::{Error, Result};
@@ -535,6 +535,16 @@ impl BinanceAdapter {
         binance_leverage_setting_from_value(exchange, instrument, symbol, request, raw)
     }
 
+    /// Binance USDⓈ-M 的杠杆按 symbol 设置；Hedge Mode 仍会为 LONG/SHORT 各返回一行持仓配置。
+    pub(crate) async fn leverage_info(
+        &self,
+        query: LeverageInfoQuery,
+    ) -> Result<Vec<LeverageSetting>> {
+        let instrument = query.instrument;
+        let rows = self.position_rows(Some(&instrument)).await?;
+        binance_leverage_settings_from_positions(instrument, rows)
+    }
+
     pub(crate) fn account_capabilities(&self) -> AccountCapabilities {
         AccountCapabilities {
             set_leverage: true,
@@ -735,9 +745,12 @@ impl BinanceAdapter {
                 required_price(exchange, &request)?,
                 binance_time_in_force(request.time_in_force),
             ),
-            OrderType::Market => {
-                BinanceNewOrderRequest::market(&symbol, request.side.upper(), &request.size)
-            }
+            OrderType::Market => BinanceNewOrderRequest::market(
+                &symbol,
+                request.side.upper(),
+                &request.size,
+            )
+            .with_new_order_resp_type("RESULT"),
         };
 
         if let Some(position_side) = request.position_side.as_deref() {
@@ -1211,6 +1224,46 @@ mod tests {
         assert_eq!(order.price.as_deref(), Some("2145.22"));
         assert_eq!(order.side.as_deref(), Some("SELL"));
     }
+
+    #[test]
+    fn maps_hedge_position_rows_to_long_and_short_leverage_settings() {
+        let instrument = Instrument::perp("ETH", "USDT");
+        let positions = ["LONG", "SHORT"]
+            .into_iter()
+            .map(|side| {
+                (
+                    Position {
+                        exchange: ExchangeId::Binance,
+                        instrument: instrument.clone(),
+                        exchange_symbol: "ETHUSDT".to_owned(),
+                        side: Some(side.to_owned()),
+                        size: "0".to_owned(),
+                        entry_price: Some("0".to_owned()),
+                        mark_price: Some("2200".to_owned()),
+                        unrealized_pnl: Some("0".to_owned()),
+                        leverage: Some("5".to_owned()),
+                        margin_mode: Some("isolated".to_owned()),
+                        liquidation_price: Some("0".to_owned()),
+                        raw: serde_json::json!({"positionSide": side}),
+                    },
+                    Some(1_779_000_000_000),
+                )
+            })
+            .collect();
+
+        let settings = binance_leverage_settings_from_positions(instrument, positions)
+            .expect("Binance hedge leverage settings");
+
+        assert_eq!(settings.len(), 2);
+        assert_eq!(settings[0].position_side.as_deref(), Some("long"));
+        assert_eq!(settings[1].position_side.as_deref(), Some("short"));
+        assert!(
+            settings
+                .iter()
+                .all(|setting| setting.margin_mode.as_deref() == Some("isolated"))
+        );
+        assert!(settings.iter().all(|setting| setting.leverage == "5"));
+    }
 }
 
 fn order_ack_from_value(
@@ -1471,6 +1524,62 @@ fn binance_leverage_setting_from_value(
         position_side: request.position_side,
         raw,
     })
+}
+
+fn binance_leverage_settings_from_positions(
+    instrument: Instrument,
+    positions: Vec<(Position, Option<u64>)>,
+) -> Result<Vec<LeverageSetting>> {
+    let exchange = ExchangeId::Binance;
+    let symbol = instrument.symbol_for(exchange);
+    positions
+        .into_iter()
+        .map(|(position, _)| {
+            if position.exchange != exchange
+                || position.instrument != instrument
+                || position.exchange_symbol != symbol
+            {
+                return Err(Error::Adapter {
+                    exchange,
+                    message: "Binance leverage position identity mismatch".to_owned(),
+                });
+            }
+            let leverage = position
+                .leverage
+                .clone()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| Error::Adapter {
+                    exchange,
+                    message: "Binance position response missing leverage".to_owned(),
+                })?;
+            let margin_mode = position
+                .margin_mode
+                .clone()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| Error::Adapter {
+                    exchange,
+                    message: "Binance position response missing marginType".to_owned(),
+                })?;
+            let position_side = position
+                .side
+                .clone()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| Error::Adapter {
+                    exchange,
+                    message: "Binance position response missing positionSide".to_owned(),
+                })?;
+            Ok(LeverageSetting {
+                exchange,
+                instrument: instrument.clone(),
+                exchange_symbol: symbol.clone(),
+                leverage,
+                margin_mode: Some(margin_mode.to_ascii_lowercase()),
+                margin_coin: None,
+                position_side: Some(position_side.to_ascii_lowercase()),
+                raw: position.raw,
+            })
+        })
+        .collect()
 }
 
 fn binance_orders_from_value(
