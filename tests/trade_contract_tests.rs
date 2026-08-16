@@ -88,13 +88,9 @@ async fn binance_market_order_requests_final_filled_result() {
         .trade(ExchangeId::Binance)
         .expect("Binance trade facade")
         .place_order(
-            PlaceOrderRequest::market(
-                Instrument::perp("ETH", "USDT"),
-                OrderSide::Buy,
-                "0.1",
-            )
-            .with_position_side("long")
-            .with_client_order_id("rq0123456789abcdef0123456789abcd"),
+            PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.1")
+                .with_position_side("long")
+                .with_client_order_id("rq0123456789abcdef0123456789abcd"),
         )
         .await
         .expect("Binance final market result");

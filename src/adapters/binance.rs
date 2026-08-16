@@ -745,12 +745,10 @@ impl BinanceAdapter {
                 required_price(exchange, &request)?,
                 binance_time_in_force(request.time_in_force),
             ),
-            OrderType::Market => BinanceNewOrderRequest::market(
-                &symbol,
-                request.side.upper(),
-                &request.size,
-            )
-            .with_new_order_resp_type("RESULT"),
+            OrderType::Market => {
+                BinanceNewOrderRequest::market(&symbol, request.side.upper(), &request.size)
+                    .with_new_order_resp_type("RESULT")
+            }
         };
 
         if let Some(position_side) = request.position_side.as_deref() {
