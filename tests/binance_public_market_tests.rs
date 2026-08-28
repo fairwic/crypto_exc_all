@@ -2,7 +2,8 @@
 
 use crypto_exc_all::{
     BinancePublicFailureKind, BinancePublicMarketSdkError, BinanceUsdmPublicKlineClient,
-    BinanceUsdmPublicKlineConfig, BinanceUsdmPublicKlineQuery,
+    BinanceUsdmPublicKlineConfig, BinanceUsdmPublicKlineQuery, BinanceUsdmPublicMarkPriceClient,
+    BinanceUsdmPublicMarkPriceConfig, BinanceWireDecimal,
 };
 use mockito::{Matcher, Server};
 
@@ -85,4 +86,90 @@ async fn binance_root_kline_facade_exposes_typed_failure_evidence() {
             .and_then(|evidence| evidence.retry_after.as_deref()),
         Some("4")
     );
+}
+
+#[tokio::test]
+async fn binance_mark_price_is_anonymous_typed_and_identity_exact() {
+    let mut server = Server::new_async().await;
+    let request = server
+        .mock("GET", "/fapi/v1/premiumIndex")
+        .match_query(Matcher::UrlEncoded("symbol".into(), "ETHUSDT".into()))
+        .match_header("x-mbx-apikey", Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"symbol":"ETHUSDT","markPrice":"1892.56","indexPrice":"1892.10","time":1786522657867}"#,
+        )
+        .create_async()
+        .await;
+    let client = BinanceUsdmPublicMarkPriceClient::new(BinanceUsdmPublicMarkPriceConfig {
+        api_url: Some(server.url()),
+    })
+    .expect("Binance public mark-price facade");
+
+    let response = client
+        .mark_price("ETHUSDT")
+        .await
+        .expect("typed mark-price response");
+
+    request.assert_async().await;
+    assert_eq!(response.data.symbol, "ETHUSDT");
+    assert_eq!(response.data.time, 1786522657867);
+    assert_eq!(
+        response.data.mark_price,
+        BinanceWireDecimal::Text("1892.56".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn binance_mark_price_rejects_provider_symbol_drift() {
+    let mut server = Server::new_async().await;
+    let request = server
+        .mock("GET", "/fapi/v1/premiumIndex")
+        .match_query(Matcher::UrlEncoded("symbol".into(), "ETHUSDT".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"symbol":"BTCUSDT","markPrice":"60000","time":1786522657867}"#)
+        .create_async()
+        .await;
+    let client = BinanceUsdmPublicMarkPriceClient::new(BinanceUsdmPublicMarkPriceConfig {
+        api_url: Some(server.url()),
+    })
+    .expect("Binance public mark-price facade");
+
+    let error = client
+        .mark_price("ETHUSDT")
+        .await
+        .expect_err("provider identity drift must fail closed");
+
+    request.assert_async().await;
+    assert!(error.to_string().contains("identity"));
+}
+
+#[tokio::test]
+async fn binance_mark_price_rejects_missing_provider_timestamp() {
+    let mut server = Server::new_async().await;
+    let request = server
+        .mock("GET", "/fapi/v1/premiumIndex")
+        .match_query(Matcher::UrlEncoded("symbol".into(), "ETHUSDT".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"symbol":"ETHUSDT","markPrice":"1892.56"}"#)
+        .create_async()
+        .await;
+    let client = BinanceUsdmPublicMarkPriceClient::new(BinanceUsdmPublicMarkPriceConfig {
+        api_url: Some(server.url()),
+    })
+    .expect("Binance public mark-price facade");
+
+    let error = client
+        .mark_price("ETHUSDT")
+        .await
+        .expect_err("missing provider time must fail closed");
+
+    request.assert_async().await;
+    let BinancePublicMarketSdkError::BinancePublicRequestFailed { failure } = error else {
+        panic!("expected typed decode failure");
+    };
+    assert_eq!(failure.kind, BinancePublicFailureKind::Decode);
 }

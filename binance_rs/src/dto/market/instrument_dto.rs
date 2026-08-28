@@ -119,8 +119,8 @@ pub struct BinanceExchangeSymbol {
     pub underlying_type: String,
     /// Provider 标的子分类列表；未知分类原样保留。
     pub underlying_sub_type: Vec<String>,
-    /// Provider 结算计划编号。
-    pub settle_plan: u64,
+    /// Provider 结算计划编号；部分当前合约不返回该非交易规则字段。
+    pub settle_plan: Option<u64>,
     /// 条件单触发保护比例的 provider 十进制表示。
     pub trigger_protect: BinanceWireDecimal,
     /// 合约适用的价格、数量、名义金额和订单数量过滤器。

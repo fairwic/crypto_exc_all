@@ -231,8 +231,26 @@ impl ExchangeClient {
         match self {
             #[cfg(feature = "okx")]
             Self::Okx(adapter) => adapter.open_protective_orders().await,
-            _ => Err(Error::Unsupported {
-                exchange: self.exchange_id(),
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.open_protective_orders().await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "open protective orders",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "open protective orders",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "open protective orders",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
                 capability: "open protective orders",
             }),
         }

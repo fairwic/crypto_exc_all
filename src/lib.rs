@@ -60,9 +60,9 @@ pub mod raw {
 #[cfg(feature = "full-sdk")]
 pub use account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, AccountIdentity,
-    AccountMarginSummary, AccountOrderPermission, Balance, EnsureOrderMarginModeRequest,
-    EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting, MarginModeApplyMethod,
-    MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
+    AccountMarginSummary, AccountOrderPermission, AccountOrderPermissionWithIdentity, Balance,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
+    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
     PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
     SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
@@ -109,8 +109,9 @@ pub use public_instrument::*;
 pub use public_market::{
     BinanceHttpEvidence, BinancePublicFailureKind, BinancePublicMarketResult,
     BinancePublicMarketSdkError, BinancePublicRequestFailure, BinancePublicResponse,
-    BinanceUsdmKline, BinanceUsdmPublicKlineClient, BinanceUsdmPublicKlineConfig,
-    BinanceUsdmPublicKlineQuery, BinanceWireDecimal,
+    BinanceUsdmKline, BinanceUsdmMarkPrice, BinanceUsdmPublicKlineClient,
+    BinanceUsdmPublicKlineConfig, BinanceUsdmPublicKlineQuery, BinanceUsdmPublicMarkPriceClient,
+    BinanceUsdmPublicMarkPriceConfig, BinanceWireDecimal,
 };
 #[cfg(feature = "okx-public-market")]
 pub use public_market::{

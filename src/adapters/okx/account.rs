@@ -63,50 +63,12 @@ impl OkxAdapter {
 
     /// 映射 OKX `/api/v5/account/config` 当前官方 identity 与账户模式字段。
     pub(crate) async fn account_identity(&self) -> Result<AccountIdentity> {
-        let exchange = ExchangeId::Okx;
         let raw = self
             .account
             .get_config_raw()
             .await
             .map_err(Error::from_okx)?;
-        let object = raw
-            .as_array()
-            .and_then(|items| items.first())
-            .and_then(Value::as_object)
-            .or_else(|| raw.as_object())
-            .ok_or_else(|| Error::Adapter {
-                exchange,
-                message: "OKX account config response missing object".to_owned(),
-            })?;
-        let provider_account_id = string_field(object, "uid")
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| Error::Adapter {
-                exchange,
-                message: "OKX account config response missing uid".to_owned(),
-            })?;
-        let account_level = string_field(object, "acctLv").unwrap_or_default();
-        let margin_mode = okx_account_mode(&account_level).ok_or_else(|| Error::Adapter {
-            exchange,
-            message: "OKX account config returned an unknown acctLv".to_owned(),
-        })?;
-        let position_mode = string_field(object, "posMode")
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| Error::Adapter {
-                exchange,
-                message: "OKX account config response missing posMode".to_owned(),
-            })?;
-        let parent_account_id = okx_parent_account_id(
-            &provider_account_id,
-            string_field(object, "mainUid").filter(|value| !value.trim().is_empty()),
-        );
-        Ok(AccountIdentity {
-            exchange,
-            provider_account_id,
-            parent_account_id,
-            margin_mode: margin_mode.to_owned(),
-            position_mode,
-            settlement_asset: "USDT".to_owned(),
-        })
+        okx_account_identity_from_config(&raw)
     }
 
     /// 复用 OKX signed account config，只映射官方 `perm` 权限集合。
@@ -117,6 +79,20 @@ impl OkxAdapter {
             .await
             .map_err(Error::from_okx)?;
         account_permission::map_account_order_permission(raw)
+    }
+
+    pub(crate) async fn account_order_permission_with_identity(
+        &self,
+    ) -> Result<AccountOrderPermissionWithIdentity> {
+        let raw = self
+            .account
+            .get_config_raw()
+            .await
+            .map_err(Error::from_okx)?;
+        Ok(AccountOrderPermissionWithIdentity {
+            identity: okx_account_identity_from_config(&raw)?,
+            order_permission: account_permission::map_account_order_permission(raw)?,
+        })
     }
 
     pub(crate) async fn account_bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {
@@ -438,4 +414,46 @@ impl OkxAdapter {
             })
             .collect()
     }
+}
+
+fn okx_account_identity_from_config(raw: &Value) -> Result<AccountIdentity> {
+    let exchange = ExchangeId::Okx;
+    let object = raw
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(Value::as_object)
+        .or_else(|| raw.as_object())
+        .ok_or_else(|| Error::Adapter {
+            exchange,
+            message: "OKX account config response missing object".to_owned(),
+        })?;
+    let provider_account_id = string_field(object, "uid")
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| Error::Adapter {
+            exchange,
+            message: "OKX account config response missing uid".to_owned(),
+        })?;
+    let account_level = string_field(object, "acctLv").unwrap_or_default();
+    let margin_mode = okx_account_mode(&account_level).ok_or_else(|| Error::Adapter {
+        exchange,
+        message: "OKX account config returned an unknown acctLv".to_owned(),
+    })?;
+    let position_mode = string_field(object, "posMode")
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| Error::Adapter {
+            exchange,
+            message: "OKX account config response missing posMode".to_owned(),
+        })?;
+    let parent_account_id = okx_parent_account_id(
+        &provider_account_id,
+        string_field(object, "mainUid").filter(|value| !value.trim().is_empty()),
+    );
+    Ok(AccountIdentity {
+        exchange,
+        provider_account_id,
+        parent_account_id,
+        margin_mode: margin_mode.to_owned(),
+        position_mode,
+        settlement_asset: "USDT".to_owned(),
+    })
 }

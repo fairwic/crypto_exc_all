@@ -4,10 +4,11 @@ use super::value::{
 };
 use crate::account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountMarginSummary,
-    AccountOrderPermission, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
-    LeverageInfoQuery, LeverageSetting, MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest,
-    PositionMode, PositionModeSetting, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    AccountOrderPermission, AccountOrderPermissionWithIdentity, Balance,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
+    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
+    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
+    SymbolMarginModeSetting,
 };
 use crate::config::OkxExchangeConfig;
 use crate::error::{Error, Result};

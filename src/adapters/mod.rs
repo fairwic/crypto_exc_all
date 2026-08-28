@@ -1,9 +1,10 @@
 use crate::account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountMarginSummary,
-    AccountOrderPermission, Balance, EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult,
-    LeverageInfoQuery, LeverageSetting, MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting,
-    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
-    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    AccountOrderPermission, AccountOrderPermissionWithIdentity, Balance,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
+    MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting, PrepareOrderSettingsRequest,
+    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
+    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 #[cfg(feature = "binance")]
 use crate::config::BinanceExchangeConfig;
@@ -298,6 +299,37 @@ impl ExchangeClient {
             Self::Hyperliquid(_) => Err(Error::Unsupported {
                 exchange: ExchangeId::Hyperliquid,
                 capability: "account order permission",
+            }),
+        }
+    }
+
+    pub(crate) async fn account_order_permission_with_identity(
+        &self,
+    ) -> Result<AccountOrderPermissionWithIdentity> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.account_order_permission_with_identity().await,
+            #[cfg(feature = "binance")]
+            Self::Binance(adapter) => adapter.account_order_permission_with_identity().await,
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "account order permission with identity",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "account order permission with identity",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "account order permission with identity",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "account order permission with identity",
             }),
         }
     }

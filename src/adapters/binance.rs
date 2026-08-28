@@ -3,10 +3,11 @@ use super::value::{
     map_string_field as string_field, map_u64_field as u64_field, value_string_at, value_u64_at,
 };
 use crate::account::{
-    AccountCapabilities, AccountIdentity, AccountMarginSummary, AccountOrderPermission, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
-    PositionMode, PositionModeSetting, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    AccountCapabilities, AccountIdentity, AccountMarginSummary, AccountOrderPermission,
+    AccountOrderPermissionWithIdentity, Balance, EnsureOrderMarginModeRequest,
+    EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting, PositionMode,
+    PositionModeSetting, SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest,
+    SourcedBalance, SymbolMarginModeSetting,
 };
 use crate::config::BinanceExchangeConfig;
 use crate::error::{Error, Result};
@@ -30,7 +31,7 @@ use binance_rs::api::market::{
     FuturesDataRequest as BinanceFuturesDataRequest, KlineRequest as BinanceKlineRequest,
 };
 use binance_rs::api::trade::{
-    AlgoOrderIdRequest as BinanceAlgoOrderIdRequest, AlgoOrderRequest as BinanceAlgoOrderRequest,
+    AlgoOrderIdRequest as BinanceAlgoOrderIdRequest,
     ChangeLeverageRequest as BinanceChangeLeverageRequest,
     ChangeMarginTypeRequest as BinanceChangeMarginTypeRequest,
     ChangePositionModeRequest as BinanceChangePositionModeRequest,
@@ -55,6 +56,10 @@ mod balance_mapping;
 mod margin_summary;
 #[path = "binance/platform.rs"]
 mod platform;
+#[path = "binance/protective_order.rs"]
+mod protective_order;
+
+use protective_order::binance_protective_order_request;
 
 pub(crate) struct BinanceAdapter {
     account: BinanceAccount,
@@ -439,6 +444,39 @@ impl BinanceAdapter {
 
     /// 映射 Binance USDⓈ-M signed balance/config 的 accountAlias 与账户模式。
     pub(crate) async fn account_identity(&self) -> Result<AccountIdentity> {
+        let provider_account_id = self.provider_account_id().await?;
+        let config = self
+            .account
+            .get_account_config()
+            .await
+            .map_err(Error::from_binance)?;
+        account_permission::map_account_identity(provider_account_id, &config)
+    }
+
+    /// 复用 USDⓈ-M signed accountConfig，只映射官方 `canTrade` 字段。
+    pub(crate) async fn account_order_permission(&self) -> Result<AccountOrderPermission> {
+        let raw = self
+            .account
+            .get_account_config()
+            .await
+            .map_err(Error::from_binance)?;
+        account_permission::map_account_order_permission(&raw)
+    }
+
+    /// 从同一次 USDⓈ-M accountConfig 响应映射账户模式和 `canTrade`。
+    pub(crate) async fn account_order_permission_with_identity(
+        &self,
+    ) -> Result<AccountOrderPermissionWithIdentity> {
+        let provider_account_id = self.provider_account_id().await?;
+        let config = self
+            .account
+            .get_account_config()
+            .await
+            .map_err(Error::from_binance)?;
+        account_permission::map_account_order_permission_with_identity(provider_account_id, &config)
+    }
+
+    async fn provider_account_id(&self) -> Result<String> {
         let exchange = ExchangeId::Binance;
         let balances = self
             .account
@@ -456,57 +494,11 @@ impl BinanceAdapter {
                 message: "Binance balance response has no unique accountAlias".to_owned(),
             });
         }
-        let provider_account_id = aliases
+        Ok(aliases
             .into_iter()
             .next()
             .expect("one alias checked")
-            .to_owned();
-        let config = self
-            .account
-            .get_account_config()
-            .await
-            .map_err(Error::from_binance)?;
-        let object = config.as_object().ok_or_else(|| Error::Adapter {
-            exchange,
-            message: "Binance accountConfig response is not an object".to_owned(),
-        })?;
-        let multi_assets = object
-            .get("multiAssetsMargin")
-            .and_then(Value::as_bool)
-            .ok_or_else(|| Error::Adapter {
-                exchange,
-                message: "Binance accountConfig missing multiAssetsMargin".to_owned(),
-            })?;
-        let dual_side = object
-            .get("dualSidePosition")
-            .and_then(Value::as_bool)
-            .ok_or_else(|| Error::Adapter {
-                exchange,
-                message: "Binance accountConfig missing dualSidePosition".to_owned(),
-            })?;
-        Ok(AccountIdentity {
-            exchange,
-            provider_account_id,
-            parent_account_id: None,
-            margin_mode: if multi_assets {
-                "multi_asset"
-            } else {
-                "single_asset"
-            }
-            .to_owned(),
-            position_mode: if dual_side { "hedge" } else { "one_way" }.to_owned(),
-            settlement_asset: "USDT".to_owned(),
-        })
-    }
-
-    /// 复用 USDⓈ-M signed accountConfig，只映射官方 `canTrade` 字段。
-    pub(crate) async fn account_order_permission(&self) -> Result<AccountOrderPermission> {
-        let raw = self
-            .account
-            .get_account_config()
-            .await
-            .map_err(Error::from_binance)?;
-        account_permission::map_account_order_permission(raw)
+            .to_owned())
     }
 
     pub(crate) async fn set_leverage(
@@ -734,6 +726,12 @@ impl BinanceAdapter {
                 capability: "attached stop loss on place_order",
             });
         }
+        if request.margin_mode.is_some() {
+            return Err(Error::Unsupported {
+                exchange,
+                capability: "order-level margin mode on place_order",
+            });
+        }
 
         let instrument = request.instrument.clone();
         let symbol = instrument.symbol_for(exchange);
@@ -780,7 +778,7 @@ impl BinanceAdapter {
         let symbol = instrument.symbol_for(exchange);
         let raw = self
             .trade
-            .place_algo_order(binance_protective_order_request(&request))
+            .place_algo_order(binance_protective_order_request(&request)?)
             .await
             .map_err(Error::from_binance)?;
 
@@ -1068,36 +1066,6 @@ fn required_price(exchange: ExchangeId, request: &PlaceOrderRequest) -> Result<&
     })
 }
 
-fn binance_protective_order_request(request: &ProtectiveOrderRequest) -> BinanceAlgoOrderRequest {
-    let symbol = request.instrument.symbol_for(ExchangeId::Binance);
-    let mut binance_request =
-        BinanceAlgoOrderRequest::stop_market(symbol, request.side.upper(), &request.stop_price);
-
-    if let Some(position_side) = request.position_side.as_deref() {
-        binance_request = binance_request.with_position_side(position_side.to_ascii_uppercase());
-    }
-    if let Some(quantity) = request.quantity.as_deref() {
-        binance_request = binance_request.with_quantity(quantity);
-    }
-    if let Some(reduce_only) = request.reduce_only {
-        binance_request = binance_request.with_reduce_only(reduce_only);
-    }
-    if let Some(close_position) = request.close_position {
-        binance_request = binance_request.with_close_position(close_position);
-    }
-    if let Some(working_type) = request.working_type {
-        binance_request = binance_request.with_working_type(working_type.binance_value());
-    }
-    if let Some(price_protect) = request.price_protect {
-        binance_request = binance_request.with_price_protect(price_protect);
-    }
-    if let Some(client_order_id) = request.client_order_id.as_deref() {
-        binance_request = binance_request.with_client_algo_id(client_order_id);
-    }
-
-    binance_request
-}
-
 fn binance_algo_order_id_request(
     exchange: ExchangeId,
     order_id: Option<&str>,
@@ -1140,56 +1108,6 @@ fn binance_time_in_force(value: Option<TimeInForce>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::trade::{OrderSide, ProtectiveOrderRequest, ProtectiveOrderWorkingType};
-
-    #[test]
-    fn maps_protective_stop_market_request_to_binance_algo_order_params() {
-        let request = ProtectiveOrderRequest::stop_market(
-            Instrument::perp("ETH", "USDT"),
-            OrderSide::Sell,
-            "2200",
-        )
-        .with_position_side("LONG")
-        .with_close_position(true)
-        .with_working_type(ProtectiveOrderWorkingType::MarkPrice)
-        .with_price_protect(true)
-        .with_client_order_id("sl-rqethopen3");
-
-        let mapped = binance_protective_order_request(&request);
-        let params = mapped.to_params();
-
-        assert_eq!(mapped.order_type, "STOP_MARKET");
-        assert!(params.contains(&("algoType", "CONDITIONAL".to_string())));
-        assert!(params.contains(&("symbol", "ETHUSDT".to_string())));
-        assert!(params.contains(&("side", "SELL".to_string())));
-        assert!(params.contains(&("type", "STOP_MARKET".to_string())));
-        assert!(params.contains(&("triggerPrice", "2200".to_string())));
-        assert!(params.contains(&("positionSide", "LONG".to_string())));
-        assert!(!params.iter().any(|(key, _)| *key == "reduceOnly"));
-        assert!(params.contains(&("closePosition", "true".to_string())));
-        assert!(params.contains(&("workingType", "MARK_PRICE".to_string())));
-        assert!(params.contains(&("priceProtect", "true".to_string())));
-        assert!(params.contains(&("clientAlgoId", "sl-rqethopen3".to_string())));
-    }
-
-    #[test]
-    fn maps_fixed_size_protective_stop_market_request_to_binance_algo_order_params() {
-        let request = ProtectiveOrderRequest::stop_market(
-            Instrument::perp("ETH", "USDT"),
-            OrderSide::Sell,
-            "2200",
-        )
-        .with_position_side("LONG")
-        .with_quantity("0.012")
-        .with_working_type(ProtectiveOrderWorkingType::MarkPrice)
-        .with_price_protect(true)
-        .with_client_order_id("sl-rqethopen3");
-
-        let params = binance_protective_order_request(&request).to_params();
-
-        assert!(params.contains(&("quantity", "0.012".to_string())));
-        assert!(!params.iter().any(|(key, _)| *key == "closePosition"));
-    }
 
     #[test]
     fn maps_binance_algo_order_query_response_to_protective_order() {

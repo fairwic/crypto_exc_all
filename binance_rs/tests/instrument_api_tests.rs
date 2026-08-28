@@ -65,7 +65,6 @@ async fn typed_exchange_info_preserves_wire_fields_unknowns_and_http_evidence() 
                     "quotePrecision": 8,
                     "underlyingType": "COIN",
                     "underlyingSubType": ["PoW"],
-                    "settlePlan": 0,
                     "triggerProtect": 1e-8,
                     "filters": [
                         {
@@ -140,6 +139,7 @@ async fn typed_exchange_info_preserves_wire_fields_unknowns_and_http_evidence() 
 
     let symbol = &response.data.symbols[0];
     assert_eq!(symbol.status, "FUTURE_PROVIDER_STATUS");
+    assert_eq!(symbol.settle_plan, None);
     assert!(symbol.extra.contains_key("newLifecycleField"));
     match &symbol.trigger_protect {
         BinanceWireDecimal::Number(value) => assert_eq!(value.to_string(), "1e-8"),

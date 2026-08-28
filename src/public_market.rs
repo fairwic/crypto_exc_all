@@ -2,7 +2,10 @@
 mod binance;
 
 #[cfg(feature = "binance-public-kline")]
-pub use binance::{BinanceUsdmPublicKlineClient, BinanceUsdmPublicKlineConfig};
+pub use binance::{
+    BinanceUsdmPublicKlineClient, BinanceUsdmPublicKlineConfig, BinanceUsdmPublicMarkPriceClient,
+    BinanceUsdmPublicMarkPriceConfig,
+};
 #[cfg(feature = "binance-public-kline")]
 pub use binance_rs::Error as BinancePublicMarketSdkError;
 #[cfg(feature = "binance-public-kline")]
@@ -13,7 +16,7 @@ pub use binance_rs::client::{
     BinancePublicResponse,
 };
 #[cfg(feature = "binance-public-kline")]
-pub use binance_rs::dto::market::{BinanceUsdmKline, BinanceWireDecimal};
+pub use binance_rs::dto::market::{BinanceUsdmKline, BinanceUsdmMarkPrice, BinanceWireDecimal};
 
 /// Binance 公共 Market 门面的返回类型。
 #[cfg(feature = "binance-public-kline")]

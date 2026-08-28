@@ -140,7 +140,7 @@ impl<'a> OrderFacade<'a> {
         self.client.protective_order(query).await
     }
 
-    /// 返回账户级未触发保护条件单；当前只有 OKX SWAP 提供完整实现。
+    /// 返回账户级未触发条件单；OKX 与 Binance 均不丢弃未知活动算法单。
     pub async fn open_protective_orders(&self) -> Result<Vec<Order>> {
         self.client.open_protective_orders().await
     }

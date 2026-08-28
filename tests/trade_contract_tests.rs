@@ -217,6 +217,43 @@ async fn unsupported_attached_stop_loss_is_rejected_before_place_order_submissio
 }
 
 #[tokio::test]
+async fn binance_rejects_order_level_margin_mode_before_place_order_submission() {
+    let mut binance_server = Server::new_async().await;
+    let place = binance_server
+        .mock("POST", "/fapi/v1/order")
+        .expect(0)
+        .create_async()
+        .await;
+    let sdk = configured_all_order_sdk(
+        binance_server.url(),
+        "https://okx.invalid".to_string(),
+        "https://bitget.invalid".to_string(),
+        "https://bybit.invalid".to_string(),
+        "https://gate.invalid".to_string(),
+        "https://hyperliquid.invalid".to_string(),
+    );
+
+    let result = sdk
+        .trade(ExchangeId::Binance)
+        .expect("Binance trade facade")
+        .place_order(
+            PlaceOrderRequest::market(Instrument::perp("ETH", "USDT"), OrderSide::Buy, "0.01")
+                .with_margin_mode(crypto_exc_all::MarginMode::Isolated)
+                .with_position_side("long"),
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(Error::Unsupported {
+            exchange: ExchangeId::Binance,
+            capability: "order-level margin mode on place_order",
+        })
+    ));
+    place.assert_async().await;
+}
+
+#[tokio::test]
 async fn okx_protective_cancellation_uses_algo_order_endpoint_and_identity() {
     let mut okx_server = Server::new_async().await;
     let cancel = okx_server

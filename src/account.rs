@@ -74,6 +74,13 @@ pub struct AccountOrderPermission {
     pub source_revision: String,
 }
 
+/// 账户身份，以及同一次 signed account-config 响应产生的账户模式与下单权限。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AccountOrderPermissionWithIdentity {
+    pub identity: AccountIdentity,
+    pub order_permission: AccountOrderPermission,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AccountBill {
     pub exchange: ExchangeId,
@@ -538,6 +545,13 @@ impl<'a> AccountFacade<'a> {
     /// 读取 provider 的 signed 下单权限；用户授权、账户状态与风险判断仍由 Core 负责。
     pub async fn order_permission(&self) -> Result<AccountOrderPermission> {
         self.client.account_order_permission().await
+    }
+
+    /// 使用同一次 signed account-config 响应读取账户模式与下单权限。
+    pub async fn order_permission_with_identity(
+        &self,
+    ) -> Result<AccountOrderPermissionWithIdentity> {
+        self.client.account_order_permission_with_identity().await
     }
 
     pub async fn bills(&self, query: AccountBillQuery) -> Result<Vec<AccountBill>> {

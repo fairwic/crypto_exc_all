@@ -1,5 +1,7 @@
 use crypto_exc_all::{BinanceExchangeConfig, CryptoSdk, ExchangeId, OkxExchangeConfig, SdkConfig};
 use mockito::{Matcher, Server};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Binance `canTrade` 是 provider 协议事实；SDK 不把它提升为业务准入结论。
 #[tokio::test]
@@ -139,6 +141,56 @@ async fn binance_account_identity_maps_dual_side_position_to_hedge() {
 
     assert_eq!(identity.margin_mode, "single_asset");
     assert_eq!(identity.position_mode, "hedge");
+    balance.assert_async().await;
+    account_config.assert_async().await;
+}
+
+/// accountConfig 在两次请求之间切换时，原子 facade 不能拼出跨代模式和权限。
+#[tokio::test]
+async fn binance_order_permission_and_modes_come_from_one_account_config_response() {
+    let mut server = Server::new_async().await;
+    let balance = server
+        .mock("GET", "/fapi/v2/balance")
+        .match_header("x-mbx-apikey", "binance-key")
+        .match_query(Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"[{"accountAlias":"alpha","asset":"USDT","balance":"100","crossWalletBalance":"100","crossUnPnl":"0","availableBalance":"100","maxWithdrawAmount":"100","marginAvailable":true,"updateTime":1}]"#,
+        )
+        .create_async()
+        .await;
+    let request_count = Arc::new(AtomicUsize::new(0));
+    let response_count = Arc::clone(&request_count);
+    let account_config = server
+        .mock("GET", "/fapi/v1/accountConfig")
+        .match_header("x-mbx-apikey", "binance-key")
+        .match_query(Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body_from_request(move |_| {
+            if response_count.fetch_add(1, Ordering::SeqCst) == 0 {
+                br#"{"multiAssetsMargin":false,"dualSidePosition":true,"canTrade":false}"#.to_vec()
+            } else {
+                br#"{"multiAssetsMargin":true,"dualSidePosition":false,"canTrade":true}"#.to_vec()
+            }
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let sdk = binance_sdk(server.url());
+
+    let signed = sdk
+        .account(ExchangeId::Binance)
+        .expect("binance account facade")
+        .order_permission_with_identity()
+        .await
+        .expect("atomic signed account configuration");
+
+    assert_eq!(signed.identity.margin_mode, "single_asset");
+    assert_eq!(signed.identity.position_mode, "hedge");
+    assert!(!signed.order_permission.can_create_orders);
+    assert_eq!(request_count.load(Ordering::SeqCst), 1);
     balance.assert_async().await;
     account_config.assert_async().await;
 }
