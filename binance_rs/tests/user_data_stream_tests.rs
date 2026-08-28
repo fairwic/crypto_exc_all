@@ -50,7 +50,7 @@ async fn user_data_session_owns_listen_key_and_uses_official_private_path() {
     let websocket = BinanceWebsocket::with_stream_config(client, stream_base_url, None);
     let mut session = BinanceUserDataStreamSession::open(websocket).await.unwrap();
 
-    assert_eq!(path_rx.await.unwrap(), "/private/ws/listen-key");
+    assert_eq!(path_rx.await.unwrap(), "/ws/listen-key");
     assert_eq!(
         timeout(Duration::from_secs(1), session.recv_json())
             .await

@@ -82,7 +82,7 @@ fn websocket_url_builders_use_split_binance_futures_routes() {
     );
     assert_eq!(
         websocket.private_ws_url("listen-key").unwrap(),
-        "wss://fstream.binance.com/private/ws/listen-key"
+        "wss://fstream.binance.com/ws/listen-key"
     );
     assert_eq!(
         websocket.public_route_ws_url(),

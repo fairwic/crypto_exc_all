@@ -142,10 +142,7 @@ impl BinanceWebsocket {
     /// 构造 USDⓈ-M 私有用户流地址；listenKey 是路径段，不是订阅参数。
     pub fn private_ws_url(&self, listen_key: &str) -> Result<String, Error> {
         validate_listen_key(listen_key)?;
-        Ok(format!(
-            "{}/private/ws/{listen_key}",
-            self.stream_base_url()
-        ))
+        Ok(format!("{}/ws/{listen_key}", self.stream_base_url()))
     }
 
     fn ws_path_url<S: AsRef<str>>(&self, route: &str, mode: &str, streams: &[S]) -> String {
