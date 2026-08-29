@@ -45,13 +45,15 @@ use okx_rs::dto::{
     TickerOkxResDto,
 };
 use okx_rs::websocket::OkxPrivateAccountStreamClient;
-use okx_rs::{OkxAccount, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
+use okx_rs::{OkxAccount, OkxAsset, OkxBigData, OkxClient, OkxMarket, OkxPublicData, OkxTrade};
 use serde_json::{Value, json};
 
 #[path = "okx/account.rs"]
 mod account;
 #[path = "okx/account_permission.rs"]
 mod account_permission;
+#[path = "okx/funding_account_balance.rs"]
+mod funding_account_balance;
 #[path = "okx/margin_summary.rs"]
 mod margin_summary;
 #[path = "okx/market.rs"]
@@ -74,6 +76,7 @@ use self::trade_request::{attached_exit_orders, order_type};
 
 pub(crate) struct OkxAdapter {
     account: OkxAccount,
+    asset: OkxAsset,
     announcements: OkxAnnouncements,
     big_data: OkxBigData,
     market: OkxMarket,
@@ -105,6 +108,7 @@ impl OkxAdapter {
 
         Ok(Self {
             account: <OkxAccount as OkxApiTrait>::new(client.clone()),
+            asset: <OkxAsset as OkxApiTrait>::new(client.clone()),
             announcements: <OkxAnnouncements as OkxApiTrait>::new(client.clone()),
             big_data: <OkxBigData as OkxApiTrait>::new(client.clone()),
             market: <OkxMarket as OkxApiTrait>::new(client.clone()),

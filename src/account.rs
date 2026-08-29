@@ -16,6 +16,17 @@ pub struct Balance {
     pub raw: Value,
 }
 
+/// Provider 资金账户中的资产余额；该值不代表衍生品交易账户可用保证金。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FundingAccountBalance {
+    pub exchange: ExchangeId,
+    pub asset: String,
+    pub total: String,
+    pub available: String,
+    pub frozen: Option<String>,
+    pub raw: Value,
+}
+
 /// 带 provider 更新时间的余额读取结果；旧 `Balance` 合同保持不变。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SourcedBalance {
@@ -530,6 +541,14 @@ impl<'a> AccountFacade<'a> {
     /// 读取带 provider 更新时间的 OKX/Binance 余额，供 snapshot/stream 因果合并。
     pub async fn sourced_balances(&self) -> Result<Vec<SourcedBalance>> {
         self.client.sourced_balances().await
+    }
+
+    /// 读取独立资金账户余额；当前只有 OKX 提供等价能力。
+    pub async fn funding_account_balances(
+        &self,
+        asset: Option<&str>,
+    ) -> Result<Vec<FundingAccountBalance>> {
+        self.client.funding_account_balances(asset).await
     }
 
     /// 读取同一报价币的 signed 保证金摘要；无法等价表达时返回错误。

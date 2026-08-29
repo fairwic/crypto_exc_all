@@ -61,10 +61,11 @@ pub mod raw {
 pub use account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountFacade, AccountIdentity,
     AccountMarginSummary, AccountOrderPermission, AccountOrderPermissionWithIdentity, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
-    MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest, PositionMode, PositionModeSetting,
-    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
-    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, FundingAccountBalance,
+    LeverageInfoQuery, LeverageSetting, MarginModeApplyMethod, MaxOrderSize, MaxOrderSizeRequest,
+    PositionMode, PositionModeSetting, PrepareOrderSettingsRequest, PrepareOrderSettingsResult,
+    SetLeverageRequest, SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance,
+    SymbolMarginModeSetting,
 };
 #[cfg(feature = "full-sdk")]
 pub use config::{

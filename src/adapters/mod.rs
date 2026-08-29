@@ -1,10 +1,10 @@
 use crate::account::{
     AccountBill, AccountBillQuery, AccountCapabilities, AccountIdentity, AccountMarginSummary,
     AccountOrderPermission, AccountOrderPermissionWithIdentity, Balance,
-    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, LeverageInfoQuery, LeverageSetting,
-    MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting, PrepareOrderSettingsRequest,
-    PrepareOrderSettingsResult, SetLeverageRequest, SetPositionModeRequest,
-    SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
+    EnsureOrderMarginModeRequest, EnsureOrderMarginModeResult, FundingAccountBalance,
+    LeverageInfoQuery, LeverageSetting, MaxOrderSize, MaxOrderSizeRequest, PositionModeSetting,
+    PrepareOrderSettingsRequest, PrepareOrderSettingsResult, SetLeverageRequest,
+    SetPositionModeRequest, SetSymbolMarginModeRequest, SourcedBalance, SymbolMarginModeSetting,
 };
 #[cfg(feature = "binance")]
 use crate::config::BinanceExchangeConfig;
@@ -208,6 +208,42 @@ impl ExchangeClient {
             Self::Hyperliquid(_) => Err(Error::Unsupported {
                 exchange: ExchangeId::Hyperliquid,
                 capability: "sourced account balances",
+            }),
+        }
+    }
+
+    /// 资金账户与交易账户必须保持语义分离；不支持的平台返回明确错误。
+    pub(crate) async fn funding_account_balances(
+        &self,
+        asset: Option<&str>,
+    ) -> Result<Vec<FundingAccountBalance>> {
+        match self {
+            #[cfg(feature = "okx")]
+            Self::Okx(adapter) => adapter.funding_account_balances(asset).await,
+            #[cfg(feature = "binance")]
+            Self::Binance(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Binance,
+                capability: "funding account balances",
+            }),
+            #[cfg(feature = "bitget")]
+            Self::Bitget(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bitget,
+                capability: "funding account balances",
+            }),
+            #[cfg(feature = "bybit")]
+            Self::Bybit(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Bybit,
+                capability: "funding account balances",
+            }),
+            #[cfg(feature = "gate")]
+            Self::Gate(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Gate,
+                capability: "funding account balances",
+            }),
+            #[cfg(feature = "hyperliquid")]
+            Self::Hyperliquid(_) => Err(Error::Unsupported {
+                exchange: ExchangeId::Hyperliquid,
+                capability: "funding account balances",
             }),
         }
     }
