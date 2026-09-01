@@ -6,6 +6,8 @@ pub mod asset;
 pub mod big_data;
 #[cfg(feature = "full")]
 pub mod common;
+#[cfg(feature = "public-market")]
+pub mod copy_trading;
 pub mod market;
 #[cfg(feature = "public-market")]
 pub mod public_data;

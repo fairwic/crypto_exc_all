@@ -19,6 +19,8 @@ pub mod websocket;
 /// OKX SDK的版本
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[cfg(feature = "public-market")]
+pub use api::copy_trading::OkxPublicLeadTraders;
 pub use api::market::OkxMarket;
 #[cfg(feature = "public-market")]
 pub use api::public_data::OkxPublicInstruments;
@@ -32,6 +34,10 @@ pub use client::OkxClient;
 #[cfg(feature = "public-market")]
 pub use client::{
     OkxPublicFailureEvidence, OkxPublicFailureKind, OkxPublicResponse, OkxPublicResponseEvidence,
+};
+#[cfg(feature = "public-market")]
+pub use dto::copy_trading::{
+    OkxPublicLeadTraderPage, OkxPublicLeadTraderPnlRatio, OkxPublicLeadTraderRank,
 };
 #[cfg(feature = "public-market")]
 pub use dto::public_data::OkxPublicInstrument;

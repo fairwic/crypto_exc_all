@@ -89,6 +89,11 @@ pub use market::{
 pub use okx_rs::websocket::{
     OkxPublicCandleStreamClient, OkxPublicCandleStreamSession, OkxPublicCandleUpdate,
 };
+#[cfg(feature = "okx-public-market")]
+pub use okx_rs::{
+    OkxPublicLeadTraderPage, OkxPublicLeadTraderPnlRatio, OkxPublicLeadTraderRank,
+    OkxPublicLeadTraders,
+};
 #[cfg(feature = "full-sdk")]
 pub use order::{Order, OrderFacade, OrderListQuery, OrderQuery};
 #[cfg(feature = "full-sdk")]
