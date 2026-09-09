@@ -5,6 +5,9 @@ pub mod manager;
 mod models;
 mod private_account_stream;
 mod public_candle_stream;
+mod public_ticker_stream;
+mod socket_transport;
+pub use public_ticker_stream::OkxPublicTickerStream;
 
 pub use channel::{Args, ChannelType};
 pub use client::OkxWebsocketClient;
